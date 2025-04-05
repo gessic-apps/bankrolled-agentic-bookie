@@ -1,251 +1,90 @@
 {
   "marketFactory": {
-    "address": "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9",
+    "address": "0x4A679253410272dd5232B3Ff7cF5dbB88f295319",
     "oddsProvider": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
     "resultsProvider": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
-    "deployedAt": "2025-04-04T17:09:07.723Z"
+    "deployedAt": "2025-04-05T17:30:34.591Z"
   },
   "markets": [
     {
-      "address": "0xa16E02E87b7454126E5E10d957A927A7F5B5d2be",
-      "homeTeam": "Lakers",
-      "awayTeam": "Celtics",
-      "gameTimestamp": 1743870060,
-      "homeOdds": 1850,
-      "awayOdds": 2000,
-      "oddsSet": true,
-      "createdAt": "2025-04-04T16:22:21.947Z"
-    },
-    {
-      "address": "0xB7A5bd0345EF1Cc5E66bf61BdeC17D2461fBd968",
-      "homeTeam": "Lakers",
-      "awayTeam": "Celtics",
-      "gameTimestamp": 1743870060,
-      "homeOdds": 0,
-      "awayOdds": 0,
-      "oddsSet": false,
-      "createdAt": "2025-04-04T16:22:34.365Z"
-    },
-    {
-      "address": "0xCafac3dD18aC6c6e92c921884f9E4176737C052c",
-      "homeTeam": "Lakers",
-      "awayTeam": "Celtics",
-      "gameTimestamp": 1743870312,
-      "homeOdds": 0,
-      "awayOdds": 0,
-      "oddsSet": false,
-      "createdAt": "2025-04-04T16:25:42.109Z"
-    },
-    {
-      "address": "0x9f1ac54BEF0DD2f6f3462EA0fa94fC62300d3a8e",
-      "homeTeam": "Lakers",
-      "awayTeam": "Celtics",
-      "gameTimestamp": 1743870312,
-      "homeOdds": 0,
-      "awayOdds": 0,
-      "oddsSet": false,
-      "createdAt": "2025-04-04T16:25:42.114Z"
-    },
-    {
-      "address": "0x856e4424f806D16E8CBC702B3c0F2ede5468eae5",
-      "homeTeam": "Lakers",
-      "awayTeam": "Celtics",
-      "gameTimestamp": 1743872943,
-      "homeOdds": 1941,
-      "awayOdds": 2050,
-      "oddsSet": true,
-      "createdAt": "2025-04-04T17:09:11.456Z",
-      "updatedAt": "2025-04-04T17:09:14.915Z"
-    },
-    {
-      "address": "0xb0279Db6a2F1E01fbC8483FCCef0Be2bC6299cC3",
-      "homeTeam": "Warriors",
-      "awayTeam": "Bulls",
-      "gameTimestamp": "1749789016",
-      "homeOdds": 0,
-      "awayOdds": 0,
-      "oddsSet": false,
-      "createdAt": "2025-04-04T17:50:30.386Z"
-    },
-    {
-      "address": "0x3dE2Da43d4c1B137E385F36b400507c1A24401f8",
-      "homeTeam": "Warriors",
-      "awayTeam": "Bulls",
-      "gameTimestamp": "1749789016",
-      "homeOdds": 0,
-      "awayOdds": 0,
-      "oddsSet": false,
-      "createdAt": "2025-04-04T17:58:37.074Z"
-    },
-    {
-      "address": "0xddEA3d67503164326F90F53CFD1705b90Ed1312D",
-      "homeTeam": "Warriors",
-      "awayTeam": "Bulls",
-      "gameTimestamp": "1749789016",
-      "homeOdds": 0,
-      "awayOdds": 0,
-      "oddsSet": false,
-      "createdAt": "2025-04-04T18:30:24.814Z"
-    },
-    {
-      "address": "0xAbB608121Fd652F112827724B28a61e09f2dcDf4",
-      "homeTeam": "Warriors",
-      "awayTeam": "Bulls",
-      "gameTimestamp": "1749789016",
-      "homeOdds": 0,
-      "awayOdds": 0,
-      "oddsSet": false,
-      "createdAt": "2025-04-04T18:30:37.456Z"
-    },
-    {
-      "address": "0x7e919252cd379Aef5f911Eae090fF6b4909b78C6",
-      "homeTeam": "Lakers",
-      "awayTeam": "Warriors",
-      "gameTimestamp": 1743877872,
-      "homeOdds": 0,
-      "awayOdds": 0,
-      "oddsSet": false,
-      "createdAt": "2025-04-04T18:31:12.091Z"
-    },
-    {
-      "address": "0x4669E130DF0CB41f351CCd24383E226A5E0846b0",
-      "homeTeam": "Warriors",
-      "awayTeam": "Bulls",
-      "gameTimestamp": "1749789016",
-      "homeOdds": 0,
-      "awayOdds": 0,
-      "oddsSet": false,
-      "createdAt": "2025-04-05T16:44:22.124Z"
-    },
-    {
-      "address": "0xe2911AE3ab2d6C0C55C0d81FD69Cb7dd99B4b3bc",
-      "homeTeam": "Lakers",
-      "awayTeam": "Warriors",
-      "gameTimestamp": 1743957910,
-      "homeOdds": 0,
-      "awayOdds": 0,
-      "oddsSet": false,
-      "createdAt": "2025-04-05T16:45:10.339Z"
-    },
-    {
-      "address": "0x95Eb80e6aBb5D8de0a75bE2822AD1E10efFe9F51",
-      "homeTeam": "Atlanta Hawks",
-      "awayTeam": "New York Knicks",
-      "gameTimestamp": 1743880200,
-      "homeOdds": 2000,
-      "awayOdds": 2000,
-      "oddsSet": true,
-      "createdAt": "2025-04-05T17:00:53.221Z"
-    },
-    {
-      "address": "0xa0FA9cfEC8B6F8E0C3C7edBbBA3Ae5237FF6D4f3",
-      "homeTeam": "Detroit Pistons",
-      "awayTeam": "Memphis Grizzlies",
-      "gameTimestamp": 1743894600,
-      "homeOdds": 2000,
-      "awayOdds": 2000,
-      "oddsSet": true,
-      "createdAt": "2025-04-05T17:00:53.252Z"
-    },
-    {
-      "address": "0x0826D2aB7a1239D8661D3808c0820154187972bF",
-      "homeTeam": "Philadelphia 76ers",
-      "awayTeam": "Minnesota Timberwolves",
-      "gameTimestamp": 1743894600,
-      "homeOdds": 2000,
-      "awayOdds": 2000,
-      "oddsSet": true,
-      "createdAt": "2025-04-05T17:00:53.278Z"
-    },
-    {
-      "address": "0xed90C8749D4EEf99B91Cf91A66A60AD8eDf016FB",
-      "homeTeam": "Miami Heat",
-      "awayTeam": "Milwaukee Bucks",
-      "gameTimestamp": 1743898200,
-      "homeOdds": 2000,
-      "awayOdds": 2000,
-      "oddsSet": true,
-      "createdAt": "2025-04-05T17:00:53.304Z"
-    },
-    {
-      "address": "0x0Ad88a8d0B6b51006e69Ba34BC5914b90E513A36",
-      "homeTeam": "Los Angeles Clippers",
-      "awayTeam": "Dallas Mavericks",
-      "gameTimestamp": 1743907200,
-      "homeOdds": 2000,
-      "awayOdds": 2000,
-      "oddsSet": true,
-      "createdAt": "2025-04-05T17:00:53.328Z"
-    },
-    {
-      "address": "0x8271373aC5cD66E9e7dC752c0e39da5d12988Ec6",
-      "homeTeam": "Oklahoma City Thunder",
-      "awayTeam": "Los Angeles Lakers",
-      "gameTimestamp": 1743968400,
-      "homeOdds": 2000,
-      "awayOdds": 2000,
-      "oddsSet": true,
-      "createdAt": "2025-04-05T17:00:53.353Z"
-    },
-    {
-      "address": "0x86dba7236d08c39e84053c19Ea3b7819179b8172",
+      "address": "0xf3eE3C4Ec25e8414838567818A30C90c7d62f834",
       "homeTeam": "Atlanta Hawks",
       "awayTeam": "New York Knicks",
       "gameTimestamp": 1743880200,
       "homeOdds": 0,
       "awayOdds": 0,
       "oddsSet": false,
-      "createdAt": "2025-04-05T17:02:39.055Z"
+      "createdAt": "2025-04-05T17:31:06.490Z"
     },
     {
-      "address": "0x764D7567C9e6396f31A19c1E7E3b0544ca4b9537",
+      "address": "0x532B02BD614Fd18aEE45603d02866cFb77575CB3",
       "homeTeam": "Detroit Pistons",
       "awayTeam": "Memphis Grizzlies",
       "gameTimestamp": 1743894600,
       "homeOdds": 0,
       "awayOdds": 0,
       "oddsSet": false,
-      "createdAt": "2025-04-05T17:02:39.083Z"
+      "createdAt": "2025-04-05T17:31:06.512Z"
     },
     {
-      "address": "0xB8A5a4F07352F573EcEb50EbC493C5F23792B9Bd",
+      "address": "0xE801273F775Eacc1d74d1d43f92ec4524caBBD35",
       "homeTeam": "Philadelphia 76ers",
       "awayTeam": "Minnesota Timberwolves",
       "gameTimestamp": 1743894600,
       "homeOdds": 0,
       "awayOdds": 0,
       "oddsSet": false,
-      "createdAt": "2025-04-05T17:02:39.106Z"
+      "createdAt": "2025-04-05T17:31:06.534Z"
     },
     {
-      "address": "0x8f5b123cD2b3676b9fc14Dbd818431e42c247BC8",
+      "address": "0x2e0331F1e8f1baEBA5A28F6C127c6f6aE8dEd3D5",
       "homeTeam": "Miami Heat",
       "awayTeam": "Milwaukee Bucks",
       "gameTimestamp": 1743898200,
       "homeOdds": 0,
       "awayOdds": 0,
       "oddsSet": false,
-      "createdAt": "2025-04-05T17:02:39.129Z"
+      "createdAt": "2025-04-05T17:31:06.555Z"
     },
     {
-      "address": "0xB59c1CECa35b494fAa48eD2E49E0CD15966358fC",
+      "address": "0x5Cb5e52600668c31c20251eeF4E061D36CE2d6B0",
       "homeTeam": "Los Angeles Clippers",
       "awayTeam": "Dallas Mavericks",
       "gameTimestamp": 1743907200,
       "homeOdds": 0,
       "awayOdds": 0,
       "oddsSet": false,
-      "createdAt": "2025-04-05T17:02:39.152Z"
+      "createdAt": "2025-04-05T17:31:06.575Z"
     },
     {
-      "address": "0x579DbC2D1e7a095C91818d8047a98FAaDa7d49d9",
+      "address": "0x815b1008f769e9CDD38e4A3fe2236FD56aD508D8",
       "homeTeam": "Oklahoma City Thunder",
       "awayTeam": "Los Angeles Lakers",
       "gameTimestamp": 1743968400,
       "homeOdds": 0,
       "awayOdds": 0,
       "oddsSet": false,
-      "createdAt": "2025-04-05T17:02:39.173Z"
+      "createdAt": "2025-04-05T17:31:06.595Z"
+    },
+    {
+      "address": "0xBd044B6d1194ADc104a4D97D7287d7F7964E728C",
+      "homeTeam": "New York Knicks",
+      "awayTeam": "Phoenix Suns",
+      "gameTimestamp": 1743981000,
+      "homeOdds": 0,
+      "awayOdds": 0,
+      "oddsSet": false,
+      "createdAt": "2025-04-05T17:31:06.615Z"
+    },
+    {
+      "address": "0x0142ff2FF35AA8322a0b7aA42Ae91d5D047d6809",
+      "homeTeam": "Golden State Warriors",
+      "awayTeam": "Houston Rockets",
+      "gameTimestamp": 1743986400,
+      "homeOdds": 0,
+      "awayOdds": 0,
+      "oddsSet": false,
+      "createdAt": "2025-04-05T17:31:06.636Z"
     }
   ]
 }

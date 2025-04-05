@@ -21,28 +21,28 @@ async function main() {
   console.log("MarketFactory deployed to:", factory.address);
   
   // Optional: Deploy a sample market for testing
-  if (process.env.DEPLOY_SAMPLE_MARKET === "true") {
-    console.log("Deploying a sample NBA market...");
+  // if (process.env.DEPLOY_SAMPLE_MARKET === "true") {
+  //   console.log("Deploying a sample NBA market...");
     
-    // Current time + 1 day
-    const gameTimestamp = Math.floor(Date.now() / 1000) + 86400;
+  //   // Current time + 1 day
+  //   const gameTimestamp = Math.floor(Date.now() / 1000) + 86400;
     
-    const tx = await factory.createMarket(
-      "Lakers",    // Home team
-      "Celtics",   // Away team
-      gameTimestamp,
-      6000,        // Home odds (60.00%)
-      5000         // Away odds (50.00%)
-    );
+  //   const tx = await factory.createMarket(
+  //     "Lakers",    // Home team
+  //     "Celtics",   // Away team
+  //     gameTimestamp,
+  //     6000,        // Home odds (60.00%)
+  //     5000         // Away odds (50.00%)
+  //   );
     
-    const receipt = await tx.wait();
+  //   const receipt = await tx.wait();
     
-    // Find the MarketCreated event to get the market address
-    const marketCreatedEvent = receipt.events.find(event => event.event === "MarketCreated");
-    const marketAddress = marketCreatedEvent.args[0];
+  //   // Find the MarketCreated event to get the market address
+  //   const marketCreatedEvent = receipt.events.find(event => event.event === "MarketCreated");
+  //   const marketAddress = marketCreatedEvent.args[0];
     
-    console.log("Sample NBA market deployed to:", marketAddress);
-  }
+  //   console.log("Sample NBA market deployed to:", marketAddress);
+  // }
 }
 
 main()
