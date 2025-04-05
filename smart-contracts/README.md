@@ -6,8 +6,23 @@ Smart contracts for an autonomous, decentralized sportsbook that operates throug
 
 This project implements the core smart contracts for a decentralized sportsbook focused on NBA games:
 
+- `USDX.sol`: ERC20 token with 1M supply used for betting
+- `LiquidityPool.sol`: Manages the sportsbook's funds
 - `NBAMarket.sol`: Individual betting market for an NBA game
+- `BettingEngine.sol`: Handles the betting logic and settlement for a market
 - `MarketFactory.sol`: Factory contract to deploy new markets
+
+## System Architecture
+
+1. The system starts with 1M USDX tokens in the Liquidity Pool
+2. When a market is created, an NBAMarket contract is deployed along with its BettingEngine
+3. The Liquidity Pool transfers funds to the BettingEngine
+4. Users can place bets on markets using USDX tokens through the NBAMarket contract
+5. The NBAMarket delegates the bet handling to its BettingEngine contract
+6. When a bet is placed, funds are locked in the BettingEngine contract
+7. After the game ends, the results provider sets the outcome in the NBAMarket
+8. The NBAMarket triggers the BettingEngine to settle all bets
+9. Winning bets are paid out, and remaining funds are returned to the Liquidity Pool
 
 ## Setup
 
@@ -45,52 +60,90 @@ Start a local Hardhat node:
 npx hardhat node
 ```
 
-Deploy to local node:
+Deploy the contracts in sequence:
 
 ```bash
-npm run deploy:local
+# 1. Deploy USDX token and Liquidity Pool
+npx hardhat run scripts/deploy-liquidity.js --network localhost
+
+# 2. Deploy Market Factory
+npx hardhat run scripts/deploy-factory.js --network localhost
 ```
 
-### Testnet deployment
+## Creating Markets and Placing Bets
 
-Set your environment variables:
+### Create a Market
 
 ```bash
-export TESTNET_RPC_URL="https://your-testnet-rpc-url"
-export PRIVATE_KEY="your-private-key"
+npx hardhat run scripts/create-market.js --network <network> "Lakers" "Celtics" 1680307200 "NBA_LAL_BOS_20230405" 1850 2000 50000
 ```
 
-Deploy to testnet:
+Parameters:
+- Home team name
+- Away team name
+- Game timestamp (Unix timestamp)
+- Odds API ID (for reference)
+- Home odds (optional, in basis points, e.g., 1850 = 1.85)
+- Away odds (optional, in basis points)
+- Market funding (optional, in USDX tokens)
+
+### Place a Bet
 
 ```bash
-npm run deploy:testnet
+npx hardhat run scripts/place-bet.js --network <network> <marketAddress> <betAmount> <onHomeTeam>
 ```
 
-## Creating Markets
+Parameters:
+- Market address
+- Bet amount in USDX tokens
+- onHomeTeam: true to bet on home team, false to bet on away team
 
-To create markets for today's NBA games:
+### Settle a Market
 
 ```bash
-export FACTORY_ADDRESS="your-deployed-factory-address"
-npx hardhat run scripts/create-markets.js --network localhost
+npx hardhat run scripts/settle-market.js --network <network> <marketAddress> <outcome>
 ```
+
+Parameters:
+- Market address
+- Outcome: 1 for home win, 2 for away win
 
 ## Contract Functionality
 
+### USDX Token
+
+- ERC20 token with 6 decimals
+- 1M initial supply
+- Used for all betting operations
+
+### Liquidity Pool
+
+- Holds the main reserve of USDX tokens
+- Authorizes markets to receive funds
+- Provides funding to markets when created
+- Receives unused funds when markets are settled
+
 ### NBAMarket
 
-- Constructor initializes market with game details and administrative addresses
+- Constructor initializes market with game details, administrative addresses, and creates a BettingEngine
 - Functions to update odds, mark game as started, and set results
-- Only designated addresses can update odds and results
-- Admin can change odds provider and results provider addresses
-- Markets track whether odds have been set with the `oddsSet` flag
+- Delegates bet placement to its associated BettingEngine
+- Triggers bet settlement on the BettingEngine when results are reported
+
+### BettingEngine
+
+- Handles betting logic, including tracking bets and managing exposure
+- Receives funding from the Liquidity Pool
+- Processes bet placement requests from the NBAMarket
+- Settles bets when triggered by the NBAMarket
+- Returns unused funds to the Liquidity Pool after settlement
 
 ### MarketFactory
 
 - Creates new markets with game details
+- Authorizes and funds markets through the Liquidity Pool
 - Tracks all deployed markets
 - Allows creation with default or custom provider addresses
-- Provides a convenience function to create markets without initial odds
 - Admin can update default provider addresses and transfer admin role
 
 ## Odds Format

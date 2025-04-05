@@ -6,11 +6,14 @@ async function main() {
   
   console.log("Creating markets with the account:", deployer.address);
   
-  // You would need to replace this with your deployed factory address
-  const factoryAddress = process.env.FACTORY_ADDRESS;
+  // Read deployed contract addresses from file
+  const deployedContractsPath = require('path').join(__dirname, '../deployed-contracts.json');
+  const deployedContracts = require(deployedContractsPath);
+  
+  const factoryAddress = deployedContracts.marketFactory;
   
   if (!factoryAddress) {
-    console.error("Please set the FACTORY_ADDRESS environment variable");
+    console.error("No factory address found in deployed-contracts.json. Please deploy the factory first");
     process.exit(1);
   }
   
@@ -54,8 +57,10 @@ async function main() {
         game.homeTeam,
         game.awayTeam,
         game.startTime,
+        `NBA_${game.homeTeam}_${game.awayTeam}`,  // oddsApiId
         game.homeOdds,
-        game.awayOdds
+        game.awayOdds,
+        ethers.utils.parseUnits("10000", 6)  // 10k USDX funding
       );
       
       const receipt = await tx.wait();

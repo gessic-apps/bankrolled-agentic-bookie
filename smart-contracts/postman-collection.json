@@ -29,7 +29,7 @@
         },
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"oddsProviderAddress\": \"0x70997970C51812dc3A010C7d01b50e0d17dc79C8\",\n  \"resultsProviderAddress\": \"0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC\"\n}",
+          "raw": "{\n  \"oddsProviderAddress\": \"0x70997970C51812dc3A010C7d01b50e0d17dc79C8\",\n  \"resultsProviderAddress\": \"0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC\",\n  \"usdxAddress\": \"{{USDX_ADDRESS}}\",\n  \"liquidityPoolAddress\": \"{{LIQUIDITY_POOL_ADDRESS}}\"\n}",
           "options": {
             "raw": {
               "language": "json"
@@ -50,14 +50,14 @@
         },
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"homeTeam\": \"Lakers\",\n  \"awayTeam\": \"Celtics\",\n  \"gameTimestamp\": \"{{$timestamp + 86400}}\",\n  \"homeOdds\": 1850,\n  \"awayOdds\": 2000\n}",
+          "raw": "{\n  \"homeTeam\": \"Lakers\",\n  \"awayTeam\": \"Celtics\",\n  \"gameTimestamp\": \"{{$timestamp + 86400}}\",\n  \"oddsApiId\": \"NBA_2023_LAL_BOS\",\n  \"homeOdds\": 1850,\n  \"awayOdds\": 2000,\n  \"marketFunding\": 50000\n}",
           "options": {
             "raw": {
               "language": "json"
             }
           }
         },
-        "description": "Create a new market with initial odds"
+        "description": "Create a new market with initial odds and funding"
       }
     },
     {
@@ -71,7 +71,7 @@
         },
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"homeTeam\": \"Warriors\",\n  \"awayTeam\": \"Bulls\",\n  \"gameTimestamp\": \"{{$timestamp + 86400}}\"\n}",
+          "raw": "{\n  \"homeTeam\": \"Warriors\",\n  \"awayTeam\": \"Bulls\",\n  \"gameTimestamp\": \"{{$timestamp + 86400}}\",\n  \"oddsApiId\": \"NBA_2023_GSW_CHI\"\n}",
           "options": {
             "raw": {
               "language": "json"
@@ -100,6 +100,39 @@
           }
         },
         "description": "Update odds for a specific market"
+      }
+    },
+    {
+      "name": "Add Liquidity to Market",
+      "request": {
+        "method": "POST",
+        "url": {
+          "raw": "{{API_URL}}/api/market/{{MARKET_ADDRESS}}/add-liquidity",
+          "host": ["{{API_URL}}"],
+          "path": ["api", "market", "{{MARKET_ADDRESS}}", "add-liquidity"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"amount\": 10000\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "description": "Add liquidity to a specific market"
+      }
+    },
+    {
+      "name": "Get Liquidity Pool Info",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{API_URL}}/api/liquidity-pool",
+          "host": ["{{API_URL}}"],
+          "path": ["api", "liquidity-pool"]
+        },
+        "description": "Get information about the liquidity pool"
       }
     },
     {
@@ -196,7 +229,7 @@
   "variable": [
     {
       "key": "API_URL",
-      "value": "http://localhost:3000"
+      "value": "http://localhost:3002"
     },
     {
       "key": "MARKET_ADDRESS",
@@ -204,6 +237,14 @@
     },
     {
       "key": "TX_HASH",
+      "value": ""
+    },
+    {
+      "key": "USDX_ADDRESS",
+      "value": ""
+    },
+    {
+      "key": "LIQUIDITY_POOL_ADDRESS",
       "value": ""
     }
   ]

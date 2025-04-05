@@ -56,6 +56,17 @@ HARDHAT_PID=$!
 echo -e "${YELLOW}Waiting for Hardhat node to start...${NC}"
 sleep 5
 
+# Deploy the contracts to local network
+echo -e "${YELLOW}Deploying contracts to local network...${NC}"
+echo -e "${YELLOW}1. Deploying USDX token and Liquidity Pool...${NC}"
+npm run deploy:liquidity -- --network localhost
+
+echo -e "${YELLOW}2. Deploying Market Factory...${NC}"
+npm run deploy:factory -- --network localhost
+
+echo -e "${YELLOW}3. Creating sample markets...${NC}"
+npm run create:markets -- --network localhost
+
 # Check if PM2 is installed, install if not
 if ! command -v pm2 &> /dev/null; then
     echo -e "${YELLOW}Installing PM2 globally...${NC}"
@@ -67,6 +78,6 @@ echo -e "${YELLOW}Starting the API server with PM2...${NC}"
 npm run start:pm2
 
 echo -e "${GREEN}Setup completed!${NC}"
-echo -e "${GREEN}API server is now running on http://localhost:3000${NC}"
-echo -e "${GREEN}You can test the API using Postman with the included collection.${NC}"
+echo -e "${GREEN}API server is now running on http://localhost:3002${NC}"
+echo -e "${GREEN}You can test the API using Postman with the included collection or visit the web UI at http://localhost:3002${NC}"
 echo -e "${YELLOW}Note: To stop all services, run: npm run stop:pm2 && kill $HARDHAT_PID${NC}"

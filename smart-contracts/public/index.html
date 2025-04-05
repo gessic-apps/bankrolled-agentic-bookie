@@ -47,6 +47,14 @@
                         <label for="resultsProviderAddress" class="form-label">Results Provider Address</label>
                         <input type="text" class="form-control" id="resultsProviderAddress" placeholder="0x...">
                     </div>
+                    <div class="mb-3">
+                        <label for="usdxAddress" class="form-label">USDX Token Address</label>
+                        <input type="text" class="form-control" id="usdxAddress" placeholder="0x...">
+                    </div>
+                    <div class="mb-3">
+                        <label for="liquidityPoolAddress" class="form-label">Liquidity Pool Address</label>
+                        <input type="text" class="form-control" id="liquidityPoolAddress" placeholder="0x...">
+                    </div>
                     <button type="submit" class="btn btn-primary">Deploy</button>
                 </form>
                 <div class="mt-3">
@@ -76,12 +84,20 @@
                         <input type="number" class="form-control" id="gameTimestamp" placeholder="Unix timestamp (seconds)">
                     </div>
                     <div class="mb-3">
+                        <label for="oddsApiId" class="form-label">Odds API ID</label>
+                        <input type="text" class="form-control" id="oddsApiId" placeholder="NBA_LAL_BOS_20230405">
+                    </div>
+                    <div class="mb-3">
                         <label for="homeOdds" class="form-label">Home Odds (optional)</label>
                         <input type="number" class="form-control" id="homeOdds" placeholder="e.g. 1850 for 1.85 odds">
                     </div>
                     <div class="mb-3">
                         <label for="awayOdds" class="form-label">Away Odds (optional)</label>
                         <input type="number" class="form-control" id="awayOdds" placeholder="e.g. 2000 for 2.00 odds">
+                    </div>
+                    <div class="mb-3">
+                        <label for="marketFunding" class="form-label">Market Funding (optional)</label>
+                        <input type="number" class="form-control" id="marketFunding" placeholder="e.g. 50000 for 50,000 USDX">
                     </div>
                     <button type="submit" class="btn btn-primary">Create Market</button>
                 </form>
@@ -116,6 +132,44 @@
                 <div class="mt-3">
                     <h6>Response:</h6>
                     <div class="response-area" id="updateOddsResponse"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card endpoint-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Add Liquidity to Market</h5>
+                <span class="badge bg-primary">POST /api/market/:address/add-liquidity</span>
+            </div>
+            <div class="card-body">
+                <form id="addLiquidityForm">
+                    <div class="mb-3">
+                        <label for="liquidityMarketAddress" class="form-label">Market Address</label>
+                        <input type="text" class="form-control" id="liquidityMarketAddress" placeholder="0x...">
+                    </div>
+                    <div class="mb-3">
+                        <label for="liquidityAmount" class="form-label">Amount (USDX)</label>
+                        <input type="number" class="form-control" id="liquidityAmount" placeholder="e.g. 10000" min="1">
+                    </div>
+                    <button type="submit" class="btn btn-primary">Add Liquidity</button>
+                </form>
+                <div class="mt-3">
+                    <h6>Response:</h6>
+                    <div class="response-area" id="addLiquidityResponse"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card endpoint-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Get Liquidity Pool Info</h5>
+                <span class="badge bg-primary">GET /api/liquidity-pool</span>
+            </div>
+            <div class="card-body">
+                <button id="getLiquidityPoolBtn" class="btn btn-primary">Get Liquidity Pool Info</button>
+                <div class="mt-3">
+                    <h6>Response:</h6>
+                    <div class="response-area" id="getLiquidityPoolResponse"></div>
                 </div>
             </div>
         </div>
@@ -178,6 +232,8 @@
             e.preventDefault();
             const oddsProviderAddress = document.getElementById('oddsProviderAddress').value;
             const resultsProviderAddress = document.getElementById('resultsProviderAddress').value;
+            const usdxAddress = document.getElementById('usdxAddress').value;
+            const liquidityPoolAddress = document.getElementById('liquidityPoolAddress').value;
             
             try {
                 const response = await fetch(`${API_URL}/api/deploy/factory`, {
@@ -187,12 +243,18 @@
                     },
                     body: JSON.stringify({
                         oddsProviderAddress,
-                        resultsProviderAddress
+                        resultsProviderAddress,
+                        usdxAddress,
+                        liquidityPoolAddress
                     }),
                 });
                 
                 const data = await response.json();
                 document.getElementById('deployFactoryResponse').textContent = JSON.stringify(data, null, 2);
+                
+                if (data.transaction) {
+                    updateTxHash(data.transaction);
+                }
             } catch (error) {
                 document.getElementById('deployFactoryResponse').textContent = `Error: ${error.message}`;
             }
@@ -203,18 +265,25 @@
             const homeTeam = document.getElementById('homeTeam').value;
             const awayTeam = document.getElementById('awayTeam').value;
             const gameTimestamp = document.getElementById('gameTimestamp').value;
+            const oddsApiId = document.getElementById('oddsApiId').value;
             const homeOdds = document.getElementById('homeOdds').value;
             const awayOdds = document.getElementById('awayOdds').value;
+            const marketFunding = document.getElementById('marketFunding').value;
             
             const payload = {
                 homeTeam,
                 awayTeam,
-                gameTimestamp: parseInt(gameTimestamp)
+                gameTimestamp: parseInt(gameTimestamp),
+                oddsApiId
             };
             
             if (homeOdds && awayOdds) {
                 payload.homeOdds = parseInt(homeOdds);
                 payload.awayOdds = parseInt(awayOdds);
+            }
+            
+            if (marketFunding) {
+                payload.marketFunding = parseFloat(marketFunding);
             }
             
             try {
@@ -232,7 +301,12 @@
                 if (data.market && data.market.address) {
                     // Auto-fill the market address for other forms
                     document.getElementById('marketAddress').value = data.market.address;
+                    document.getElementById('liquidityMarketAddress').value = data.market.address;
                     document.getElementById('getMarketAddress').value = data.market.address;
+                }
+                
+                if (data.transaction) {
+                    updateTxHash(data.transaction);
                 }
             } catch (error) {
                 document.getElementById('createMarketResponse').textContent = `Error: ${error.message}`;
@@ -259,8 +333,39 @@
                 
                 const data = await response.json();
                 document.getElementById('updateOddsResponse').textContent = JSON.stringify(data, null, 2);
+                
+                if (data.transaction) {
+                    updateTxHash(data.transaction);
+                }
             } catch (error) {
                 document.getElementById('updateOddsResponse').textContent = `Error: ${error.message}`;
+            }
+        });
+        
+        document.getElementById('addLiquidityForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const marketAddress = document.getElementById('liquidityMarketAddress').value;
+            const amount = document.getElementById('liquidityAmount').value;
+            
+            try {
+                const response = await fetch(`${API_URL}/api/market/${marketAddress}/add-liquidity`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        amount: parseFloat(amount)
+                    }),
+                });
+                
+                const data = await response.json();
+                document.getElementById('addLiquidityResponse').textContent = JSON.stringify(data, null, 2);
+                
+                if (data.transaction) {
+                    updateTxHash(data.transaction);
+                }
+            } catch (error) {
+                document.getElementById('addLiquidityResponse').textContent = `Error: ${error.message}`;
             }
         });
         
@@ -269,8 +374,25 @@
                 const response = await fetch(`${API_URL}/api/markets`);
                 const data = await response.json();
                 document.getElementById('getMarketsResponse').textContent = JSON.stringify(data, null, 2);
+                
+                // If markets returned, auto-fill the first market address
+                if (Array.isArray(data) && data.length > 0) {
+                    document.getElementById('marketAddress').value = data[0].address;
+                    document.getElementById('liquidityMarketAddress').value = data[0].address;
+                    document.getElementById('getMarketAddress').value = data[0].address;
+                }
             } catch (error) {
                 document.getElementById('getMarketsResponse').textContent = `Error: ${error.message}`;
+            }
+        });
+        
+        document.getElementById('getLiquidityPoolBtn').addEventListener('click', async () => {
+            try {
+                const response = await fetch(`${API_URL}/api/liquidity-pool`);
+                const data = await response.json();
+                document.getElementById('getLiquidityPoolResponse').textContent = JSON.stringify(data, null, 2);
+            } catch (error) {
+                document.getElementById('getLiquidityPoolResponse').textContent = `Error: ${error.message}`;
             }
         });
         
@@ -281,6 +403,10 @@
                 const response = await fetch(`${API_URL}/api/market/${marketAddress}`);
                 const data = await response.json();
                 document.getElementById('getMarketInfoResponse').textContent = JSON.stringify(data, null, 2);
+                
+                // Update other forms with this market address
+                document.getElementById('marketAddress').value = marketAddress;
+                document.getElementById('liquidityMarketAddress').value = marketAddress;
             } catch (error) {
                 document.getElementById('getMarketInfoResponse').textContent = `Error: ${error.message}`;
             }
@@ -298,102 +424,10 @@
             }
         });
         
-        // Auto-fill transaction hash when available from other operations
+        // Helper function to update transaction hash field
         const updateTxHash = (hash) => {
             if (hash) {
                 document.getElementById('txHash').value = hash;
-            }
-        };
-        
-        // Helper function to parse and store transaction hash
-        const handleResponse = (responseElement, data) => {
-            responseElement.textContent = JSON.stringify(data, null, 2);
-            if (data.transaction) {
-                updateTxHash(data.transaction);
-            }
-        };
-        
-        // Update existing event listeners to store transaction hashes
-        const originalDeployFactoryFormHandler = document.getElementById('deployFactoryForm').onsubmit;
-        document.getElementById('deployFactoryForm').onsubmit = async (e) => {
-            e.preventDefault();
-            const oddsProviderAddress = document.getElementById('oddsProviderAddress').value;
-            const resultsProviderAddress = document.getElementById('resultsProviderAddress').value;
-            
-            try {
-                const response = await fetch(`${API_URL}/api/deploy/factory`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ oddsProviderAddress, resultsProviderAddress }),
-                });
-                
-                const data = await response.json();
-                handleResponse(document.getElementById('deployFactoryResponse'), data);
-            } catch (error) {
-                document.getElementById('deployFactoryResponse').textContent = `Error: ${error.message}`;
-            }
-        };
-        
-        const originalCreateMarketFormHandler = document.getElementById('createMarketForm').onsubmit;
-        document.getElementById('createMarketForm').onsubmit = async (e) => {
-            e.preventDefault();
-            const homeTeam = document.getElementById('homeTeam').value;
-            const awayTeam = document.getElementById('awayTeam').value;
-            const gameTimestamp = document.getElementById('gameTimestamp').value;
-            const homeOdds = document.getElementById('homeOdds').value;
-            const awayOdds = document.getElementById('awayOdds').value;
-            
-            const payload = {
-                homeTeam,
-                awayTeam,
-                gameTimestamp: parseInt(gameTimestamp)
-            };
-            
-            if (homeOdds && awayOdds) {
-                payload.homeOdds = parseInt(homeOdds);
-                payload.awayOdds = parseInt(awayOdds);
-            }
-            
-            try {
-                const response = await fetch(`${API_URL}/api/market/create`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload),
-                });
-                
-                const data = await response.json();
-                handleResponse(document.getElementById('createMarketResponse'), data);
-                
-                if (data.market && data.market.address) {
-                    document.getElementById('marketAddress').value = data.market.address;
-                    document.getElementById('getMarketAddress').value = data.market.address;
-                }
-            } catch (error) {
-                document.getElementById('createMarketResponse').textContent = `Error: ${error.message}`;
-            }
-        };
-        
-        const originalUpdateOddsFormHandler = document.getElementById('updateOddsForm').onsubmit;
-        document.getElementById('updateOddsForm').onsubmit = async (e) => {
-            e.preventDefault();
-            const marketAddress = document.getElementById('marketAddress').value;
-            const homeOdds = document.getElementById('updateHomeOdds').value;
-            const awayOdds = document.getElementById('updateAwayOdds').value;
-            
-            try {
-                const response = await fetch(`${API_URL}/api/market/${marketAddress}/update-odds`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        homeOdds: parseInt(homeOdds),
-                        awayOdds: parseInt(awayOdds)
-                    }),
-                });
-                
-                const data = await response.json();
-                handleResponse(document.getElementById('updateOddsResponse'), data);
-            } catch (error) {
-                document.getElementById('updateOddsResponse').textContent = `Error: ${error.message}`;
             }
         };
         
@@ -403,6 +437,12 @@
         // Pre-fill Hardhat default addresses for convenience during local testing
         document.getElementById('oddsProviderAddress').value = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8';
         document.getElementById('resultsProviderAddress').value = '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC';
+        
+        // Pre-fill odds API ID 
+        document.getElementById('oddsApiId').value = 'NBA_2023_LAL_BOS';
+        
+        // Pre-fill liquidity amount
+        document.getElementById('liquidityAmount').value = '10000';
     </script>
     
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>

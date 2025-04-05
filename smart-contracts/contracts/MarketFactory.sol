@@ -2,6 +2,8 @@
 pragma solidity ^0.8.0;
 
 import "./NBAMarket.sol";
+import "./LiquidityPool.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /**
  * @title MarketFactory
@@ -12,19 +14,37 @@ contract MarketFactory {
     address public defaultOddsProvider;
     address public defaultResultsProvider;
     
+    // Token and liquidity
+    IERC20 public usdx;
+    LiquidityPool public liquidityPool;
+    uint256 public defaultMarketFunding = 100000 * 10**6; // 100k USDX by default (assuming 6 decimals)
+    
     // Track all markets created
     NBAMarket[] public deployedMarkets;
     
     // Events
-    event MarketCreated(address marketAddress, string homeTeam, string awayTeam, uint256 gameTimestamp, string oddsApiId);
+    event MarketCreated(address marketAddress, string homeTeam, string awayTeam, uint256 gameTimestamp, string oddsApiId, uint256 funding);
+    
+    // Additional events for easier tracking
+    event DefaultOddsProviderChanged(address newOddsProvider);
+    event DefaultResultsProviderChanged(address newResultsProvider);
+    event DefaultMarketFundingChanged(uint256 newDefaultFunding);
+    event AdminTransferred(address newAdmin);
     
     /**
-     * @dev Constructor sets the administrator and default service providers
+     * @dev Constructor sets the administrator, default service providers, and financial settings
      */
-    constructor(address _defaultOddsProvider, address _defaultResultsProvider) {
+    constructor(
+        address _defaultOddsProvider, 
+        address _defaultResultsProvider,
+        address _usdx,
+        address _liquidityPool
+    ) {
         admin = msg.sender;
         defaultOddsProvider = _defaultOddsProvider;
         defaultResultsProvider = _defaultResultsProvider;
+        usdx = IERC20(_usdx);
+        liquidityPool = LiquidityPool(_liquidityPool);
     }
     
     // Modifiers
@@ -34,12 +54,13 @@ contract MarketFactory {
     }
     
     /**
-     * @dev Creates a new NBA market
+     * @dev Creates a new NBA market with funding from the liquidity pool
      * @param homeTeam The home team name
      * @param awayTeam The away team name
      * @param gameTimestamp The timestamp when the game starts
      * @param homeOdds Initial home team odds (in basis points, can be 0)
      * @param awayOdds Initial away team odds (in basis points, can be 0)
+     * @param marketFunding Amount of USDX to fund the market with (max exposure)
      * @return The address of the newly created market
      */
     function createMarket(
@@ -48,12 +69,18 @@ contract MarketFactory {
         uint256 gameTimestamp,
         string memory oddsApiId,
         uint256 homeOdds,
-        uint256 awayOdds
+        uint256 awayOdds,
+        uint256 marketFunding
     ) 
         public 
         onlyAdmin 
         returns (address) 
     {
+        // Use default funding if not specified
+        if (marketFunding == 0) {
+            marketFunding = defaultMarketFunding;
+        }
+        
         NBAMarket newMarket = new NBAMarket(
             homeTeam,
             awayTeam,
@@ -63,12 +90,19 @@ contract MarketFactory {
             awayOdds,
             admin,
             defaultOddsProvider,
-            defaultResultsProvider
+            defaultResultsProvider,
+            address(usdx),
+            address(liquidityPool),
+            marketFunding
         );
         
         deployedMarkets.push(newMarket);
         
-        emit MarketCreated(address(newMarket), homeTeam, awayTeam, gameTimestamp, oddsApiId);
+        // Authorize market in liquidity pool and fund it
+        liquidityPool.authorizeMarket(address(newMarket));
+        liquidityPool.fundMarket(address(newMarket), marketFunding);
+        
+        emit MarketCreated(address(newMarket), homeTeam, awayTeam, gameTimestamp, oddsApiId, marketFunding);
         
         return address(newMarket);
     }
@@ -82,6 +116,7 @@ contract MarketFactory {
      * @param awayOdds Initial away team odds (in basis points, can be 0)
      * @param oddsProvider Custom odds provider address
      * @param resultsProvider Custom results provider address
+     * @param marketFunding Amount of USDX to fund the market with (max exposure)
      * @return The address of the newly created market
      */
     function createMarketWithCustomProviders(
@@ -92,12 +127,18 @@ contract MarketFactory {
         uint256 homeOdds,
         uint256 awayOdds,
         address oddsProvider,
-        address resultsProvider
+        address resultsProvider,
+        uint256 marketFunding
     ) 
         external 
         onlyAdmin 
         returns (address) 
     {
+        // Use default funding if not specified
+        if (marketFunding == 0) {
+            marketFunding = defaultMarketFunding;
+        }
+        
         NBAMarket newMarket = new NBAMarket(
             homeTeam,
             awayTeam,
@@ -107,12 +148,19 @@ contract MarketFactory {
             awayOdds,
             admin,
             oddsProvider,
-            resultsProvider
+            resultsProvider,
+            address(usdx),
+            address(liquidityPool),
+            marketFunding
         );
         
         deployedMarkets.push(newMarket);
         
-        emit MarketCreated(address(newMarket), homeTeam, awayTeam, gameTimestamp, oddsApiId);
+        // Authorize market in liquidity pool and fund it
+        liquidityPool.authorizeMarket(address(newMarket));
+        liquidityPool.fundMarket(address(newMarket), marketFunding);
+        
+        emit MarketCreated(address(newMarket), homeTeam, awayTeam, gameTimestamp, oddsApiId, marketFunding);
         
         return address(newMarket);
     }
@@ -126,6 +174,7 @@ contract MarketFactory {
         onlyAdmin 
     {
         defaultOddsProvider = _newDefaultOddsProvider;
+        emit DefaultOddsProviderChanged(_newDefaultOddsProvider);
     }
     
     /**
@@ -137,6 +186,19 @@ contract MarketFactory {
         onlyAdmin 
     {
         defaultResultsProvider = _newDefaultResultsProvider;
+        emit DefaultResultsProviderChanged(_newDefaultResultsProvider);
+    }
+    
+    /**
+     * @dev Updates the default market funding amount
+     * @param _newDefaultFunding The new default funding amount
+     */
+    function setDefaultMarketFunding(uint256 _newDefaultFunding) 
+        external 
+        onlyAdmin 
+    {
+        defaultMarketFunding = _newDefaultFunding;
+        emit DefaultMarketFundingChanged(_newDefaultFunding);
     }
     
     /**
@@ -149,6 +211,7 @@ contract MarketFactory {
     {
         require(_newAdmin != address(0), "New admin cannot be zero address");
         admin = _newAdmin;
+        emit AdminTransferred(_newAdmin);
     }
     
     /**
@@ -156,13 +219,15 @@ contract MarketFactory {
      * @param homeTeam The home team name
      * @param awayTeam The away team name
      * @param gameTimestamp The timestamp when the game starts
+     * @param marketFunding Amount of USDX to fund the market with (max exposure)
      * @return The address of the newly created market
      */
     function createMarketWithoutOdds(
         string memory homeTeam,
         string memory awayTeam,
         uint256 gameTimestamp,
-        string memory oddsApiId
+        string memory oddsApiId,
+        uint256 marketFunding
     ) 
         external 
         onlyAdmin 
@@ -174,7 +239,8 @@ contract MarketFactory {
             gameTimestamp,
             oddsApiId,
             0,
-            0
+            0,
+            marketFunding
         );
     }
     

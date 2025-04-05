@@ -6,12 +6,13 @@ require("@nomiclabs/hardhat-ethers");
  */
 module.exports = {
   solidity: {
-    version: "0.8.9",
+    version: "0.8.19",
     settings: {
       optimizer: {
         enabled: true,
-        runs: 200
-      }
+        runs: 1
+      },
+      viaIR: true
     }
   },
   networks: {
