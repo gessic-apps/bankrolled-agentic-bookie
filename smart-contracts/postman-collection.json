@@ -1,0 +1,210 @@
+{
+  "info": {
+    "_postman_id": "94b5df3e-8e53-4f40-b3bd-1dcacf0e7712",
+    "name": "NBA Betting Smart Contracts API",
+    "description": "API endpoints for deploying and interacting with NBA betting market smart contracts",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{API_URL}}/api/health",
+          "host": ["{{API_URL}}"],
+          "path": ["api", "health"]
+        },
+        "description": "Check if the API server is running"
+      }
+    },
+    {
+      "name": "Deploy Market Factory",
+      "request": {
+        "method": "POST",
+        "url": {
+          "raw": "{{API_URL}}/api/deploy/factory",
+          "host": ["{{API_URL}}"],
+          "path": ["api", "deploy", "factory"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"oddsProviderAddress\": \"0x70997970C51812dc3A010C7d01b50e0d17dc79C8\",\n  \"resultsProviderAddress\": \"0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "description": "Deploy a new MarketFactory contract"
+      }
+    },
+    {
+      "name": "Create Market With Odds",
+      "request": {
+        "method": "POST",
+        "url": {
+          "raw": "{{API_URL}}/api/market/create",
+          "host": ["{{API_URL}}"],
+          "path": ["api", "market", "create"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"homeTeam\": \"Lakers\",\n  \"awayTeam\": \"Celtics\",\n  \"gameTimestamp\": \"{{$timestamp + 86400}}\",\n  \"homeOdds\": 1850,\n  \"awayOdds\": 2000\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "description": "Create a new market with initial odds"
+      }
+    },
+    {
+      "name": "Create Market Without Odds",
+      "request": {
+        "method": "POST",
+        "url": {
+          "raw": "{{API_URL}}/api/market/create",
+          "host": ["{{API_URL}}"],
+          "path": ["api", "market", "create"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"homeTeam\": \"Warriors\",\n  \"awayTeam\": \"Bulls\",\n  \"gameTimestamp\": \"{{$timestamp + 86400}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "description": "Create a new market without initial odds"
+      }
+    },
+    {
+      "name": "Update Odds",
+      "request": {
+        "method": "POST",
+        "url": {
+          "raw": "{{API_URL}}/api/market/{{MARKET_ADDRESS}}/update-odds",
+          "host": ["{{API_URL}}"],
+          "path": ["api", "market", "{{MARKET_ADDRESS}}", "update-odds"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"homeOdds\": 1941,\n  \"awayOdds\": 1051\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "description": "Update odds for a specific market"
+      }
+    },
+    {
+      "name": "Get Market Info",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{API_URL}}/api/market/{{MARKET_ADDRESS}}",
+          "host": ["{{API_URL}}"],
+          "path": ["api", "market", "{{MARKET_ADDRESS}}"]
+        },
+        "description": "Get information about a specific market"
+      }
+    },
+    {
+      "name": "Get All Markets",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{API_URL}}/api/markets",
+          "host": ["{{API_URL}}"],
+          "path": ["api", "markets"]
+        },
+        "description": "Get all markets deployed by the factory"
+      }
+    },
+    {
+      "name": "Get All Contracts",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{API_URL}}/api/contracts",
+          "host": ["{{API_URL}}"],
+          "path": ["api", "contracts"]
+        },
+        "description": "Get all deployed contract addresses and data"
+      }
+    },
+    {
+      "name": "Start Game",
+      "request": {
+        "method": "POST",
+        "url": {
+          "raw": "{{API_URL}}/api/market/{{MARKET_ADDRESS}}/game-status",
+          "host": ["{{API_URL}}"],
+          "path": ["api", "market", "{{MARKET_ADDRESS}}", "game-status"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"action\": \"start\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "description": "Mark a game as started"
+      }
+    },
+    {
+      "name": "Set Game Result",
+      "request": {
+        "method": "POST",
+        "url": {
+          "raw": "{{API_URL}}/api/market/{{MARKET_ADDRESS}}/game-status",
+          "host": ["{{API_URL}}"],
+          "path": ["api", "market", "{{MARKET_ADDRESS}}", "game-status"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"action\": \"set-result\",\n  \"outcome\": 1\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "description": "Set the result for a game (1 for home win, 2 for away win)"
+      }
+    },
+    {
+      "name": "View Transaction Details",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{API_URL}}/api/tx/{{TX_HASH}}",
+          "host": ["{{API_URL}}"],
+          "path": ["api", "tx", "{{TX_HASH}}"]
+        },
+        "description": "Get detailed information about a specific transaction, including decoded events"
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "API_URL",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "MARKET_ADDRESS",
+      "value": ""
+    },
+    {
+      "key": "TX_HASH",
+      "value": ""
+    }
+  ]
+}
