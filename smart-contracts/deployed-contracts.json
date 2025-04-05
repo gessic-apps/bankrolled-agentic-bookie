@@ -1,90 +1,98 @@
 {
   "marketFactory": {
-    "address": "0x4A679253410272dd5232B3Ff7cF5dbB88f295319",
+    "address": "0xa82fF9aFd8f496c3d6ac40E2a0F282E47488CFc9",
     "oddsProvider": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
     "resultsProvider": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
-    "deployedAt": "2025-04-05T17:30:34.591Z"
+    "deployedAt": "2025-04-05T17:43:18.680Z"
   },
   "markets": [
     {
-      "address": "0xf3eE3C4Ec25e8414838567818A30C90c7d62f834",
+      "address": "0x6A358FD7B7700887b0cd974202CdF93208F793E2",
       "homeTeam": "Atlanta Hawks",
       "awayTeam": "New York Knicks",
       "gameTimestamp": 1743880200,
+      "oddsApiId": "a3338cdcbd6d0d5acd1a920f15d25391",
       "homeOdds": 0,
       "awayOdds": 0,
       "oddsSet": false,
-      "createdAt": "2025-04-05T17:31:06.490Z"
+      "createdAt": "2025-04-05T17:44:01.562Z"
     },
     {
-      "address": "0x532B02BD614Fd18aEE45603d02866cFb77575CB3",
+      "address": "0x5821Aa342bd011E0E77aC5eb8663B052592363a5",
       "homeTeam": "Detroit Pistons",
       "awayTeam": "Memphis Grizzlies",
       "gameTimestamp": 1743894600,
+      "oddsApiId": "4b9d197d2bd268a63deff5f8b7d78683",
       "homeOdds": 0,
       "awayOdds": 0,
       "oddsSet": false,
-      "createdAt": "2025-04-05T17:31:06.512Z"
+      "createdAt": "2025-04-05T17:44:01.585Z"
     },
     {
-      "address": "0xE801273F775Eacc1d74d1d43f92ec4524caBBD35",
+      "address": "0xE1F431731306950Ebe34C256DD381913cc71b8d5",
       "homeTeam": "Philadelphia 76ers",
       "awayTeam": "Minnesota Timberwolves",
       "gameTimestamp": 1743894600,
+      "oddsApiId": "001c06cc46987260c99d1af68b8bad0c",
       "homeOdds": 0,
       "awayOdds": 0,
       "oddsSet": false,
-      "createdAt": "2025-04-05T17:31:06.534Z"
+      "createdAt": "2025-04-05T17:44:01.608Z"
     },
     {
-      "address": "0x2e0331F1e8f1baEBA5A28F6C127c6f6aE8dEd3D5",
+      "address": "0xfF33dAF08339Ab237EB75598bf65843FBF25047D",
       "homeTeam": "Miami Heat",
       "awayTeam": "Milwaukee Bucks",
       "gameTimestamp": 1743898200,
+      "oddsApiId": "cccae2226cf80a09c84f81293020da04",
       "homeOdds": 0,
       "awayOdds": 0,
       "oddsSet": false,
-      "createdAt": "2025-04-05T17:31:06.555Z"
+      "createdAt": "2025-04-05T17:44:01.630Z"
     },
     {
-      "address": "0x5Cb5e52600668c31c20251eeF4E061D36CE2d6B0",
+      "address": "0xb42f6411e055C9907E0101e76a6aE74B612b08bd",
       "homeTeam": "Los Angeles Clippers",
       "awayTeam": "Dallas Mavericks",
       "gameTimestamp": 1743907200,
+      "oddsApiId": "fec416124020c2eabc2dccadefe3ec93",
       "homeOdds": 0,
       "awayOdds": 0,
       "oddsSet": false,
-      "createdAt": "2025-04-05T17:31:06.575Z"
+      "createdAt": "2025-04-05T17:44:01.655Z"
     },
     {
-      "address": "0x815b1008f769e9CDD38e4A3fe2236FD56aD508D8",
+      "address": "0xEdA2d1c94d787Ee7bff50D2b43b5D3bC635Ff6B6",
       "homeTeam": "Oklahoma City Thunder",
       "awayTeam": "Los Angeles Lakers",
       "gameTimestamp": 1743968400,
+      "oddsApiId": "ba52e4b4cf9bc5b1e764c62579196887",
       "homeOdds": 0,
       "awayOdds": 0,
       "oddsSet": false,
-      "createdAt": "2025-04-05T17:31:06.595Z"
+      "createdAt": "2025-04-05T17:44:01.677Z"
     },
     {
-      "address": "0xBd044B6d1194ADc104a4D97D7287d7F7964E728C",
+      "address": "0x76342265F1231CD72530aA6DADC23708b8c04A22",
       "homeTeam": "New York Knicks",
       "awayTeam": "Phoenix Suns",
       "gameTimestamp": 1743981000,
+      "oddsApiId": "7930c0f8ba267a364c102cf71fddcbe2",
       "homeOdds": 0,
       "awayOdds": 0,
       "oddsSet": false,
-      "createdAt": "2025-04-05T17:31:06.615Z"
+      "createdAt": "2025-04-05T17:44:01.698Z"
     },
     {
-      "address": "0x0142ff2FF35AA8322a0b7aA42Ae91d5D047d6809",
+      "address": "0x6A1879F209DE1E2E09dA78163b1E75ADF15E3b4c",
       "homeTeam": "Golden State Warriors",
       "awayTeam": "Houston Rockets",
       "gameTimestamp": 1743986400,
+      "oddsApiId": "39be07cec5bc30ecd00297327976cef1",
       "homeOdds": 0,
       "awayOdds": 0,
       "oddsSet": false,
-      "createdAt": "2025-04-05T17:31:06.636Z"
+      "createdAt": "2025-04-05T17:44:01.719Z"
     }
   ]
 }

@@ -10,6 +10,7 @@ contract NBAMarket {
     string public homeTeam;
     string public awayTeam;
     uint256 public gameTimestamp;
+    string public oddsApiId;
     
     // Odds stored as integers with 3 decimal precision (multiply by 1000)
     // Example: 1.941 is stored as 1941, 10.51 is stored as 10510
@@ -39,6 +40,7 @@ contract NBAMarket {
         string memory _homeTeam,
         string memory _awayTeam,
         uint256 _gameTimestamp,
+        string memory _oddsApiId,
         uint256 _homeOdds,
         uint256 _awayOdds,
         address _admin,
@@ -48,6 +50,7 @@ contract NBAMarket {
         homeTeam = _homeTeam;
         awayTeam = _awayTeam;
         gameTimestamp = _gameTimestamp;
+        oddsApiId = _oddsApiId;
         homeOdds = _homeOdds;
         awayOdds = _awayOdds;
         
@@ -171,6 +174,7 @@ contract NBAMarket {
             string memory, 
             string memory, 
             uint256, 
+            string memory, 
             uint256, 
             uint256, 
             bool, 
@@ -183,6 +187,7 @@ contract NBAMarket {
             homeTeam,
             awayTeam,
             gameTimestamp,
+            oddsApiId,
             homeOdds,
             awayOdds,
             gameStarted,

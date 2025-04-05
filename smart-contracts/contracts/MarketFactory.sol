@@ -16,7 +16,7 @@ contract MarketFactory {
     NBAMarket[] public deployedMarkets;
     
     // Events
-    event MarketCreated(address marketAddress, string homeTeam, string awayTeam, uint256 gameTimestamp);
+    event MarketCreated(address marketAddress, string homeTeam, string awayTeam, uint256 gameTimestamp, string oddsApiId);
     
     /**
      * @dev Constructor sets the administrator and default service providers
@@ -46,6 +46,7 @@ contract MarketFactory {
         string memory homeTeam,
         string memory awayTeam,
         uint256 gameTimestamp,
+        string memory oddsApiId,
         uint256 homeOdds,
         uint256 awayOdds
     ) 
@@ -57,6 +58,7 @@ contract MarketFactory {
             homeTeam,
             awayTeam,
             gameTimestamp,
+            oddsApiId,
             homeOdds,
             awayOdds,
             admin,
@@ -66,7 +68,7 @@ contract MarketFactory {
         
         deployedMarkets.push(newMarket);
         
-        emit MarketCreated(address(newMarket), homeTeam, awayTeam, gameTimestamp);
+        emit MarketCreated(address(newMarket), homeTeam, awayTeam, gameTimestamp, oddsApiId);
         
         return address(newMarket);
     }
@@ -86,6 +88,7 @@ contract MarketFactory {
         string memory homeTeam,
         string memory awayTeam,
         uint256 gameTimestamp,
+        string memory oddsApiId,
         uint256 homeOdds,
         uint256 awayOdds,
         address oddsProvider,
@@ -99,6 +102,7 @@ contract MarketFactory {
             homeTeam,
             awayTeam,
             gameTimestamp,
+            oddsApiId,
             homeOdds,
             awayOdds,
             admin,
@@ -108,7 +112,7 @@ contract MarketFactory {
         
         deployedMarkets.push(newMarket);
         
-        emit MarketCreated(address(newMarket), homeTeam, awayTeam, gameTimestamp);
+        emit MarketCreated(address(newMarket), homeTeam, awayTeam, gameTimestamp, oddsApiId);
         
         return address(newMarket);
     }
@@ -157,7 +161,8 @@ contract MarketFactory {
     function createMarketWithoutOdds(
         string memory homeTeam,
         string memory awayTeam,
-        uint256 gameTimestamp
+        uint256 gameTimestamp,
+        string memory oddsApiId
     ) 
         external 
         onlyAdmin 
@@ -167,6 +172,7 @@ contract MarketFactory {
             homeTeam,
             awayTeam,
             gameTimestamp,
+            oddsApiId,
             0,
             0
         );

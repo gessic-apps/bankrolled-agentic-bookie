@@ -21,6 +21,7 @@ class TeamInfo(TypedDict):
     
 class GameEvent(TypedDict):
     id: str
+    odds_api_id: str
     start_time: int  # Unix timestamp
     home_team: TeamInfo
     away_team: TeamInfo
@@ -78,16 +79,18 @@ def fetch_nba_games_today() -> List[GameEvent]:
             home_abbr = ''.join(word[0] for word in home_team_name.split()[:2])
             away_abbr = ''.join(word[0] for word in away_team_name.split()[:2])
                 
+            odds_api_id = game.get("id", "")
             game_event: GameEvent = {
-                "id": game.get("id", ""),
+                "id": odds_api_id + "_game",
+                "odds_api_id": odds_api_id,
                 "start_time": start_time,
                 "home_team": {
-                    "id": game.get("id", "") + "_home",  # Generate an ID since API doesn't provide one
+                    "id": odds_api_id + "_home",  # Generate an ID since API doesn't provide one
                     "name": home_team_name,
                     "abbreviation": home_abbr.upper()
                 },
                 "away_team": {
-                    "id": game.get("id", "") + "_away",  # Generate an ID since API doesn't provide one
+                    "id": odds_api_id + "_away",  # Generate an ID since API doesn't provide one
                     "name": away_team_name, 
                     "abbreviation": away_abbr.upper()
                 },

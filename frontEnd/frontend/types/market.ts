@@ -14,6 +14,9 @@ export interface Market {
   /** Unix timestamp (in seconds) for when the game starts */
   gameTimestamp: string;
   
+  /** Unique ID from the Odds API for this game */
+  oddsApiId: string;
+  
   /** Odds for the home team (in thousandths, e.g., 1850 = 1.85) */
   homeOdds: string;
   

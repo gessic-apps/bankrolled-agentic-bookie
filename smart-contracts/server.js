@@ -107,14 +107,14 @@ app.post('/api/deploy/factory', async (req, res) => {
 // Create a new market
 app.post('/api/market/create', async (req, res) => {
   try {
-    const { homeTeam, awayTeam, gameTimestamp, homeOdds, awayOdds } = req.body;
+    const { homeTeam, awayTeam, gameTimestamp, oddsApiId, homeOdds, awayOdds } = req.body;
     
     if (!deployedContracts.marketFactory) {
       return res.status(400).json({ error: 'MarketFactory not deployed yet' });
     }
     
-    if (!homeTeam || !awayTeam || !gameTimestamp) {
-      return res.status(400).json({ error: 'homeTeam, awayTeam, and gameTimestamp are required' });
+    if (!homeTeam || !awayTeam || !gameTimestamp || !oddsApiId) {
+      return res.status(400).json({ error: 'homeTeam, awayTeam, gameTimestamp, and oddsApiId are required' });
     }
     
     const provider = setupProvider();
@@ -129,7 +129,7 @@ app.post('/api/market/create', async (req, res) => {
         contractAddress: factoryAddress,
         contractAbi: MarketFactoryJson.abi,
         method: 'createMarket',
-        params: [homeTeam, awayTeam, gameTimestamp, homeOdds, awayOdds],
+        params: [homeTeam, awayTeam, gameTimestamp, oddsApiId, homeOdds, awayOdds],
         role: 'admin'
       }, provider);
     } else {
@@ -138,7 +138,7 @@ app.post('/api/market/create', async (req, res) => {
         contractAddress: factoryAddress,
         contractAbi: MarketFactoryJson.abi,
         method: 'createMarketWithoutOdds',
-        params: [homeTeam, awayTeam, gameTimestamp],
+        params: [homeTeam, awayTeam, gameTimestamp, oddsApiId],
         role: 'admin'
       }, provider);
     }
@@ -173,6 +173,7 @@ app.post('/api/market/create', async (req, res) => {
       homeTeam,
       awayTeam,
       gameTimestamp,
+      oddsApiId,
       homeOdds: homeOdds || 0,
       awayOdds: awayOdds || 0,
       oddsSet: !!(homeOdds && awayOdds && homeOdds >= 1000 && awayOdds >= 1000),
@@ -271,12 +272,13 @@ app.get('/api/market/:address', async (req, res) => {
       homeTeam: info[0],
       awayTeam: info[1],
       gameTimestamp: info[2].toString(),
-      homeOdds: info[3].toString(),
-      awayOdds: info[4].toString(),
-      gameStarted: info[5],
-      gameEnded: info[6],
-      oddsSet: info[7],
-      outcome: info[8],
+      oddsApiId: info[3],
+      homeOdds: info[4].toString(),
+      awayOdds: info[5].toString(),
+      gameStarted: info[6],
+      gameEnded: info[7],
+      oddsSet: info[8],
+      outcome: info[9],
       isReadyForBetting
     };
     
@@ -390,12 +392,13 @@ app.get('/api/markets', async (req, res) => {
         homeTeam: info[0],
         awayTeam: info[1],
         gameTimestamp: info[2].toString(),
-        homeOdds: info[3].toString(),
-        awayOdds: info[4].toString(),
-        gameStarted: info[5],
-        gameEnded: info[6],
-        oddsSet: info[7],
-        outcome: info[8],
+        oddsApiId: info[3],
+        homeOdds: info[4].toString(),
+        awayOdds: info[5].toString(),
+        gameStarted: info[6],
+        gameEnded: info[7],
+        oddsSet: info[8],
+        outcome: info[9],
         isReadyForBetting
       });
     }

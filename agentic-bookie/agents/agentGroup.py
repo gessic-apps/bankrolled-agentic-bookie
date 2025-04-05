@@ -50,6 +50,7 @@ def get_nba_games() -> List[Dict[str, Any]]:
     return [
         {
             "id": game["id"],
+            "odds_api_id": game["odds_api_id"],
             "home_team": {
                 "name": game["home_team"]["name"],
                 "abbreviation": game["home_team"]["abbreviation"]
@@ -68,7 +69,8 @@ def get_nba_games() -> List[Dict[str, Any]]:
 def create_betting_market(
     home_team: str, 
     away_team: str, 
-    game_timestamp: int, 
+    game_timestamp: int,
+    odds_api_id: str,
     home_odds: Optional[int] = None, 
     away_odds: Optional[int] = None
 ) -> Dict[str, Any]:
@@ -79,6 +81,7 @@ def create_betting_market(
         home_team: Name of the home team
         away_team: Name of the away team
         game_timestamp: Unix timestamp of the game start time
+        odds_api_id: Unique ID from the Odds API for this game
         home_odds: Optional - Home team odds in 3-decimal format (e.g. 2000 = 2.000)
         away_odds: Optional - Away team odds in 3-decimal format (e.g. 1800 = 1.800)
     
@@ -90,6 +93,7 @@ def create_betting_market(
         home_team=home_team,
         away_team=away_team,
         game_timestamp=game_timestamp,
+        odds_api_id=odds_api_id,
         home_odds=home_odds,
         away_odds=away_odds
     )
@@ -205,7 +209,8 @@ def patched_create_betting_market(
     ctx: RunContextWrapper[AgentContext],
     home_team: str, 
     away_team: str, 
-    game_timestamp: int, 
+    game_timestamp: int,
+    odds_api_id: str,
     home_odds: Optional[int] = None, 
     away_odds: Optional[int] = None
 ) -> Dict[str, Any]:
@@ -214,6 +219,7 @@ def patched_create_betting_market(
         home_team=home_team,
         away_team=away_team,
         game_timestamp=game_timestamp,
+        odds_api_id=odds_api_id,
         home_odds=home_odds,
         away_odds=away_odds
     )

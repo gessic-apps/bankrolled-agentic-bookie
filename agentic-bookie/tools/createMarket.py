@@ -1,7 +1,7 @@
 import requests
 import json
 
-def create_market(home_team, away_team, game_timestamp, home_odds=None, away_odds=None):
+def create_market(home_team, away_team, game_timestamp, odds_api_id, home_odds=None, away_odds=None):
     """
     Creates a new betting market by calling the smart contract API
     
@@ -9,6 +9,7 @@ def create_market(home_team, away_team, game_timestamp, home_odds=None, away_odd
         home_team (str): Name of the home team
         away_team (str): Name of the away team
         game_timestamp (int): Unix timestamp of the game start time
+        odds_api_id (str): The ID from the Odds API for this game
         home_odds (int, optional): Home team odds in 3-decimal format (e.g. 2000 = 2.000)
         away_odds (int, optional): Away team odds in 3-decimal format (e.g. 1800 = 1.800)
     
@@ -20,7 +21,8 @@ def create_market(home_team, away_team, game_timestamp, home_odds=None, away_odd
     payload = {
         "homeTeam": home_team,
         "awayTeam": away_team,
-        "gameTimestamp": game_timestamp
+        "gameTimestamp": game_timestamp,
+        "oddsApiId": odds_api_id
     }
     
     # Add odds if provided
