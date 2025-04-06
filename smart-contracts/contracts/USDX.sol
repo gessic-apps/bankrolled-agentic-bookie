@@ -20,4 +20,13 @@ contract USDX is ERC20, Ownable {
     function decimals() public pure override returns (uint8) {
         return _decimals;
     }
+    
+    /**
+     * @dev Mints new tokens and assigns them to the specified account
+     * @param to The account to receive the minted tokens
+     * @param amount The amount of tokens to mint
+     */
+    function mint(address to, uint256 amount) public onlyOwner {
+        _mint(to, amount);
+    }
 }

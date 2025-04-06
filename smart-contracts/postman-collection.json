@@ -224,6 +224,60 @@
         },
         "description": "Get detailed information about a specific transaction, including decoded events"
       }
+    },
+    {
+      "name": "Place Bet",
+      "request": {
+        "method": "POST",
+        "url": {
+          "raw": "{{API_URL}}/api/market/{{MARKET_ADDRESS}}/place-bet",
+          "host": ["{{API_URL}}"],
+          "path": ["api", "market", "{{MARKET_ADDRESS}}", "place-bet"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"amount\": 10,\n  \"onHomeTeam\": true,\n  \"bettor\": \"0x90F79bf6EB2c4f870365E785982E1f101E93b906\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "description": "Place a bet on a specific market (User 1 default)"
+      }
+    },
+    {
+      "name": "Get User Bets",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{API_URL}}/api/market/{{MARKET_ADDRESS}}/bets/{{USER_ADDRESS}}",
+          "host": ["{{API_URL}}"],
+          "path": ["api", "market", "{{MARKET_ADDRESS}}", "bets", "{{USER_ADDRESS}}"]
+        },
+        "description": "Get all bets placed by a specific user on a specific market"
+      }
+    },
+    {
+      "name": "Faucet (Mint USDX)",
+      "request": {
+        "method": "POST",
+        "url": {
+          "raw": "{{API_URL}}/api/faucet",
+          "host": ["{{API_URL}}"],
+          "path": ["api", "faucet"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"address\": \"{{USER_ADDRESS}}\",\n  \"amount\": 1000\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "description": "Mint USDX tokens to a specified address (uses admin wallet)"
+      }
     }
   ],
   "variable": [
@@ -246,6 +300,10 @@
     {
       "key": "LIQUIDITY_POOL_ADDRESS",
       "value": ""
+    },
+    {
+      "key": "USER_ADDRESS",
+      "value": "0x90F79bf6EB2c4f870365E785982E1f101E93b906"
     }
   ]
 }

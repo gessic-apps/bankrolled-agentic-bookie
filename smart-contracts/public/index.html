@@ -162,6 +162,189 @@
         
         <div class="card endpoint-card">
             <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">USDX Faucet</h5>
+                <span class="badge bg-primary">POST /api/faucet</span>
+            </div>
+            <div class="card-body">
+                <form id="faucetForm">
+                    <div class="mb-3">
+                        <label for="faucetAddress" class="form-label">Wallet Address</label>
+                        <select class="form-select" id="faucetAddress">
+                            <option value="0x70997970C51812dc3A010C7d01b50e0d17dc79C8">Account 1 (0x7099...79C8)</option>
+                            <option value="0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC">Account 2 (0x3C44...93BC)</option>
+                            <option value="0x90F79bf6EB2c4f870365E785982E1f101E93b906">Account 3 (0x90F7...b906)</option>
+                            <option value="0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65">Account 4 (0x15d3...6A65)</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="faucetAmount" class="form-label">Amount (USDX)</label>
+                        <input type="number" class="form-control" id="faucetAmount" placeholder="e.g. 10000" value="10000" min="1">
+                    </div>
+                    <button type="submit" class="btn btn-success">Get USDX Tokens</button>
+                </form>
+                <div class="mt-3">
+                    <h6>Response:</h6>
+                    <div class="response-area" id="faucetResponse"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card endpoint-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Approve USDX Spending</h5>
+                <span class="badge bg-primary">POST /api/approve/:marketAddress</span>
+            </div>
+            <div class="card-body">
+                <form id="approveForm">
+                    <div class="mb-3">
+                        <label for="approveMarketAddress" class="form-label">Market Address</label>
+                        <input type="text" class="form-control" id="approveMarketAddress" placeholder="0x...">
+                    </div>
+                    <div class="mb-3">
+                        <label for="approveAddress" class="form-label">Wallet Address</label>
+                        <select class="form-select" id="approveAddress">
+                            <option value="0x70997970C51812dc3A010C7d01b50e0d17dc79C8">Account 1 (0x7099...79C8)</option>
+                            <option value="0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC">Account 2 (0x3C44...93BC)</option>
+                            <option value="0x90F79bf6EB2c4f870365E785982E1f101E93b906">Account 3 (0x90F7...b906)</option>
+                            <option value="0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65">Account 4 (0x15d3...6A65)</option>
+                        </select>
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="unlimitedApproval" checked>
+                        <label class="form-check-label" for="unlimitedApproval">Unlimited Approval</label>
+                    </div>
+                    <button type="submit" class="btn btn-warning">Approve Spending</button>
+                </form>
+                <div class="mt-3">
+                    <h6>Response:</h6>
+                    <div class="response-area" id="approveResponse"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card endpoint-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Place Bet</h5>
+                <span class="badge bg-primary">POST /api/market/:address/place-bet</span>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-warning">
+                    <strong>Important:</strong> Before placing a bet, make sure to:
+                    <ol class="mb-0">
+                        <li>Get USDX tokens using the faucet</li>
+                        <li>Approve the market to spend your tokens</li>
+                    </ol>
+                </div>
+                <form id="placeBetForm">
+                    <div class="mb-3">
+                        <label for="betMarketAddress" class="form-label">Market Address</label>
+                        <input type="text" class="form-control" id="betMarketAddress" placeholder="0x...">
+                    </div>
+                    <div class="mb-3">
+                        <label for="betAmount" class="form-label">Amount (USDX)</label>
+                        <input type="number" class="form-control" id="betAmount" placeholder="e.g. 100" min="1">
+                    </div>
+                    <div class="mb-3">
+                        <label for="betSide" class="form-label">Bet On</label>
+                        <select class="form-select" id="betSide">
+                            <option value="home">Home Team</option>
+                            <option value="away">Away Team</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="bettor" class="form-label">Bettor Address</label>
+                        <select class="form-select" id="bettor">
+                            <option value="0x70997970C51812dc3A010C7d01b50e0d17dc79C8">Account 1 (0x7099...79C8)</option>
+                            <option value="0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC">Account 2 (0x3C44...93BC)</option>
+                            <option value="0x90F79bf6EB2c4f870365E785982E1f101E93b906">Account 3 (0x90F7...b906)</option>
+                            <option value="0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65">Account 4 (0x15d3...6A65)</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Place Bet</button>
+                </form>
+                <div class="mt-3">
+                    <h6>Response:</h6>
+                    <div class="response-area" id="placeBetResponse"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card endpoint-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Set Game Result</h5>
+                <span class="badge bg-primary">POST /api/market/:address/game-status</span>
+            </div>
+            <div class="card-body">
+                <form id="setResultForm">
+                    <div class="mb-3">
+                        <label for="resultMarketAddress" class="form-label">Market Address</label>
+                        <input type="text" class="form-control" id="resultMarketAddress" placeholder="0x...">
+                    </div>
+                    <div class="mb-3">
+                        <label for="outcome" class="form-label">Game Outcome</label>
+                        <select class="form-select" id="outcome">
+                            <option value="1">Home Team Win</option>
+                            <option value="2">Away Team Win</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Set Result</button>
+                </form>
+                <div class="mt-3">
+                    <h6>Response:</h6>
+                    <div class="response-area" id="setResultResponse"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card endpoint-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Start Game</h5>
+                <span class="badge bg-primary">POST /api/market/:address/game-status</span>
+            </div>
+            <div class="card-body">
+                <form id="startGameForm">
+                    <div class="mb-3">
+                        <label for="startGameMarketAddress" class="form-label">Market Address</label>
+                        <input type="text" class="form-control" id="startGameMarketAddress" placeholder="0x...">
+                    </div>
+                    <button type="submit" class="btn btn-primary">Start Game</button>
+                </form>
+                <div class="mt-3">
+                    <h6>Response:</h6>
+                    <div class="response-area" id="startGameResponse"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card endpoint-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Get User Bets</h5>
+                <span class="badge bg-primary">GET /api/market/:address/bets/:bettor</span>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label for="userBetsMarketAddress" class="form-label">Market Address</label>
+                    <input type="text" class="form-control" id="userBetsMarketAddress" placeholder="0x...">
+                </div>
+                <div class="mb-3">
+                    <label for="userBetsBettor" class="form-label">Bettor Address</label>
+                    <select class="form-select" id="userBetsBettor">
+                        <option value="0x70997970C51812dc3A010C7d01b50e0d17dc79C8">Account 1 (0x7099...79C8)</option>
+                        <option value="0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC">Account 2 (0x3C44...93BC)</option>
+                        <option value="0x90F79bf6EB2c4f870365E785982E1f101E93b906">Account 3 (0x90F7...b906)</option>
+                        <option value="0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65">Account 4 (0x15d3...6A65)</option>
+                    </select>
+                </div>
+                <button id="getUserBetsBtn" class="btn btn-primary">Get User Bets</button>
+                <div class="mt-3">
+                    <h6>Response:</h6>
+                    <div class="response-area" id="userBetsResponse"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card endpoint-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">Get Liquidity Pool Info</h5>
                 <span class="badge bg-primary">GET /api/liquidity-pool</span>
             </div>
@@ -220,6 +403,31 @@
                 <div class="mt-3">
                     <h6>Response:</h6>
                     <div class="response-area" id="txDetailsResponse"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card endpoint-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Check Balance</h5>
+                <span class="badge bg-primary">GET /api/balance/:address</span>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label for="balanceAddress" class="form-label">Wallet Address</label>
+                    <select class="form-select" id="balanceAddress">
+                        <option value="0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266">Admin/Deployer (0xf39F...2266)</option>
+                        <option value="0x70997970C51812dc3A010C7d01b50e0d17dc79C8">Account 1 (Odds) (0x7099...79C8)</option>
+                        <option value="0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC">Account 2 (Results) (0x3C44...93BC)</option>
+                        <option value="0x90F79bf6EB2c4f870365E785982E1f101E93b906">Account 3 (User 1) (0x90F7...b906)</option>
+                        <option value="0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65">Account 4 (User 2) (0x15d3...6A65)</option>
+                        <option value="0x9Fcca440F19c62CDF7f973eB6DDF218B15d4C71D">Liquidity Pool</option>
+                    </select>
+                </div>
+                <button id="getBalanceBtn" class="btn btn-info">Check Balance</button>
+                <div class="mt-3">
+                    <h6>Response:</h6>
+                    <div class="response-area" id="balanceResponse"></div>
                 </div>
             </div>
         </div>
@@ -303,6 +511,10 @@
                     document.getElementById('marketAddress').value = data.market.address;
                     document.getElementById('liquidityMarketAddress').value = data.market.address;
                     document.getElementById('getMarketAddress').value = data.market.address;
+                    document.getElementById('betMarketAddress').value = data.market.address;
+                    document.getElementById('resultMarketAddress').value = data.market.address;
+                    document.getElementById('startGameMarketAddress').value = data.market.address;
+                    document.getElementById('userBetsMarketAddress').value = data.market.address;
                 }
                 
                 if (data.transaction) {
@@ -369,6 +581,104 @@
             }
         });
         
+        document.getElementById('placeBetForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const marketAddress = document.getElementById('betMarketAddress').value;
+            const amount = document.getElementById('betAmount').value;
+            const onHomeTeam = document.getElementById('betSide').value === 'home';
+            const bettor = document.getElementById('bettor').value;
+            
+            try {
+                const response = await fetch(`${API_URL}/api/market/${marketAddress}/place-bet`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        amount: parseFloat(amount),
+                        onHomeTeam,
+                        bettor
+                    }),
+                });
+                
+                const data = await response.json();
+                document.getElementById('placeBetResponse').textContent = JSON.stringify(data, null, 2);
+                
+                if (data.transaction) {
+                    updateTxHash(data.transaction);
+                }
+            } catch (error) {
+                document.getElementById('placeBetResponse').textContent = `Error: ${error.message}`;
+            }
+        });
+        
+        document.getElementById('setResultForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const marketAddress = document.getElementById('resultMarketAddress').value;
+            const outcome = document.getElementById('outcome').value;
+            
+            try {
+                const response = await fetch(`${API_URL}/api/market/${marketAddress}/game-status`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        action: 'set-result',
+                        outcome: parseInt(outcome)
+                    }),
+                });
+                
+                const data = await response.json();
+                document.getElementById('setResultResponse').textContent = JSON.stringify(data, null, 2);
+                
+                if (data.transaction) {
+                    updateTxHash(data.transaction);
+                }
+            } catch (error) {
+                document.getElementById('setResultResponse').textContent = `Error: ${error.message}`;
+            }
+        });
+        
+        document.getElementById('startGameForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const marketAddress = document.getElementById('startGameMarketAddress').value;
+            
+            try {
+                const response = await fetch(`${API_URL}/api/market/${marketAddress}/game-status`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        action: 'start'
+                    }),
+                });
+                
+                const data = await response.json();
+                document.getElementById('startGameResponse').textContent = JSON.stringify(data, null, 2);
+                
+                if (data.transaction) {
+                    updateTxHash(data.transaction);
+                }
+            } catch (error) {
+                document.getElementById('startGameResponse').textContent = `Error: ${error.message}`;
+            }
+        });
+        
+        document.getElementById('getUserBetsBtn').addEventListener('click', async () => {
+            const marketAddress = document.getElementById('userBetsMarketAddress').value;
+            const bettor = document.getElementById('userBetsBettor').value;
+            
+            try {
+                const response = await fetch(`${API_URL}/api/market/${marketAddress}/bets/${bettor}`);
+                const data = await response.json();
+                document.getElementById('userBetsResponse').textContent = JSON.stringify(data, null, 2);
+            } catch (error) {
+                document.getElementById('userBetsResponse').textContent = `Error: ${error.message}`;
+            }
+        });
+        
         document.getElementById('getMarketsBtn').addEventListener('click', async () => {
             try {
                 const response = await fetch(`${API_URL}/api/markets`);
@@ -380,6 +690,10 @@
                     document.getElementById('marketAddress').value = data[0].address;
                     document.getElementById('liquidityMarketAddress').value = data[0].address;
                     document.getElementById('getMarketAddress').value = data[0].address;
+                    document.getElementById('betMarketAddress').value = data[0].address;
+                    document.getElementById('resultMarketAddress').value = data[0].address;
+                    document.getElementById('startGameMarketAddress').value = data[0].address;
+                    document.getElementById('userBetsMarketAddress').value = data[0].address;
                 }
             } catch (error) {
                 document.getElementById('getMarketsResponse').textContent = `Error: ${error.message}`;
@@ -407,8 +721,72 @@
                 // Update other forms with this market address
                 document.getElementById('marketAddress').value = marketAddress;
                 document.getElementById('liquidityMarketAddress').value = marketAddress;
+                document.getElementById('betMarketAddress').value = marketAddress;
+                document.getElementById('resultMarketAddress').value = marketAddress;
+                document.getElementById('startGameMarketAddress').value = marketAddress;
+                document.getElementById('userBetsMarketAddress').value = marketAddress;
+                document.getElementById('approveMarketAddress').value = marketAddress;
             } catch (error) {
                 document.getElementById('getMarketInfoResponse').textContent = `Error: ${error.message}`;
+            }
+        });
+        
+        // USDX Faucet
+        document.getElementById('faucetForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const address = document.getElementById('faucetAddress').value;
+            const amount = document.getElementById('faucetAmount').value;
+            
+            try {
+                const response = await fetch(`${API_URL}/api/faucet`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        address,
+                        amount: parseFloat(amount)
+                    }),
+                });
+                
+                const data = await response.json();
+                document.getElementById('faucetResponse').textContent = JSON.stringify(data, null, 2);
+                
+                if (data.transaction) {
+                    updateTxHash(data.transaction);
+                }
+            } catch (error) {
+                document.getElementById('faucetResponse').textContent = `Error: ${error.message}`;
+            }
+        });
+        
+        // Approve USDX Spending
+        document.getElementById('approveForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const marketAddress = document.getElementById('approveMarketAddress').value;
+            const address = document.getElementById('approveAddress').value;
+            const unlimited = document.getElementById('unlimitedApproval').checked;
+            
+            try {
+                const response = await fetch(`${API_URL}/api/approve/${marketAddress}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        address,
+                        unlimited
+                    }),
+                });
+                
+                const data = await response.json();
+                document.getElementById('approveResponse').textContent = JSON.stringify(data, null, 2);
+                
+                if (data.transaction) {
+                    updateTxHash(data.transaction);
+                }
+            } catch (error) {
+                document.getElementById('approveResponse').textContent = `Error: ${error.message}`;
             }
         });
         
@@ -421,6 +799,19 @@
                 document.getElementById('txDetailsResponse').textContent = JSON.stringify(data, null, 2);
             } catch (error) {
                 document.getElementById('txDetailsResponse').textContent = `Error: ${error.message}`;
+            }
+        });
+        
+        // Check Balance
+        document.getElementById('getBalanceBtn').addEventListener('click', async () => {
+            const address = document.getElementById('balanceAddress').value;
+            
+            try {
+                const response = await fetch(`${API_URL}/api/balance/${address}`);
+                const data = await response.json();
+                document.getElementById('balanceResponse').textContent = JSON.stringify(data, null, 2);
+            } catch (error) {
+                document.getElementById('balanceResponse').textContent = `Error: ${error.message}`;
             }
         });
         
@@ -443,6 +834,9 @@
         
         // Pre-fill liquidity amount
         document.getElementById('liquidityAmount').value = '10000';
+        
+        // Pre-fill bet amount
+        document.getElementById('betAmount').value = '100';
     </script>
     
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>

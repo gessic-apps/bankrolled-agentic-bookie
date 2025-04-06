@@ -99,8 +99,9 @@ contract MarketFactory {
         deployedMarkets.push(newMarket);
         
         // Authorize market in liquidity pool and fund it
-        liquidityPool.authorizeMarket(address(newMarket));
-        liquidityPool.fundMarket(address(newMarket), marketFunding);
+        address bettingEngineAddress = address(newMarket.bettingEngine());
+        liquidityPool.authorizeMarket(bettingEngineAddress);
+        liquidityPool.fundMarket(bettingEngineAddress, marketFunding);
         
         emit MarketCreated(address(newMarket), homeTeam, awayTeam, gameTimestamp, oddsApiId, marketFunding);
         
@@ -157,8 +158,9 @@ contract MarketFactory {
         deployedMarkets.push(newMarket);
         
         // Authorize market in liquidity pool and fund it
-        liquidityPool.authorizeMarket(address(newMarket));
-        liquidityPool.fundMarket(address(newMarket), marketFunding);
+        address bettingEngineAddress = address(newMarket.bettingEngine());
+        liquidityPool.authorizeMarket(bettingEngineAddress);
+        liquidityPool.fundMarket(bettingEngineAddress, marketFunding);
         
         emit MarketCreated(address(newMarket), homeTeam, awayTeam, gameTimestamp, oddsApiId, marketFunding);
         
