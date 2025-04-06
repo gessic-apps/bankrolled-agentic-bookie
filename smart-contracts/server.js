@@ -92,10 +92,10 @@ app.post('/api/deploy/factory', async (req, res) => {
       wallet
     );
     
-    console.log('Deploying MarketFactory...');
+    console.log('Deploying MarketFactory...', wallet);
     const marketFactory = await MarketFactory.deploy(
-      oddsProviderAddress, 
-      resultsProviderAddress,
+      "0xdc63788Ada727255db07819632488d2629139CE8", 
+      "0xdc63788Ada727255db07819632488d2629139CE8",
       usdxAddress,
       liquidityPoolAddress
     );

@@ -8,7 +8,19 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-echo -e "${GREEN}Setting up the Smart Contracts API Server...${NC}"
+# Default network
+NETWORK="localhost"
+
+# Parse command line arguments
+while [[ "$#" -gt 0 ]]; do
+    case $1 in
+        --network) NETWORK="$2"; shift ;;
+        *) echo "Unknown parameter: $1"; exit 1 ;;
+    esac
+    shift
+done
+
+echo -e "${GREEN}Setting up the Smart Contracts API Server on network: ${NETWORK}...${NC}"
 
 # Check if Node.js is installed
 if ! command -v node &> /dev/null; then
@@ -42,30 +54,152 @@ NODE_ENV=development
 # For local development, leave PRIVATE_KEY empty to use the default Hardhat account
 # PRIVATE_KEY=your_private_key_here
 
-# For testnet deployment
+# For Base Sepolia deployment
+# BASE_SEPOLIA_RPC_URL=https://sepolia.base.org
+
+# For other testnet deployment
 # TESTNET_RPC_URL=your_testnet_rpc_url_here
 EOF
 fi
 
-# Start Hardhat node in the background if not already running
-echo -e "${YELLOW}Starting Hardhat node in the background...${NC}"
-npx hardhat node > hardhat-node.log 2>&1 &
-HARDHAT_PID=$!
+# Only start local Hardhat node if using localhost network
+if [ "$NETWORK" = "localhost" ]; then
+    # Start Hardhat node in the background if not already running
+    echo -e "${YELLOW}Starting Hardhat node in the background...${NC}"
+    npx hardhat node > hardhat-node.log 2>&1 &
+    HARDHAT_PID=$!
 
-# Wait for Hardhat node to start
-echo -e "${YELLOW}Waiting for Hardhat node to start...${NC}"
-sleep 5
+    # Wait for Hardhat node to start
+    echo -e "${YELLOW}Waiting for Hardhat node to start...${NC}"
+    sleep 5
+else
+    echo -e "${YELLOW}Using external network: ${NETWORK}...${NC}"
+    # Source .env file to get environment variables
+    if [ -f .env ]; then
+        source .env
+    fi
+    
+    if [ "$NETWORK" = "baseSepolia" ]; then
+        if [ -z "$PRIVATE_KEY" ]; then
+            echo -e "${RED}ERROR: PRIVATE_KEY environment variable must be set for Base Sepolia deployment.${NC}"
+            echo -e "${YELLOW}Please add your private key to the .env file and run again.${NC}"
+            exit 1
+        fi
+        
+        if [ -z "$BASE_SEPOLIA_RPC_URL" ]; then
+            echo -e "${YELLOW}Warning: BASE_SEPOLIA_RPC_URL not set, using default https://sepolia.base.org${NC}"
+        fi
+        
+        # Verify network connectivity and account balance
+        echo -e "${YELLOW}Verifying network connectivity and account balance...${NC}"
+        
+        # Create a simple script that doesn't rely on hardhat import
+        TEMP_SCRIPT="scripts/check-network.js"
+        mkdir -p scripts
+        cat > "$TEMP_SCRIPT" << 'EOF'
+// Simple script to check network connection and balance
+const ethers = require('ethers');
 
-# Deploy the contracts to local network
-echo -e "${YELLOW}Deploying contracts to local network...${NC}"
+async function main() {
+  try {
+    // Get provider from environment or use default
+    const providerUrl = "https://base-sepolia-rpc.publicnode.com";
+    const provider = new ethers.providers.JsonRpcProvider(providerUrl);
+    
+    // Get account from private key
+    const privateKey = "3af88304b5895668955e5926564b5b4d3c4bc6fb965f43bb9ea97b7fd5655413";
+    if (!privateKey) {
+      console.error("ERROR: PRIVATE_KEY not set in environment");
+      process.exit(1);
+    }
+    
+    const wallet = new ethers.Wallet(privateKey, provider);
+    
+    // Get network info
+    const network = await provider.getNetwork();
+    console.log('Using account:', wallet.address);
+    console.log('Network name:', network.name);
+    console.log('Network chainId:', network.chainId);
+    
+    // Get balance
+    const balance = await provider.getBalance(wallet.address);
+    console.log('Account balance:', ethers.utils.formatEther(balance), 'ETH');
+    
+    // Get gas price
+    const gasPrice = await provider.getGasPrice();
+    console.log('Gas price:', ethers.utils.formatUnits(gasPrice, 'gwei'), 'gwei');
+    
+    if (network.chainId !== 84532) {
+      console.error(`ERROR: Expected Base Sepolia (chainId 84532), but connected to network with chainId ${network.chainId}`);
+      process.exit(1);
+    }
+    
+    if (parseFloat(ethers.utils.formatEther(balance)) < 0.01) {
+      console.warn(`WARNING: Low account balance (${ethers.utils.formatEther(balance)} ETH). Deployment may fail.`);
+    }
+    
+    console.log("Network check: Successful connection to Base Sepolia");
+  } catch (error) {
+    console.error("ERROR:", error.message);
+    process.exit(1);
+  }
+}
+
+main();
+EOF
+        
+        # Execute the script
+        echo -e "${YELLOW}Running network check...${NC}"
+        node "$TEMP_SCRIPT"
+        
+        # Check if the script ran successfully
+        if [ $? -ne 0 ]; then
+            echo -e "${RED}ERROR: Failed to connect to Base Sepolia. See error above.${NC}"
+            exit 1
+        fi
+        
+        echo -e "${GREEN}Successfully connected to Base Sepolia network.${NC}"
+    fi
+fi
+
+# Deploy the contracts to specified network
+echo -e "${YELLOW}Deploying contracts to ${NETWORK} network...${NC}"
+
+# Function to execute a command with error handling
+run_deploy_command() {
+    echo -e "${YELLOW}Running: $1${NC}"
+    
+    # Execute the command and store the result
+    if eval "$1"; then
+        echo -e "${GREEN}Command succeeded.${NC}"
+    else
+        echo -e "${RED}Command failed with exit code $?.${NC}"
+        echo -e "${RED}Deployment failed. Please check the error messages above.${NC}"
+        if [ "$NETWORK" = "baseSepolia" ]; then
+            echo -e "${YELLOW}Common issues for Base Sepolia:${NC}"
+            echo -e "${YELLOW}1. Insufficient ETH balance${NC}"
+            echo -e "${YELLOW}2. Incorrect RPC URL${NC}"
+            echo -e "${YELLOW}3. Network congestion - try increasing gas price/limit${NC}"
+            
+            # Check gas price using the script we already created
+            echo -e "${YELLOW}Checking current gas price...${NC}"
+            node scripts/check-network.js
+        fi
+        
+        if [ "$2" = "critical" ]; then
+            exit 1
+        fi
+    fi
+}
+
 echo -e "${YELLOW}1. Deploying USDX token and Liquidity Pool...${NC}"
-npm run deploy:liquidity -- --network localhost
+run_deploy_command "npm run deploy:liquidity -- --network ${NETWORK}" "critical"
 
 echo -e "${YELLOW}2. Deploying Market Factory...${NC}"
-npm run deploy:factory -- --network localhost
+run_deploy_command "npm run deploy:factory -- --network ${NETWORK}" "critical"
 
 echo -e "${YELLOW}3. Creating sample markets...${NC}"
-npm run create:markets -- --network localhost
+run_deploy_command "npm run create:markets -- --network ${NETWORK}"
 
 # Check if PM2 is installed, install if not
 if ! command -v pm2 &> /dev/null; then
@@ -80,4 +214,10 @@ npm run start:pm2
 echo -e "${GREEN}Setup completed!${NC}"
 echo -e "${GREEN}API server is now running on http://localhost:3002${NC}"
 echo -e "${GREEN}You can test the API using Postman with the included collection or visit the web UI at http://localhost:3002${NC}"
-echo -e "${YELLOW}Note: To stop all services, run: npm run stop:pm2 && kill $HARDHAT_PID${NC}"
+
+if [ "$NETWORK" = "localhost" ]; then
+    echo -e "${YELLOW}Note: To stop all services, run: npm run stop:pm2 && kill $HARDHAT_PID${NC}"
+else
+    echo -e "${YELLOW}Note: Contracts have been deployed to ${NETWORK}. To stop API server, run: npm run stop:pm2${NC}"
+    echo -e "${YELLOW}Contracts are deployed on ${NETWORK} chain with chainId 84532${NC}"
+fi

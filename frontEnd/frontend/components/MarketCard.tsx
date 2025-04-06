@@ -4,8 +4,8 @@ import { Market } from '../types/market';
 import { ethers, BrowserProvider, Contract } from 'ethers'; // Use BrowserProvider, Contract from ethers v6
 import { useAccount, useWalletClient, useChainId } from 'wagmi'; // Use useChainId instead of useNetwork
 import { type WalletClient } from 'viem';
-import NBAMarketABI from '../abis/contracts/NBAMarket.sol/NBAMarket.json';
-import USDXABI from '../abis/contracts/USDX.sol/USDX.json';
+import { abi as NBAMarketABI } from '../abis/contracts/NBAMarket.sol/NBAMarket.json';
+import { abi as USDXABI } from '../abis/contracts/USDX.sol/USDX.json';
 // Consider using a toast library for better UX than alerts
 // import { toast } from 'react-toastify';
 
@@ -52,9 +52,9 @@ const MarketCard: React.FC<MarketCardProps> = ({ market, usdxAddress, expectedCh
   // --- Wallet Hooks ---
   const { address: userAddress, isConnected } = useAccount();
   const currentChainId = useChainId(); // Get current chain ID
-  const { data: walletClient } = useWalletClient({ chainId: expectedChainId }); // Get WalletClient for the expected chain
+  const { data: walletClient } = useWalletClient({ chainId: currentChainId }); // Get WalletClient for the expected chain
   // --- End Wallet Hooks ---
-
+  console.log("signer", signer, "userAddress", userAddress, "isConnected", isConnected, "currentChainId", currentChainId, "expectedChainId", expectedChainId, "walletClient", walletClient);
   // --- Effect to get Signer when WalletClient is available ---
    useEffect(() => {
      const fetchSigner = async () => {
@@ -128,10 +128,10 @@ const MarketCard: React.FC<MarketCardProps> = ({ market, usdxAddress, expectedCh
        return;
     }
     // Check chain ID using the dedicated hook
-    if (currentChainId !== expectedChainId) { 
-       alert(`Incorrect Network: Please switch to the network with Chain ID ${expectedChainId}. You are currently connected to Chain ID ${currentChainId}.`);
-       return;
-    }
+    // if (currentChainId !== expectedChainId) { 
+    //    alert(`Incorrect Network: Please switch to the network with Chain ID ${expectedChainId}. You are currently connected to Chain ID ${currentChainId}.`);
+    //    return;
+    // }
     // --- End Validations ---
 
     setIsLoading(true);
@@ -142,10 +142,10 @@ const MarketCard: React.FC<MarketCardProps> = ({ market, usdxAddress, expectedCh
     try {
       // --- Contract Setup (Ethers v6) ---
       // Pass signer directly to Contract constructor
-      const marketContract = new Contract(market.address, NBAMarketABI.abi, signer);
-      const usdxContract = new Contract(usdxAddress, USDXABI.abi, signer);
+      const marketContract = new Contract(market.address, NBAMarketABI, signer);
+      const usdxContract = new Contract(usdxAddress, USDXABI, signer);
       const bettingEngineAddress = await marketContract.bettingEngine(); // Fetch the engine address
-      const amountInWei = ethers.parseUnits(betAmount, 18); // Ethers v6 syntax
+      const amountInWei = ethers.parseUnits(betAmount, 6); // Ethers v6 syntax
       // --- End Contract Setup ---
 
       // --- Allowance Check ---
@@ -273,9 +273,9 @@ const MarketCard: React.FC<MarketCardProps> = ({ market, usdxAddress, expectedCh
               <button
                 type="button"
                 onClick={() => handleBet(true)}
-                disabled={isLoading || !betAmount || parseFloat(betAmount) <= 0 || !signer}
+                disabled={isLoading || !betAmount || parseFloat(betAmount) <= 0}
                 className={`inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white ${
-                  isLoading || !betAmount || parseFloat(betAmount) <= 0 || !signer ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500'
+                  isLoading || !betAmount || parseFloat(betAmount) <= 0 ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500'
                 }`}
               >
                 {isLoading ? 'Processing...' : `Bet ${market.homeTeam}`}
@@ -283,9 +283,9 @@ const MarketCard: React.FC<MarketCardProps> = ({ market, usdxAddress, expectedCh
               <button
                 type="button"
                 onClick={() => handleBet(false)}
-                disabled={isLoading || !betAmount || parseFloat(betAmount) <= 0 || !signer}
+                disabled={isLoading || !betAmount || parseFloat(betAmount) <= 0}
                 className={`inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white ${
-                  isLoading || !betAmount || parseFloat(betAmount) <= 0 || !signer ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500'
+                  isLoading || !betAmount || parseFloat(betAmount) <= 0 ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500'
                 }`}
               >
                 {isLoading ? 'Processing...' : `Bet ${market.awayTeam}`}

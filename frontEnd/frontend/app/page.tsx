@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import MarketsList from "../components/MarketsList";
-import Faucet from "../components/Faucet";
+// import Faucet from "../components/Faucet"; // Removed Faucet import
 import { Market } from "../types/market";
 import '@rainbow-me/rainbowkit/styles.css';
 import {
@@ -11,11 +11,11 @@ import {
 } from '@rainbow-me/rainbowkit';
 import { WagmiProvider } from 'wagmi';
 import {
-  mainnet,
+  baseSepolia, // Removed baseSepolia
   polygon,
   optimism,
   arbitrum,
-  base,
+  base, // Added base
 } from 'wagmi/chains';
 import {
   QueryClientProvider,
@@ -26,30 +26,37 @@ import { ConnectButton } from '@rainbow-me/rainbowkit';
 
 const config = getDefaultConfig({
   appName: 'Bankrolled',
-  projectId: 'YOUR_PROJECT_ID',
-  chains: [mainnet, polygon, optimism, arbitrum, base],
+  projectId: 'YOUR_PROJECT_ID', // TODO: Replace with your actual RainbowKit Project ID
+  chains: [baseSepolia],
+  // chains: [base], // Use Base Mainnet
   ssr: false, // If your dApp uses server side rendering (SSR)
 });
 
+// Define USDX address for Base Mainnet
+const usdxAddress = "0x2E762bB56989A46Ef61a804a3A3b945EDB517Cfb";
 
 export default function Home() {
   const [markets, setMarkets] = useState<Market[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const queryClient = new QueryClient();
-  const API_URL = "http://localhost:3000"; // Default API URL
+  const API_URL = "http://localhost:3000"; // TODO: Update if your API URL is different for mainnet
+  // const usdxAddress = "0x0000000000000000000000000000000000000000"; // Removed placeholder
 
   useEffect(() => {
     const fetchMarkets = async () => {
       try {
         setLoading(true);
+        // Fetch markets from your backend API
+        // This API should ideally return markets compatible with Base Mainnet contracts
         const response = await fetch(`${API_URL}/api/markets`);
-        
+
         if (!response.ok) {
           throw new Error(`Failed to fetch markets: ${response.statusText}`);
         }
-        
+
         const data = await response.json();
+         // TODO: Ensure the market data includes the correct contract addresses for Base Mainnet
         setMarkets(data);
         setError("");
       } catch (err: any) {
@@ -61,18 +68,20 @@ export default function Home() {
     };
 
     fetchMarkets();
-  }, []);
+  }, []); // TODO: Consider adding API_URL to dependency array if it can change
 
   return (
     <WagmiProvider config={config}>
     <QueryClientProvider client={queryClient}>
       <RainbowKitProvider>
       <main className="container mx-auto px-4 py-8">
-      <ConnectButton />
-      <Faucet />
+        <div className="flex justify-end mb-4"> {/* Position ConnectButton */}
+            <ConnectButton />
+        </div>
+      {/* <Faucet /> // Removed Faucet component */}
 
       <h1 className="text-3xl font-bold mb-6">NBA Betting Markets</h1>
-      
+
       {loading ? (
         <div className="text-center py-10">
           <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent" role="status">
@@ -86,13 +95,14 @@ export default function Home() {
           <p className="text-sm mt-1">Make sure the API server is running at {API_URL}</p>
         </div>
       ) : (
-        <MarketsList markets={markets} />
+         // Pass the mainnet USDX address to MarketsList
+        <MarketsList usdxAddress={usdxAddress} markets={markets} />
       )}
     </main>
       </RainbowKitProvider>
     </QueryClientProvider>
   </WagmiProvider>
 
-    
+
   );
 }

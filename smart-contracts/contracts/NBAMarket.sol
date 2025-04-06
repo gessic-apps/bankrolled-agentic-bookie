@@ -199,7 +199,7 @@ contract NBAMarket is ReentrancyGuard {
         } else {
             outcome = Outcome.AWAY_WIN;
         }
-        
+
         gameEnded = true;
         
         emit ResultSet(outcome);

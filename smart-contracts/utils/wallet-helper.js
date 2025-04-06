@@ -236,7 +236,12 @@ function setupProvider() {
         return new ethers.providers.JsonRpcProvider(process.env.TESTNET_RPC_URL);
     }
     
-    throw new Error('No RPC URL configured. Set TESTNET_RPC_URL in .env file.');
+    // For Base Sepolia
+    if (process.env.BASE_SEPOLIA_RPC_URL) {
+        return new ethers.providers.JsonRpcProvider(process.env.BASE_SEPOLIA_RPC_URL);
+    }
+    
+    throw new Error('No RPC URL configured. Set TESTNET_RPC_URL or BASE_SEPOLIA_RPC_URL in .env file.');
 }
 
 // Export utility functions

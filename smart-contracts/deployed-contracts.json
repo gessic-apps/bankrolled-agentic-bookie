@@ -1,13 +1,13 @@
 {
-  "usdx": "0x193521C8934bCF3473453AF4321911E7A89E0E12",
-  "liquidityPool": "0x9Fcca440F19c62CDF7f973eB6DDF218B15d4C71D",
+  "usdx": "0x2E762bB56989A46Ef61a804a3A3b945EDB517Cfb",
+  "liquidityPool": "0x3E2863D55f7044F00373EF8A5d77a70433129c42",
   "marketFactory": {
-    "address": "0x22a9B82A6c3D2BFB68F324B2e8367f346Dd6f32a",
+    "address": "0xb1cfdB95eeE6136a2B230D655246764853bEd646",
     "oddsProvider": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
     "resultsProvider": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
-    "usdx": "0x193521C8934bCF3473453AF4321911E7A89E0E12",
-    "liquidityPool": "0x9Fcca440F19c62CDF7f973eB6DDF218B15d4C71D",
-    "deployedAt": "2025-04-06T14:43:28.391Z"
+    "usdx": "0x2E762bB56989A46Ef61a804a3A3b945EDB517Cfb",
+    "liquidityPool": "0x3E2863D55f7044F00373EF8A5d77a70433129c42",
+    "deployedAt": "2025-04-06T15:45:39.941Z"
   },
   "markets": [
     {
@@ -175,6 +175,36 @@
       "gameEnded": true,
       "outcome": 1,
       "updatedAt": "2025-04-06T14:44:54.048Z"
+    },
+    {
+      "address": "0x7263322D92EB46E8e43003A3e62c830c67471D51",
+      "homeTeam": "Raptors",
+      "awayTeam": "celtics",
+      "gameTimestamp": 1744040674,
+      "oddsApiId": "NBA_2023_LAL_BOS",
+      "homeOdds": 1900,
+      "awayOdds": 2300,
+      "oddsSet": true,
+      "createdAt": "2025-04-06T15:46:28.979Z",
+      "funding": 1000,
+      "updatedAt": "2025-04-06T15:51:58.958Z",
+      "gameEnded": true,
+      "outcome": 1
+    },
+    {
+      "address": "0x83239D1A6bfa3392fe1cf8ce0B26648198caDd3E",
+      "homeTeam": "Lakers",
+      "awayTeam": "Celtics",
+      "gameTimestamp": 1744040994,
+      "oddsApiId": "NBA_2023_LAL_BOS",
+      "homeOdds": 1850,
+      "awayOdds": 2100,
+      "oddsSet": true,
+      "createdAt": "2025-04-06T15:59:34.415Z",
+      "funding": 1000,
+      "gameEnded": true,
+      "outcome": 1,
+      "updatedAt": "2025-04-06T17:41:17.416Z"
     }
   ]
 }
