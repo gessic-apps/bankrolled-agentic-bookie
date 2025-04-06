@@ -2,13 +2,41 @@
 
 import { useEffect, useState } from "react";
 import MarketsList from "../components/MarketsList";
+import Faucet from "../components/Faucet";
 import { Market } from "../types/market";
+import '@rainbow-me/rainbowkit/styles.css';
+import {
+  getDefaultConfig,
+  RainbowKitProvider,
+} from '@rainbow-me/rainbowkit';
+import { WagmiProvider } from 'wagmi';
+import {
+  mainnet,
+  polygon,
+  optimism,
+  arbitrum,
+  base,
+} from 'wagmi/chains';
+import {
+  QueryClientProvider,
+  QueryClient,
+} from "@tanstack/react-query";
+import { ConnectButton } from '@rainbow-me/rainbowkit';
+
+
+const config = getDefaultConfig({
+  appName: 'Bankrolled',
+  projectId: 'YOUR_PROJECT_ID',
+  chains: [mainnet, polygon, optimism, arbitrum, base],
+  ssr: false, // If your dApp uses server side rendering (SSR)
+});
+
 
 export default function Home() {
   const [markets, setMarkets] = useState<Market[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-
+  const queryClient = new QueryClient();
   const API_URL = "http://localhost:3000"; // Default API URL
 
   useEffect(() => {
@@ -36,7 +64,13 @@ export default function Home() {
   }, []);
 
   return (
-    <main className="container mx-auto px-4 py-8">
+    <WagmiProvider config={config}>
+    <QueryClientProvider client={queryClient}>
+      <RainbowKitProvider>
+      <main className="container mx-auto px-4 py-8">
+      <ConnectButton />
+      <Faucet />
+
       <h1 className="text-3xl font-bold mb-6">NBA Betting Markets</h1>
       
       {loading ? (
@@ -55,5 +89,10 @@ export default function Home() {
         <MarketsList markets={markets} />
       )}
     </main>
+      </RainbowKitProvider>
+    </QueryClientProvider>
+  </WagmiProvider>
+
+    
   );
 }
