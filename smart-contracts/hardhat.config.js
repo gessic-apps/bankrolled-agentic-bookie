@@ -6,6 +6,7 @@ require('dotenv').config();
  * @type import('hardhat/config').HardhatUserConfig
  */
 module.exports = {
+  defaultNetwork: "localhost",
   solidity: {
     version: "0.8.19",
     settings: {
@@ -25,7 +26,7 @@ module.exports = {
     },
     baseSepolia: {
       url: process.env.BASE_SEPOLIA_RPC_URL || "https://base-sepolia-rpc.publicnode.com",
-      accounts: process.env.PRIVATE_KEY !== undefined ? [process.env.PRIVATE_KEY] : ["0x3af88304b5895668955e5926564b5b4d3c4bc6fb965f43bb9ea97b7fd5655413"],
+      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
       chainId: 84532,
       gasPrice: 1500000000, // 1.5 gwei
       gas: 8000000, // Gas limit

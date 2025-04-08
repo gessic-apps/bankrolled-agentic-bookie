@@ -5,59 +5,73 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "./LiquidityPool.sol";
 import "./BettingEngine.sol";
+import "./MarketOdds.sol";
 
 /**
  * @title NBAMarket
- * @dev Smart contract for NBA betting markets with betting functionality
+ * @dev Smart contract for NBA betting markets with moneyline, spread, and total points betting.
  */
 contract NBAMarket is ReentrancyGuard {
-    // Game information
+    // --- Game Information ---
     string public homeTeam;
     string public awayTeam;
     uint256 public gameTimestamp;
     string public oddsApiId;
+
+    // --- Odds (3 decimal precision, e.g., 1.941 -> 1941) ---
+    // Spread (Points stored with 1 decimal precision, e.g., -7.5 -> -75)
+    // homeSpreadPoints represents the points for the home team (e.g., -75 for -7.5)
+    // awaySpreadPoints is implicitly -homeSpreadPoints
+    int256 public homeSpreadPoints; 
+    uint256 public homeSpreadOdds; // Odds for betting on the home team to cover the spread
+    uint256 public awaySpreadOdds; // Odds for betting on the away team to cover the spread
+    // Total Points (Points stored with 1 decimal precision, e.g., 210.5 -> 2105)
+    uint256 public totalPoints; 
+    uint256 public overOdds;    // Odds for betting on the total score going OVER totalPoints
+    uint256 public underOdds;   // Odds for betting on the total score going UNDER totalPoints
     
-    // Odds stored as integers with 3 decimal precision (multiply by 1000)
-    // Example: 1.941 is stored as 1941, 10.51 is stored as 10510
-    uint256 public homeOdds;
-    uint256 public awayOdds;
-    
-    // Status variables
+    // --- Status Variables ---
     bool public gameStarted;
     bool public gameEnded;
-    bool public oddsSet;
-    enum Outcome { UNDECIDED, HOME_WIN, AWAY_WIN }
-    Outcome public outcome;
+    enum MarketStatus { PENDING, OPEN, STARTED, SETTLED, CANCELLED } // Refined status
+    MarketStatus public marketStatus;
     
-    // Roles
+    // --- Result Variables ---
+    uint256 public homeScore;
+    uint256 public awayScore;
+    bool public resultSettled;
+
+    // --- Roles ---
     address public admin;
     address public oddsProvider;
     address public resultsProvider;
     
-    // Betting and finance
+    // --- Betting and Finance ---
+    address public marketOddsContract;
     IERC20 public usdx;
     LiquidityPool public liquidityPool;
     BettingEngine public bettingEngine;
     
-    // Events
-    event OddsUpdated(uint256 homeOdds, uint256 awayOdds);
-    event ResultSet(Outcome outcome);
-    
+    // --- Events ---
+    event MarketResultSet(uint256 homeScore, uint256 awayScore);
+    event GameStarted();
+    event MarketStatusChanged(MarketStatus newStatus);
+
     /**
-     * @dev Constructor initializes the market with basic info
+     * @dev Constructor initializes the market with basic info and potentially initial odds/lines
      */
     constructor(
         string memory _homeTeam,
         string memory _awayTeam,
         uint256 _gameTimestamp,
         string memory _oddsApiId,
-        uint256 _homeOdds,
-        uint256 _awayOdds,
+        // Roles & Finance
         address _admin,
         address _oddsProvider,
         address _resultsProvider,
         address _usdx,
         address _liquidityPool,
+        address _marketOddsContract,
         uint256 _maxExposure
     ) {
         // Set team and game info
@@ -66,24 +80,25 @@ contract NBAMarket is ReentrancyGuard {
         gameTimestamp = _gameTimestamp;
         oddsApiId = _oddsApiId;
         
-        // Set odds
-        homeOdds = _homeOdds;
-        awayOdds = _awayOdds;
-        
         // Set roles
         admin = _admin;
         oddsProvider = _oddsProvider;
         resultsProvider = _resultsProvider;
         
         // Set finance
+        marketOddsContract = _marketOddsContract;
         usdx = IERC20(_usdx);
         liquidityPool = LiquidityPool(_liquidityPool);
         
         // Initialize game state
-        gameStarted = false;
-        gameEnded = false;
-        oddsSet = (_homeOdds >= 1000 && _awayOdds >= 1000);
-        outcome = Outcome.UNDECIDED;
+        bool initialOddsAreSet = MarketOdds(_marketOddsContract).initialOddsSet();
+        marketStatus = MarketStatus.PENDING; // Starts as pending
+        if (initialOddsAreSet) {
+            marketStatus = MarketStatus.OPEN; // Open if odds were provided
+        }
+        gameStarted = false; // Explicitly false
+        gameEnded = false; // Explicitly false
+        resultSettled = false; // Explicitly false
         
         // Create the betting engine
         bettingEngine = new BettingEngine(
@@ -92,9 +107,10 @@ contract NBAMarket is ReentrancyGuard {
             _liquidityPool,
             _maxExposure
         );
+        emit MarketStatusChanged(marketStatus);
     }
     
-    // Modifiers
+    // --- Modifiers ---
     modifier onlyAdmin() {
         require(msg.sender == admin, "Only admin can call this function");
         _;
@@ -110,144 +126,235 @@ contract NBAMarket is ReentrancyGuard {
         _;
     }
     
-    modifier gameNotStarted() {
-        require(!gameStarted, "Game already started");
+    modifier marketIsOpen() {
+        require(marketStatus == MarketStatus.OPEN, "Market not open for betting");
+        _;
+    }
+
+    modifier marketNotSettled() {
+        require(marketStatus != MarketStatus.SETTLED && marketStatus != MarketStatus.CANCELLED, "Market already settled or cancelled");
         _;
     }
     
-    modifier gameNotEnded() {
-        require(!gameEnded, "Game already ended");
-        _;
+    modifier marketNotStarted() {
+        require(marketStatus == MarketStatus.PENDING || marketStatus == MarketStatus.OPEN, "Market already started");
+         _;
+    }
+
+    // --- Getters ---
+
+    function getMarketDetails() 
+        external 
+        view 
+        returns (
+            string memory _homeTeam,
+            string memory _awayTeam,
+            uint256 _gameTimestamp,
+            string memory _oddsApiId,
+            MarketStatus _marketStatus,
+            bool _resultSettled,
+            uint256 _homeScore,
+            uint256 _awayScore
+        ) 
+    {
+        return (
+            homeTeam,
+            awayTeam,
+            gameTimestamp,
+            oddsApiId,
+            marketStatus,
+            resultSettled,
+            homeScore,
+            awayScore
+        );
+    }
+
+    function getSpreadDetails() external view returns (int256 _homeSpreadPoints, uint256 _homeSpreadOdds, uint256 _awaySpreadOdds) {
+        return (homeSpreadPoints, homeSpreadOdds, awaySpreadOdds);
+    }
+
+    function getTotalPointsDetails() external view returns (uint256 _totalPoints, uint256 _overOdds, uint256 _underOdds) {
+        return (totalPoints, overOdds, underOdds);
     }
     
-    modifier readyForBetting() {
-        require(oddsSet && !gameStarted && !gameEnded, "Market not open for betting");
-        _;
+    /** @dev Fetches and returns all current odds/lines from the MarketOdds contract */
+    function getFullOdds() 
+        external 
+        view 
+        returns (
+            uint256 _homeOdds,
+            uint256 _awayOdds,
+            int256 _homeSpreadPoints, 
+            uint256 _homeSpreadOdds, 
+            uint256 _awaySpreadOdds, 
+            uint256 _totalPoints, 
+            uint256 _overOdds, 
+            uint256 _underOdds
+        ) 
+    {
+        require(marketOddsContract != address(0), "Odds contract not set");
+        // Call the view function on the associated MarketOdds contract
+        return MarketOdds(marketOddsContract).getFullOdds();
     }
-    
-    /**
-     * @dev Returns basic game information
-     */
-    function getHomeTeam() external view returns (string memory) {
-        return homeTeam;
+
+    function getStatus() external view returns (MarketStatus) {
+        return marketStatus;
     }
-    
-    function getAwayTeam() external view returns (string memory) {
-        return awayTeam;
-    }
-    
-    function getGameTimestamp() external view returns (uint256) {
-        return gameTimestamp;
-    }
-    
-    function getOddsApiId() external view returns (string memory) {
-        return oddsApiId;
-    }
-    
-    function getOdds() external view returns (uint256, uint256) {
-        return (homeOdds, awayOdds);
-    }
-    
-    function getGameStatus() external view returns (bool, bool, bool, Outcome) {
-        return (gameStarted, gameEnded, oddsSet, outcome);
-    }
-    
+
     function getExposureInfo() external view returns (uint256, uint256) {
         return (bettingEngine.maxExposure(), bettingEngine.currentExposure());
     }
     
-    /**
-     * @dev Updates the odds for the market
-     */
-    function updateOdds(uint256 _homeOdds, uint256 _awayOdds) 
-        external 
-        onlyOddsProvider 
-        gameNotStarted 
-    {
-        require(_homeOdds >= 1000 && _awayOdds >= 1000, "Odds must be at least 1.000 (1000)");
-        
-        homeOdds = _homeOdds;
-        awayOdds = _awayOdds;
-        oddsSet = true;
-        
-        emit OddsUpdated(_homeOdds, _awayOdds);
+    /** @dev Returns the address of the associated MarketOdds contract */
+    function getMarketOddsContract() external view returns (address) {
+        return marketOddsContract;
     }
-    
+
+    // --- Setters / Actions ---
+
     /**
-     * @dev Marks the game as started
+     * @dev Marks the game as started, changes status to STARTED
      */
     function startGame() 
         external 
-        onlyAdmin 
-        gameNotStarted 
+        onlyResultsProvider 
+        marketNotStarted
     {
-        gameStarted = true;
+        // Check if odds are set in the associated MarketOdds contract
+        require(marketOddsContract != address(0), "Odds contract not set");
+        require(MarketOdds(marketOddsContract).initialOddsSet(), "Cannot start game before odds are set");
+
+        gameStarted = true; // Keep this flag for compatibility/quick checks if needed
+        marketStatus = MarketStatus.STARTED;
+        
+        // Notify the MarketOdds contract that the market has started
+        try MarketOdds(marketOddsContract).setMarketStarted() {} catch {}
+        
+        emit GameStarted();
+        emit MarketStatusChanged(marketStatus);
     }
     
     /**
-     * @dev Sets the game result and triggers settlement
+     * @dev Sets the final game scores and triggers settlement
      */
-    function setResult(uint8 _outcome) 
+    function setResult(uint256 _homeScore, uint256 _awayScore) 
         external 
         onlyResultsProvider 
-        gameNotEnded 
+        marketNotSettled 
     {
-        require(_outcome == 1 || _outcome == 2, "Invalid outcome");
-        
-        if (_outcome == 1) {
-            outcome = Outcome.HOME_WIN;
-        } else {
-            outcome = Outcome.AWAY_WIN;
-        }
+        require(marketStatus == MarketStatus.STARTED, "NBAMarket: Market must be in STARTED status to set result");
+        require(!resultSettled, "NBAMarket: Result already settled");
 
-        gameEnded = true;
-        
-        emit ResultSet(outcome);
+        homeScore = _homeScore;
+        awayScore = _awayScore;
+        resultSettled = true;
+        gameEnded = true; // Keep this flag too
+
+        emit MarketResultSet(_homeScore, _awayScore);
         
         // Settle bets through the betting engine
-        bettingEngine.settleBets(_outcome);
+        // Pass both scores for spread and total calculations
+        bettingEngine.settleBets(_homeScore, _awayScore); 
+
+        // Mark market as settled
+        marketStatus = MarketStatus.SETTLED;
+        emit MarketStatusChanged(marketStatus);
     }
     
     /**
-     * @dev Places a bet on the market
+     * @dev Places a bet based on type
      */
-    function placeBet(uint256 _amount, bool _onHomeTeam) 
+    function placeBet(
+        BettingEngine.BetType _betType, 
+        uint256 _amount, 
+        bool _isBettingOnHomeOrOver // True for Home (ML/Spread), True for Over (Total)
+    ) 
         external 
         nonReentrant
-        readyForBetting
+        marketIsOpen // Use the market status check
     {
-        require(_amount > 0, "Bet amount must be greater than 0");
+        require(_amount > 0, "Bet amount must be > 0");
         
-        // Get the appropriate odds
-        uint256 odds = _onHomeTeam ? homeOdds : awayOdds;
+        require(marketOddsContract != address(0), "Odds contract not set");
+        MarketOdds oddsContract = MarketOdds(marketOddsContract);
+
+        uint256 odds;
+        int256 line = 0; // For spread/total points
+
+        if (_betType == BettingEngine.BetType.MONEYLINE) {
+            (uint256 _homeOdds, uint256 _awayOdds) = oddsContract.getMoneylineOdds();
+            require(_homeOdds > 0 && _awayOdds > 0, "Moneyline odds not set in MarketOdds");
+            odds = _isBettingOnHomeOrOver ? _homeOdds : _awayOdds;
+        } else if (_betType == BettingEngine.BetType.SPREAD) {
+            (int256 _homeSpreadPoints, uint256 _homeSpreadOdds, uint256 _awaySpreadOdds) = oddsContract.getSpreadDetails();
+            require(_homeSpreadOdds > 0 && _awaySpreadOdds > 0, "Spread odds not set in MarketOdds");
+            odds = _isBettingOnHomeOrOver ? _homeSpreadOdds : _awaySpreadOdds;
+            line = _homeSpreadPoints;
+        } else if (_betType == BettingEngine.BetType.TOTAL) {
+            (uint256 _totalPoints, uint256 _overOdds, uint256 _underOdds) = oddsContract.getTotalPointsDetails();
+            require(_overOdds > 0 && _underOdds > 0, "Total odds not set in MarketOdds");
+            odds = _isBettingOnHomeOrOver ? _overOdds : _underOdds;
+            line = int256(_totalPoints);
+        } else {
+            revert("Invalid bet type");
+        }
+
+        require(odds >= 1000, "Selected odds not valid"); // Check specific odds chosen
         
         // Place bet through the betting engine
-        bettingEngine.placeBet(msg.sender, _amount, _onHomeTeam, odds);
+        bettingEngine.placeBet(
+            msg.sender, 
+            _amount, 
+            _betType, 
+            _isBettingOnHomeOrOver, 
+            odds,
+            line // Pass the line (spread or total points)
+        );
     }
     
-    /**
-     * @dev Changes the odds provider address
-     */
-    function changeOddsProvider(address _newOddsProvider) 
-        external 
-        onlyAdmin 
-    {
+    // --- Admin Functions ---
+
+    function changeOddsProvider(address _newOddsProvider) external onlyAdmin {
         oddsProvider = _newOddsProvider;
     }
     
-    /**
-     * @dev Changes the results provider address
-     */
-    function changeResultsProvider(address _newResultsProvider) 
-        external 
-        onlyAdmin 
-    {
+    function changeResultsProvider(address _newResultsProvider) external onlyAdmin {
         resultsProvider = _newResultsProvider;
     }
     
+    function updateMaxExposure(uint256 _newMaxExposure) external onlyAdmin {
+        bettingEngine.updateMaxExposure(_newMaxExposure);
+    }
+
     /**
-     * @dev Returns a user's bets
+     * @dev Allows admin to cancel a market before settlement (e.g., game cancelled)
+     * This should trigger a refund mechanism in the BettingEngine.
      */
+    function cancelMarket() external onlyAdmin marketNotSettled {
+         require(marketStatus != MarketStatus.STARTED, "Cannot cancel after game started unless emergency"); // Or allow cancellation after start? TBD.
+         marketStatus = MarketStatus.CANCELLED;
+         gameEnded = true; // Mark as ended
+         // TODO: Trigger refund in BettingEngine
+         bettingEngine.cancelBetsAndRefund(); 
+         emit MarketStatusChanged(marketStatus);
+    }
+    
+    /**
+     * @dev Emergency settlement if normal process fails AFTER results are known.
+     * Requires scores to be manually set first if not already done.
+     */
+    function emergencySettle() external onlyAdmin {
+        require(resultSettled, "Scores must be set for emergency settlement");
+        require(marketStatus != MarketStatus.SETTLED && marketStatus != MarketStatus.CANCELLED, "Market already settled or cancelled");
+        
+        bettingEngine.settleBets(homeScore, awayScore); // Use stored scores
+
+        marketStatus = MarketStatus.SETTLED;
+        emit MarketStatusChanged(marketStatus);
+    }
+
+    // --- View Functions ---
+
     function getBettorBets(address _bettor) 
         external 
         view 
@@ -256,55 +363,50 @@ contract NBAMarket is ReentrancyGuard {
         return bettingEngine.getBettorBets(_bettor);
     }
     
-    /**
-     * @dev Returns bet details
-     */
+    /** @dev Gets details for a specific bet directly from the BettingEngine */
     function getBetDetails(uint256 _betId) 
         external 
         view 
         returns (
-            address, 
-            uint256, 
-            uint256, 
-            bool, 
-            bool, 
-            bool
+            address _bettor, 
+            uint256 _amount, 
+            uint256 _potentialWinnings, 
+            BettingEngine.BetType _betType, 
+            bool _isBettingOnHomeOrOver, 
+            int256 _line, 
+            uint256 _odds,
+            bool _settled, 
+            bool _won 
         ) 
     {
-        return bettingEngine.getBetDetails(_betId);
+        // Declare variables and capture return values from the external call simultaneously
+        ( 
+            _bettor, 
+            _amount, 
+            _potentialWinnings, 
+            _betType, 
+            _isBettingOnHomeOrOver, 
+            _line, 
+            _odds,
+            _settled, 
+            _won 
+        ) = bettingEngine.getBetDetails(_betId);
+
+        // Return the captured values
+        return (
+            _bettor,
+            _amount,
+            _potentialWinnings,
+            _betType,
+            _isBettingOnHomeOrOver,
+            _line,
+            _odds,
+            _settled,
+            _won
+        );
     }
     
-    /**
-     * @dev Checks if the market is ready for betting
-     */
-    function isReadyForBetting() 
-        external 
-        view 
-        returns (bool) 
-    {
-        return oddsSet && !gameStarted && !gameEnded;
-    }
-    
-    /**
-     * @dev Admin can update max exposure if needed
-     */
-    function updateMaxExposure(uint256 _newMaxExposure)
-        external
-        onlyAdmin
-    {
-        bettingEngine.updateMaxExposure(_newMaxExposure);
-    }
-    
-    /**
-     * @dev Admin can execute emergency settlement in case of issues
-     */
-    function emergencySettle() 
-        external 
-        onlyAdmin 
-    {
-        require(gameStarted, "Game must be started for emergency settlement");
-        require(outcome != Outcome.UNDECIDED, "Outcome must be set before settlement");
-        
-        bettingEngine.settleBets(uint8(outcome));
+    function isMarketOpenForBetting() external view returns (bool) {
+        return marketStatus == MarketStatus.OPEN;
     }
 }

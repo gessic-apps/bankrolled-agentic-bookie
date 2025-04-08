@@ -2,6 +2,7 @@
 pragma solidity ^0.8.0;
 
 import "./NBAMarket.sol";
+import "./MarketOdds.sol";
 import "./LiquidityPool.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
@@ -23,7 +24,7 @@ contract MarketFactory {
     NBAMarket[] public deployedMarkets;
     
     // Events
-    event MarketCreated(address marketAddress, string homeTeam, string awayTeam, uint256 gameTimestamp, string oddsApiId, uint256 funding);
+    event MarketCreated(address marketAddress, address oddsContractAddress, string homeTeam, string awayTeam, uint256 gameTimestamp, string oddsApiId, uint256 funding);
     
     // Additional events for easier tracking
     event DefaultOddsProviderChanged(address newOddsProvider);
@@ -58,10 +59,18 @@ contract MarketFactory {
      * @param homeTeam The home team name
      * @param awayTeam The away team name
      * @param gameTimestamp The timestamp when the game starts
-     * @param homeOdds Initial home team odds (in basis points, can be 0)
-     * @param awayOdds Initial away team odds (in basis points, can be 0)
+     * @param oddsApiId Unique identifier for the game/market
+     * @param homeOdds Initial home team moneyline odds (3 decimals, e.g., 1910)
+     * @param awayOdds Initial away team moneyline odds (3 decimals, e.g., 2050)
+     * @param homeSpreadPoints Home team spread points (1 decimal, e.g., -75 for -7.5)
+     * @param homeSpreadOdds Odds for home team covering spread (3 decimals)
+     * @param awaySpreadOdds Odds for away team covering spread (3 decimals)
+     * @param totalPoints Total points line (1 decimal, e.g., 2105 for 210.5)
+     * @param overOdds Odds for score going over totalPoints (3 decimals)
+     * @param underOdds Odds for score going under totalPoints (3 decimals)
      * @param marketFunding Amount of USDX to fund the market with (max exposure)
-     * @return The address of the newly created market
+     * @return marketAddress The address of the newly created NBAMarket contract.
+     * @return oddsContractAddress The address of the associated MarketOdds contract.
      */
     function createMarket(
         string memory homeTeam,
@@ -70,31 +79,59 @@ contract MarketFactory {
         string memory oddsApiId,
         uint256 homeOdds,
         uint256 awayOdds,
+        int256 homeSpreadPoints,
+        uint256 homeSpreadOdds,
+        uint256 awaySpreadOdds,
+        uint256 totalPoints,
+        uint256 overOdds,
+        uint256 underOdds,
         uint256 marketFunding
     ) 
         public 
         onlyAdmin 
-        returns (address) 
+        returns (address marketAddress, address oddsContractAddress)
     {
         // Use default funding if not specified
         if (marketFunding == 0) {
             marketFunding = defaultMarketFunding;
         }
         
+        // 1. Deploy MarketOdds contract
+        // Pass 0x0 temporarily for controllingMarket, will be updated later if needed (or pass factory?)
+        // Using defaultOddsProvider for the MarketOdds contract
+        MarketOdds newOddsContract = new MarketOdds(
+            address(this), // Pass factory address instead of zero address
+            defaultOddsProvider,
+            homeOdds,
+            awayOdds,
+            homeSpreadPoints,
+            homeSpreadOdds,
+            awaySpreadOdds,
+            totalPoints,
+            overOdds,
+            underOdds
+        );
+        oddsContractAddress = address(newOddsContract);
+
+        // 2. Deploy NBAMarket contract, linking the MarketOdds contract
         NBAMarket newMarket = new NBAMarket(
             homeTeam,
             awayTeam,
             gameTimestamp,
             oddsApiId,
-            homeOdds,
-            awayOdds,
+            // Roles & Finance
             admin,
             defaultOddsProvider,
             defaultResultsProvider,
             address(usdx),
             address(liquidityPool),
+            oddsContractAddress, // Pass the address of the deployed odds contract
             marketFunding
         );
+        marketAddress = address(newMarket);
+        
+        // Set the controlling market in the MarketOdds contract
+        newOddsContract.setControllingMarket(marketAddress);
         
         deployedMarkets.push(newMarket);
         
@@ -103,9 +140,10 @@ contract MarketFactory {
         liquidityPool.authorizeMarket(bettingEngineAddress);
         liquidityPool.fundMarket(bettingEngineAddress, marketFunding);
         
-        emit MarketCreated(address(newMarket), homeTeam, awayTeam, gameTimestamp, oddsApiId, marketFunding);
+        emit MarketCreated(marketAddress, oddsContractAddress, homeTeam, awayTeam, gameTimestamp, oddsApiId, marketFunding);
         
-        return address(newMarket);
+        // Return both addresses
+        return (marketAddress, oddsContractAddress);
     }
     
     /**
@@ -113,12 +151,20 @@ contract MarketFactory {
      * @param homeTeam The home team name
      * @param awayTeam The away team name
      * @param gameTimestamp The timestamp when the game starts
-     * @param homeOdds Initial home team odds (in basis points, can be 0)
-     * @param awayOdds Initial away team odds (in basis points, can be 0)
+     * @param oddsApiId Unique identifier for the game/market
+     * @param homeOdds Initial home team moneyline odds (3 decimals)
+     * @param awayOdds Initial away team moneyline odds (3 decimals)
+     * @param homeSpreadPoints Home team spread points (1 decimal)
+     * @param homeSpreadOdds Odds for home team covering spread (3 decimals)
+     * @param awaySpreadOdds Odds for away team covering spread (3 decimals)
+     * @param totalPoints Total points line (1 decimal)
+     * @param overOdds Odds for score going over totalPoints (3 decimals)
+     * @param underOdds Odds for score going under totalPoints (3 decimals)
      * @param oddsProvider Custom odds provider address
      * @param resultsProvider Custom results provider address
      * @param marketFunding Amount of USDX to fund the market with (max exposure)
-     * @return The address of the newly created market
+     * @return marketAddress The address of the newly created NBAMarket contract.
+     * @return oddsContractAddress The address of the associated MarketOdds contract.
      */
     function createMarketWithCustomProviders(
         string memory homeTeam,
@@ -127,33 +173,59 @@ contract MarketFactory {
         string memory oddsApiId,
         uint256 homeOdds,
         uint256 awayOdds,
+        int256 homeSpreadPoints,
+        uint256 homeSpreadOdds,
+        uint256 awaySpreadOdds,
+        uint256 totalPoints,
+        uint256 overOdds,
+        uint256 underOdds,
         address oddsProvider,
         address resultsProvider,
         uint256 marketFunding
     ) 
         external 
         onlyAdmin 
-        returns (address) 
+        returns (address marketAddress, address oddsContractAddress)
     {
         // Use default funding if not specified
         if (marketFunding == 0) {
             marketFunding = defaultMarketFunding;
         }
         
+        // 1. Deploy MarketOdds contract with custom provider
+        MarketOdds newOddsContract = new MarketOdds(
+            address(this), // Pass factory address instead of zero address
+            oddsProvider, // Use the custom provider
+            homeOdds,
+            awayOdds,
+            homeSpreadPoints,
+            homeSpreadOdds,
+            awaySpreadOdds,
+            totalPoints,
+            overOdds,
+            underOdds
+        );
+         oddsContractAddress = address(newOddsContract);
+
+        // 2. Deploy NBAMarket contract with custom providers
         NBAMarket newMarket = new NBAMarket(
             homeTeam,
             awayTeam,
             gameTimestamp,
             oddsApiId,
-            homeOdds,
-            awayOdds,
+            // Roles & Finance (using custom providers)
             admin,
             oddsProvider,
             resultsProvider,
             address(usdx),
             address(liquidityPool),
+            oddsContractAddress, // Pass the address of the deployed odds contract
             marketFunding
         );
+        marketAddress = address(newMarket);
+        
+        // Set the controlling market in the MarketOdds contract
+        newOddsContract.setControllingMarket(marketAddress);
         
         deployedMarkets.push(newMarket);
         
@@ -162,9 +234,10 @@ contract MarketFactory {
         liquidityPool.authorizeMarket(bettingEngineAddress);
         liquidityPool.fundMarket(bettingEngineAddress, marketFunding);
         
-        emit MarketCreated(address(newMarket), homeTeam, awayTeam, gameTimestamp, oddsApiId, marketFunding);
+        emit MarketCreated(marketAddress, oddsContractAddress, homeTeam, awayTeam, gameTimestamp, oddsApiId, marketFunding);
         
-        return address(newMarket);
+        // Return both addresses
+        return (marketAddress, oddsContractAddress);
     }
 
     /**
@@ -221,8 +294,10 @@ contract MarketFactory {
      * @param homeTeam The home team name
      * @param awayTeam The away team name
      * @param gameTimestamp The timestamp when the game starts
+     * @param oddsApiId Unique identifier for the game/market
      * @param marketFunding Amount of USDX to fund the market with (max exposure)
-     * @return The address of the newly created market
+     * @return marketAddress The address of the newly created NBAMarket contract.
+     * @return oddsContractAddress The address of the associated MarketOdds contract.
      */
     function createMarketWithoutOdds(
         string memory homeTeam,
@@ -233,13 +308,19 @@ contract MarketFactory {
     ) 
         external 
         onlyAdmin 
-        returns (address) 
+        returns (address marketAddress, address oddsContractAddress)
     {
         return createMarket(
             homeTeam,
             awayTeam,
             gameTimestamp,
             oddsApiId,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
             0,
             0,
             marketFunding
@@ -256,5 +337,12 @@ contract MarketFactory {
         returns (uint256) 
     {
         return deployedMarkets.length;
+    }
+
+    /**
+     * @dev Gets the list of all deployed market addresses
+     */
+    function getDeployedMarkets() external view returns (NBAMarket[] memory) {
+        return deployedMarkets;
     }
 }

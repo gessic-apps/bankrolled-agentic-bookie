@@ -85,14 +85,16 @@
       "name": "Update Odds",
       "request": {
         "method": "POST",
-        "url": {
-          "raw": "{{API_URL}}/api/market/{{MARKET_ADDRESS}}/update-odds",
-          "host": ["{{API_URL}}"],
-          "path": ["api", "market", "{{MARKET_ADDRESS}}", "update-odds"]
-        },
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"homeOdds\": 1941,\n  \"awayOdds\": 1051\n}",
+          "raw": "{\n    \"homeOdds\": 1800,\n    \"awayOdds\": 2100,\n    \"homeSpreadPoints\": -45, \n    \"homeSpreadOdds\": 1910,\n    \"awaySpreadOdds\": 1910,\n    \"totalPoints\": 2155,\n    \"overOdds\": 1910,\n    \"underOdds\": 1910\n}",
           "options": {
             "raw": {
               "language": "json"
@@ -196,14 +198,16 @@
       "name": "Set Game Result",
       "request": {
         "method": "POST",
-        "url": {
-          "raw": "{{API_URL}}/api/market/{{MARKET_ADDRESS}}/game-status",
-          "host": ["{{API_URL}}"],
-          "path": ["api", "market", "{{MARKET_ADDRESS}}", "game-status"]
-        },
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"action\": \"set-result\",\n  \"outcome\": 1\n}",
+          "raw": "{\n    \"action\": \"set-result\",\n    \"homeScore\": 112,\n    \"awayScore\": 109\n}",
           "options": {
             "raw": {
               "language": "json"
@@ -229,14 +233,16 @@
       "name": "Place Bet",
       "request": {
         "method": "POST",
-        "url": {
-          "raw": "{{API_URL}}/api/market/{{MARKET_ADDRESS}}/place-bet",
-          "host": ["{{API_URL}}"],
-          "path": ["api", "market", "{{MARKET_ADDRESS}}", "place-bet"]
-        },
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"amount\": 10,\n  \"onHomeTeam\": true,\n  \"bettor\": \"0x90F79bf6EB2c4f870365E785982E1f101E93b906\"\n}",
+          "raw": "{\n    \"amount\": 100,\n    \"betType\": \"spread\", \n    \"betSide\": \"away\",    \n    \"bettor\": \"{{user1_address}}\" \n}",
           "options": {
             "raw": {
               "language": "json"
@@ -250,6 +256,7 @@
       "name": "Get User Bets",
       "request": {
         "method": "GET",
+        "header": [],
         "url": {
           "raw": "{{API_URL}}/api/market/{{MARKET_ADDRESS}}/bets/{{USER_ADDRESS}}",
           "host": ["{{API_URL}}"],

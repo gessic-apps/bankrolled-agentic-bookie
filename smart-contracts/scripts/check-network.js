@@ -4,15 +4,17 @@ const ethers = require('ethers');
 async function main() {
   try {
     // Get provider from environment or use default
-    const providerUrl = "https://base-sepolia-rpc.publicnode.com";
+    const providerUrl = process.env.BASE_SEPOLIA_RPC_URL || "https://base-sepolia-rpc.publicnode.com";
+    console.log("DEBUG: Using provider URL:", providerUrl);
     const provider = new ethers.providers.JsonRpcProvider(providerUrl);
     
     // Get account from private key
-    const privateKey = "3af88304b5895668955e5926564b5b4d3c4bc6fb965f43bb9ea97b7fd5655413";
+    const privateKey = process.env.PRIVATE_KEY; // Use environment variable
     if (!privateKey) {
-      console.error("ERROR: PRIVATE_KEY not set in environment");
+      console.error("ERROR: PRIVATE_KEY not set in environment for check-network.js");
       process.exit(1);
     }
+    console.log("DEBUG: Using PRIVATE_KEY from environment for check-network.js");
     
     const wallet = new ethers.Wallet(privateKey, provider);
     

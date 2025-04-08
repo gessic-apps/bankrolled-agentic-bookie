@@ -5,6 +5,8 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "./NBAMarket.sol";
+import "./BettingEngine.sol";
+import "hardhat/console.sol";
 
 /**
  * @title LiquidityPool
@@ -66,6 +68,17 @@ contract LiquidityPool is Ownable, ReentrancyGuard {
         // Transfer tokens to the market
         require(usdx.transfer(_market, _amount), "Token transfer failed");
         
+        // Notify the Betting Engine (assuming _market is the BettingEngine address)
+        try BettingEngine(_market).increaseMaxExposure(_amount) {
+            // Success
+        } catch (bytes memory reason) {
+            // Handle potential error if the target contract isn't a BettingEngine or call fails
+            // For now, we just proceed, but logging or reverting might be needed in production
+            console.log("Failed to call increaseMaxExposure on BettingEngine:");
+            // Revert? Or just log? Depends on requirements.
+            // revert("Failed to update BettingEngine exposure");
+        }
+
         emit MarketFunded(_market, _amount);
     }
     

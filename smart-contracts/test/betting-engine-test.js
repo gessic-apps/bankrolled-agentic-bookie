@@ -1,6 +1,13 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 
+// Enum definition (mirroring BettingEngine.sol)
+const BetType = {
+    MONEYLINE: 0,
+    SPREAD: 1,
+    TOTAL: 2
+};
+
 describe("BettingEngine", function () {
   let BettingEngine;
   let engine;
@@ -67,22 +74,27 @@ describe("BettingEngine", function () {
       await engine.connect(marketMock).placeBet(
         user1.address,
         ethers.utils.parseUnits("100", 6), // 100 USDX
-        true, // bet on home team
-        2000 // 2.000 odds
+        BetType.MONEYLINE, // betType
+        true, // isBettingOnHomeOrOver
+        2000, // odds (2.000)
+        0 // line (not applicable for ML)
       );
       
       // Get the bet details
       const betDetails = await engine.getBetDetails(0);
       
-      expect(betDetails[0]).to.equal(user1.address); // bettor
-      expect(betDetails[1]).to.equal(ethers.utils.parseUnits("100", 6)); // amount
-      expect(betDetails[2]).to.equal(ethers.utils.parseUnits("100", 6)); // potentialWinnings (100 * 2.0 - 100 = 100)
-      expect(betDetails[3]).to.equal(true); // onHomeTeam
-      expect(betDetails[4]).to.equal(false); // settled
-      expect(betDetails[5]).to.equal(false); // won
+      expect(betDetails.bettor).to.equal(user1.address);
+      expect(betDetails.amount).to.equal(ethers.utils.parseUnits("100", 6));
+      expect(betDetails.potentialWinnings).to.equal(ethers.utils.parseUnits("100", 6)); // (100 * 2.0 - 100)
+      expect(betDetails.betType).to.equal(BetType.MONEYLINE);
+      expect(betDetails.isBettingOnHomeOrOver).to.equal(true);
+      expect(betDetails.line).to.equal(0);
+      expect(betDetails.odds).to.equal(2000);
+      expect(betDetails.settled).to.equal(false);
+      expect(betDetails.won).to.equal(false);
       
       // Check that exposure was updated
-      expect(await engine.currentExposure()).to.equal(ethers.utils.parseUnits("100", 6));
+      expect(await engine.currentExposure()).to.equal(ethers.utils.parseUnits("100", 6)); // Exposure is potential winnings
       
       // Check that user's bets are tracked
       const userBets = await engine.getBettorBets(user1.address);
@@ -95,8 +107,10 @@ describe("BettingEngine", function () {
         engine.connect(owner).placeBet(
           user1.address,
           ethers.utils.parseUnits("100", 6),
-          true,
-          2000
+          BetType.MONEYLINE, // betType
+          true, // isBettingOnHomeOrOver
+          2000, // odds
+          0 // line
         )
       ).to.be.revertedWith("Only the market contract can call this function");
     });
@@ -110,8 +124,10 @@ describe("BettingEngine", function () {
         engine.connect(marketMock).placeBet(
           user1.address,
           ethers.utils.parseUnits("100", 6),
-          true,
-          2000 // 2.000 odds, meaning 100 USDX potential winnings
+          BetType.MONEYLINE, // betType
+          true, // isBettingOnHomeOrOver
+          2000, // odds (2.000), potential winnings = 100
+          0 // line
         )
       ).to.be.revertedWith("Market cannot accept this bet size with current exposure");
     });
@@ -120,83 +136,92 @@ describe("BettingEngine", function () {
   describe("Bet settlement", function () {
     beforeEach(async function () {
       // Place some bets first
+      // Bet 1: User 1 on Home, 100 @ 2.0 odds
       await engine.connect(marketMock).placeBet(
         user1.address,
         ethers.utils.parseUnits("100", 6),
+        BetType.MONEYLINE,
         true, // home team
-        2000 // 2.000 odds
+        2000, // 2.000 odds
+        0
       );
       
+      // Bet 2: User 2 on Away, 200 @ 1.5 odds
       await engine.connect(marketMock).placeBet(
         user2.address,
         ethers.utils.parseUnits("200", 6),
+        BetType.MONEYLINE,
         false, // away team
-        1500 // 1.500 odds
+        1500, // 1.500 odds
+        0
       );
     });
     
-    it("Should settle bets correctly with home team win", async function () {
+    it("Should settle bets correctly with home team win (Moneyline)", async function () {
       // Initial balances
       const initialUser1Balance = await usdx.balanceOf(user1.address);
       const initialUser2Balance = await usdx.balanceOf(user2.address);
       
-      // Settle with home team win (outcome 1)
-      await engine.connect(marketMock).settleBets(1);
+      // Settle with home team win (scores don't matter for ML settlement in engine directly)
+      await engine.connect(marketMock).settleBets(100, 99); // Home Score > Away Score
       
       // Check bet status
       const bet1 = await engine.getBetDetails(0);
       const bet2 = await engine.getBetDetails(1);
       
-      expect(bet1[4]).to.equal(true); // settled
-      expect(bet1[5]).to.equal(true); // won
-      expect(bet2[4]).to.equal(true); // settled
-      expect(bet2[5]).to.equal(false); // lost
+      expect(bet1.settled).to.equal(true);
+      expect(bet1.won).to.equal(true); // User 1 bet on Home, Home won
+      expect(bet2.settled).to.equal(true);
+      expect(bet2.won).to.equal(false); // User 2 bet on Away, Away lost
       
       // Check final balances
       const finalUser1Balance = await usdx.balanceOf(user1.address);
       const finalUser2Balance = await usdx.balanceOf(user2.address);
       
-      // User1 should get their bet amount (100) + winnings (100) = 200
+      // User1 winnings: 100 * (2000 / 1000) = 200 (includes stake)
       expect(finalUser1Balance.sub(initialUser1Balance)).to.equal(ethers.utils.parseUnits("200", 6));
       
-      // User2 should not get anything back
-      expect(finalUser2Balance).to.equal(initialUser2Balance);
+      // User2 lost their stake
+      expect(finalUser2Balance).to.equal(initialUser2Balance); // No change as stake was transferred on bet placement
       
-      // LiquidityPool should receive the remaining funds
-      // await liquidityPool.returnFunds is called inside settleBets
+      // Exposure should be cleared
+      expect(await engine.currentExposure()).to.equal(0);
     });
     
-    it("Should settle bets correctly with away team win", async function () {
+    it("Should settle bets correctly with away team win (Moneyline)", async function () {
       // Initial balances
       const initialUser1Balance = await usdx.balanceOf(user1.address);
       const initialUser2Balance = await usdx.balanceOf(user2.address);
       
-      // Settle with away team win (outcome 2)
-      await engine.connect(marketMock).settleBets(2);
+      // Settle with away team win
+      await engine.connect(marketMock).settleBets(99, 100); // Home Score < Away Score
       
       // Check bet status
       const bet1 = await engine.getBetDetails(0);
       const bet2 = await engine.getBetDetails(1);
       
-      expect(bet1[4]).to.equal(true); // settled
-      expect(bet1[5]).to.equal(false); // lost
-      expect(bet2[4]).to.equal(true); // settled
-      expect(bet2[5]).to.equal(true); // won
+      expect(bet1.settled).to.equal(true);
+      expect(bet1.won).to.equal(false); // User 1 bet on Home, Home lost
+      expect(bet2.settled).to.equal(true);
+      expect(bet2.won).to.equal(true); // User 2 bet on Away, Away won
       
       // Check final balances
       const finalUser1Balance = await usdx.balanceOf(user1.address);
       const finalUser2Balance = await usdx.balanceOf(user2.address);
       
-      // User1 should not get anything back
+      // User 1 lost their stake
       expect(finalUser1Balance).to.equal(initialUser1Balance);
       
-      // User2 should get their bet amount (200) + winnings (100) = 300
+      // User2 winnings: 200 * (1500 / 1000) = 300 (includes stake)
       expect(finalUser2Balance.sub(initialUser2Balance)).to.equal(ethers.utils.parseUnits("300", 6));
+
+      // Exposure should be cleared
+      expect(await engine.currentExposure()).to.equal(0);
     });
     
     it("Should fail when not called by the market", async function () {
       await expect(
-        engine.connect(owner).settleBets(1)
+        engine.connect(owner).settleBets(100, 99)
       ).to.be.revertedWith("Only the market contract can call this function");
     });
   });
@@ -212,14 +237,19 @@ describe("BettingEngine", function () {
       await engine.connect(marketMock).placeBet(
         user1.address,
         ethers.utils.parseUnits("100", 6),
+        BetType.MONEYLINE,
         true,
-        2000 // 2.000 odds, creating 100 USDX exposure
+        2000, // 2.000 odds, potential winnings = 100 USDX
+        0
       );
       
+      // Current exposure is 100 USDX (potential winnings)
+      expect(await engine.currentExposure()).to.equal(ethers.utils.parseUnits("100", 6));
+
       // Try to set max exposure below current exposure
       await expect(
         engine.connect(marketMock).updateMaxExposure(ethers.utils.parseUnits("50", 6))
-      ).to.be.revertedWith("New max exposure must be >= current exposure");
+      ).to.be.revertedWith("New max exposure cannot be less than current exposure");
     });
   });
 });

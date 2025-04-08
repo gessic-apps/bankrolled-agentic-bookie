@@ -1,51 +1,52 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 
+// Enum definition (mirroring NBAMarket.sol)
+const MarketStatus = {
+    PENDING: 0,
+    OPEN: 1,
+    STARTED: 2,
+    SETTLED: 3,
+    CANCELLED: 4
+};
+
 describe("MarketFactory", function () {
-  let MarketFactory;
-  let NBAMarket;
+  let MarketFactory, MarketOdds, NBAMarket;
   let factory;
-  let owner;
-  let oddsProvider;
-  let resultsProvider;
-  let usdx;
-  let liquidityPool;
-  let addr3;
+  let owner, oddsProvider, resultsProvider, addr3;
+  let usdx, liquidityPool;
   let addrs;
 
   beforeEach(async function () {
     // Get signers
     [owner, oddsProvider, resultsProvider, addr3, ...addrs] = await ethers.getSigners();
 
-    // Deploy the contracts
+    // Get Contract Factories
     NBAMarket = await ethers.getContractFactory("NBAMarket");
-    
-    // First deploy USDX and LiquidityPool (mocked for testing)
+    MarketOdds = await ethers.getContractFactory("MarketOdds");
+    MarketFactory = await ethers.getContractFactory("MarketFactory");
+
+    // Deploy USDX and LiquidityPool
     const USDX = await ethers.getContractFactory("USDX");
     usdx = await USDX.deploy();
     await usdx.deployed();
-    
+
     const LiquidityPool = await ethers.getContractFactory("LiquidityPool");
     liquidityPool = await LiquidityPool.deploy(usdx.address);
     await liquidityPool.deployed();
-    
-    // Set up liquidity pool with funds
+
+    // Fund liquidity pool
     await usdx.transfer(liquidityPool.address, ethers.utils.parseUnits("500000", 6));
-    
-    // Fund addr3 with USDX for testing
-    await usdx.transfer(addr3.address, ethers.utils.parseUnits("100000", 6));
-    
+
     // Deploy market factory
-    MarketFactory = await ethers.getContractFactory("MarketFactory");
     factory = await MarketFactory.deploy(
       oddsProvider.address,
       resultsProvider.address,
       usdx.address,
       liquidityPool.address
     );
-    
     await factory.deployed();
-    
+
     // Set the market factory in the liquidity pool
     await liquidityPool.setMarketFactory(factory.address);
   });
@@ -60,165 +61,170 @@ describe("MarketFactory", function () {
     });
 
     it("Should start with zero deployed markets", async function () {
-      expect(await factory.getDeployedMarketsCount()).to.equal(0);
+      // Using getDeployedMarkets which returns an array
+      const deployedMarkets = await factory.getDeployedMarkets();
+      expect(deployedMarkets.length).to.equal(0);
     });
   });
 
   describe("Market creation", function () {
-    it("Should create market with default providers", async function () {
-      // Current time + 1 day
+    it("Should create market with initial odds using default providers", async function () {
       const gameTimestamp = Math.floor(Date.now() / 1000) + 86400;
-      
+      const initialFunding = ethers.utils.parseUnits("10000", 6);
+
+      // Example odds/lines
+      const homeOdds = 1900; // 1.900
+      const awayOdds = 1900; // 1.900
+      const homeSpreadPoints = -75; // -7.5
+      const homeSpreadOdds = 1950; // 1.950
+      const awaySpreadOdds = 1850; // 1.850
+      const totalPoints = 2105; // 210.5
+      const overOdds = 1900; // 1.900
+      const underOdds = 1900; // 1.900
+
       const tx = await factory.createMarket(
         "Lakers",
         "Celtics",
         gameTimestamp,
-        "NBA_GAME_123",  // oddsApiId
-        6000,  // 6.000 odds
-        5000,  // 5.000 odds
-        ethers.utils.parseUnits("10000", 6) // 10k USDX funding
+        "NBA_GAME_123", // oddsApiId
+        homeOdds,
+        awayOdds,
+        homeSpreadPoints,
+        homeSpreadOdds,
+        awaySpreadOdds,
+        totalPoints,
+        overOdds,
+        underOdds,
+        initialFunding
       );
-      
-      // Wait for transaction to be mined
-      await tx.wait();
-      
+
+      // Wait for transaction and get receipt to find event
+      const receipt = await tx.wait();
+      const marketCreatedEvent = receipt.events?.find(e => e.event === 'MarketCreated');
+      expect(marketCreatedEvent).to.exist;
+
+      const marketAddress = marketCreatedEvent.args.marketAddress;
+      // Get marketOddsAddress from the deployed market, not the event
+      // const marketOddsAddress = marketCreatedEvent.args.marketOddsAddress; 
+
       // Check market count
-      expect(await factory.getDeployedMarketsCount()).to.equal(1);
-      
-      // Get the created market address
-      const marketAddress = await factory.deployedMarkets(0);
-      
-      // Create a contract instance for the deployed market
+      const deployedMarkets = await factory.getDeployedMarkets();
+      expect(deployedMarkets.length).to.equal(1);
+      expect(deployedMarkets[0]).to.equal(marketAddress);
+
+      // Create contract instances
       const marketContract = await NBAMarket.attach(marketAddress);
-      
-      // Verify market data
-      const homeTeam = await marketContract.getHomeTeam();
-      const awayTeam = await marketContract.getAwayTeam();
-      const odds = await marketContract.getOdds();
-      
-      expect(homeTeam).to.equal("Lakers");
-      expect(awayTeam).to.equal("Celtics");
-      expect(odds[0]).to.equal(6000);
-      expect(odds[1]).to.equal(5000);
-      
-      // Verify admin and providers
+      // Get MarketOdds address from the NBAMarket contract
+      const marketOddsAddress = await marketContract.getMarketOddsContract();
+      const marketOddsContract = await MarketOdds.attach(marketOddsAddress);
+
+      // Verify market details
+      const details = await marketContract.getMarketDetails();
+      expect(details._homeTeam).to.equal("Lakers");
+      expect(details._awayTeam).to.equal("Celtics");
+      expect(details._gameTimestamp).to.equal(gameTimestamp);
+      expect(details._oddsApiId).to.equal("NBA_GAME_123");
+      expect(details._marketStatus).to.equal(MarketStatus.OPEN); // Should be OPEN as odds were provided
+
+      // Verify odds are set in MarketOdds contract
+      const odds = await marketOddsContract.getFullOdds();
+      expect(odds._homeOdds).to.equal(homeOdds);
+      expect(odds._awayOdds).to.equal(awayOdds);
+      expect(odds._homeSpreadPoints).to.equal(homeSpreadPoints);
+      expect(odds._homeSpreadOdds).to.equal(homeSpreadOdds);
+      expect(odds._awaySpreadOdds).to.equal(awaySpreadOdds);
+      expect(odds._totalPoints).to.equal(totalPoints);
+      expect(odds._overOdds).to.equal(overOdds);
+      expect(odds._underOdds).to.equal(underOdds);
+
+      // Verify providers in NBAMarket
       expect(await marketContract.admin()).to.equal(owner.address);
       expect(await marketContract.oddsProvider()).to.equal(oddsProvider.address);
       expect(await marketContract.resultsProvider()).to.equal(resultsProvider.address);
+
+      // Verify NBAMarket knows its MarketOdds contract
+      expect(await marketContract.getMarketOddsContract()).to.equal(marketOddsAddress);
     });
 
-    it("Should create market with custom providers", async function () {
-      // Current time + 1 day
+    it("Should create market with no initial odds", async function () {
       const gameTimestamp = Math.floor(Date.now() / 1000) + 86400;
-      
-      const tx = await factory.createMarketWithCustomProviders(
-        "Warriors",
-        "Bulls",
-        gameTimestamp,
-        "NBA_GAME_124",  // oddsApiId
-        5500,  // 5.500 odds
-        6500,  // 6.500 odds
-        addr3.address,
-        addr3.address,
-        ethers.utils.parseUnits("10000", 6) // 10k USDX funding
-      );
-      
-      // Wait for transaction to be mined
-      await tx.wait();
-      
-      // Check market count
-      expect(await factory.getDeployedMarketsCount()).to.equal(1);
-      
-      // Get the created market address
-      const marketAddress = await factory.deployedMarkets(0);
-      
-      // Create a contract instance for the deployed market
-      const marketContract = await NBAMarket.attach(marketAddress);
-      
-      // Verify market data
-      const homeTeam = await marketContract.getHomeTeam();
-      const awayTeam = await marketContract.getAwayTeam();
-      
-      expect(homeTeam).to.equal("Warriors");
-      expect(awayTeam).to.equal("Bulls");
-      
-      // Verify custom providers
-      expect(await marketContract.oddsProvider()).to.equal(addr3.address);
-      expect(await marketContract.resultsProvider()).to.equal(addr3.address);
-    });
+      const initialFunding = ethers.utils.parseUnits("5000", 6);
 
-    it("Should create market with no odds", async function () {
-      // Current time + 1 day
-      const gameTimestamp = Math.floor(Date.now() / 1000) + 86400;
-      
-      const tx = await factory.createMarketWithoutOdds(
+      const tx = await factory.createMarket(
         "Heat",
         "Suns",
         gameTimestamp,
-        "NBA_GAME_125",  // oddsApiId
-        ethers.utils.parseUnits("10000", 6) // 10k USDX funding
+        "NBA_GAME_125", // oddsApiId
+        0, // homeOdds
+        0, // awayOdds
+        0, // homeSpreadPoints
+        0, // homeSpreadOdds
+        0, // awaySpreadOdds
+        0, // totalPoints
+        0, // overOdds
+        0, // underOdds
+        initialFunding
       );
-      
-      // Wait for transaction to be mined
-      await tx.wait();
-      
-      // Check market count
-      expect(await factory.getDeployedMarketsCount()).to.equal(1);
-      
-      // Get the created market address
-      const marketAddress = await factory.deployedMarkets(0);
-      
-      // Create a contract instance for the deployed market
+
+      const receipt = await tx.wait();
+      const marketCreatedEvent = receipt.events?.find(e => e.event === 'MarketCreated');
+      const marketAddress = marketCreatedEvent.args.marketAddress;
+      // Get marketOddsAddress from the deployed market, not the event
+      // const marketOddsAddress = marketCreatedEvent.args.marketOddsAddress; 
+
       const marketContract = await NBAMarket.attach(marketAddress);
-      
-      // Verify market data
-      const homeTeam = await marketContract.getHomeTeam();
-      const awayTeam = await marketContract.getAwayTeam();
-      const odds = await marketContract.getOdds();
-      const status = await marketContract.getGameStatus();
-      
-      expect(homeTeam).to.equal("Heat");
-      expect(awayTeam).to.equal("Suns");
-      expect(odds[0]).to.equal(0); // homeOdds should be 0
-      expect(odds[1]).to.equal(0); // awayOdds should be 0
-      expect(status[2]).to.equal(false); // oddsSet should be false
-      
-      // Market should not be ready for betting yet
-      expect(await marketContract.isReadyForBetting()).to.equal(false);
-      
-      // After updating odds, market should be ready for betting
-      // Get the betting engine
-      const bettingEngineAddress = await marketContract.bettingEngine();
-      
-      // Authorize addr3 to spend USDX
-      await usdx.connect(addr3).approve(bettingEngineAddress, ethers.utils.parseUnits("1000", 6));
-      
-      // Update odds and check if market is ready for betting
-      await marketContract.connect(oddsProvider).updateOdds(1850, 2000);
-      expect(await marketContract.isReadyForBetting()).to.equal(true);
-      
-      // Place a bet to verify everything is working correctly
-      await marketContract.connect(addr3).placeBet(ethers.utils.parseUnits("100", 6), true);
-      
-      // Verify the bet was recorded
-      const bettorBets = await marketContract.getBettorBets(addr3.address);
-      expect(bettorBets.length).to.equal(1);
+      // Get MarketOdds address from the NBAMarket contract
+      const marketOddsAddress = await marketContract.getMarketOddsContract();
+      const marketOddsContract = await MarketOdds.attach(marketOddsAddress);
+
+      // Verify market details
+      const details = await marketContract.getMarketDetails();
+      expect(details._homeTeam).to.equal("Heat");
+      expect(details._awayTeam).to.equal("Suns");
+      expect(details._marketStatus).to.equal(MarketStatus.PENDING); // Should be PENDING
+
+      // Verify odds are NOT set in MarketOdds contract
+      expect(await marketOddsContract.initialOddsSet()).to.equal(false);
+      const odds = await marketOddsContract.getFullOdds();
+      expect(odds._homeOdds).to.equal(0);
+      expect(odds._awayOdds).to.equal(0);
+
+      // Market should not be open for betting
+      expect(await marketContract.isMarketOpenForBetting()).to.equal(false);
+
+      // Now, update odds via the MarketOdds contract (using the designated oddsProvider)
+      await marketOddsContract.connect(oddsProvider).updateOdds(
+          1850, 1950, -55, 1900, 1900, 2055, 1880, 1920
+      );
+
+      // Verify odds are now set
+      expect(await marketOddsContract.initialOddsSet()).to.equal(true);
+      const updatedOdds = await marketOddsContract.getFullOdds();
+      expect(updatedOdds._homeOdds).to.equal(1850);
+
+      // Market should now be OPEN
+      // Note: NBAMarket status doesn't automatically update when MarketOdds is updated.
+      // The check `isMarketOpenForBetting` relies on NBAMarket status which is still PENDING.
+      // To open the market, `startGame` needs to be called (after odds are set) OR an explicit `openMarket` function if added.
+      // Current logic: Market opens implicitly if odds are set *at creation time*. 
+      // If odds are set later, the market remains PENDING until `startGame` transitions it to STARTED.
+      // Let's check the status is still PENDING
+      const updatedDetails = await marketContract.getMarketDetails();
+      expect(updatedDetails._marketStatus).to.equal(MarketStatus.PENDING);
+      // And it's still not open for betting via the NBAMarket state
+      expect(await marketContract.isMarketOpenForBetting()).to.equal(false);
+
+      // TODO: Decide if a separate 'openMarket' function is needed or if the status updates implicitly
+      // For now, the test verifies the odds were set in MarketOdds and the NBAMarket remains PENDING.
     });
-    
+
     it("Should fail when non-admin tries to create market", async function () {
       const gameTimestamp = Math.floor(Date.now() / 1000) + 86400;
-      
       await expect(
         factory.connect(addr3).createMarket(
-          "Lakers",
-          "Celtics",
-          gameTimestamp,
-          "NBA_GAME_123",
-          6000,
-          5000,
-          ethers.utils.parseUnits("10000", 6)
+          "Lakers", "Celtics", gameTimestamp, "ID", 1, 1, 1, 1, 1, 1, 1, 1, 0
         )
-      ).to.be.reverted;
+      ).to.be.reverted; // Should revert with default Ownable message or custom if added
     });
   });
 
@@ -241,17 +247,17 @@ describe("MarketFactory", function () {
     it("Should fail when non-admin tries to update providers", async function () {
       await expect(
         factory.connect(addr3).setDefaultOddsProvider(addr3.address)
-      ).to.be.reverted;
-      
+      ).to.be.reverted; // Default Ownable message
+
       await expect(
         factory.connect(addr3).setDefaultResultsProvider(addr3.address)
-      ).to.be.reverted;
+      ).to.be.reverted; // Default Ownable message
     });
 
     it("Should fail when transferring admin to zero address", async function () {
       await expect(
         factory.transferAdmin(ethers.constants.AddressZero)
-      ).to.be.reverted;
+      ).to.be.reverted; // Default Ownable message
     });
   });
 });

@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import MarketsList from "../components/MarketsList";
-// import Faucet from "../components/Faucet"; // Removed Faucet import
+import Faucet from "../components/Faucet";
+import UserBetsList from "../components/UserBetsList";
 import { Market } from "../types/market";
 import '@rainbow-me/rainbowkit/styles.css';
 import {
@@ -33,7 +34,7 @@ const config = getDefaultConfig({
 });
 
 // Define USDX address for Base Mainnet
-const usdxAddress = "0x2E762bB56989A46Ef61a804a3A3b945EDB517Cfb";
+const usdxAddress = "0xb0175c78b647E84b9cff8cAFE70Eee8aF12f6eA1";
 
 export default function Home() {
   const [markets, setMarkets] = useState<Market[]>([]);
@@ -78,7 +79,7 @@ export default function Home() {
         <div className="flex justify-end mb-4"> {/* Position ConnectButton */}
             <ConnectButton />
         </div>
-      {/* <Faucet /> // Removed Faucet component */}
+        <Faucet />
 
       <h1 className="text-3xl font-bold mb-6">NBA Betting Markets</h1>
 
@@ -97,6 +98,12 @@ export default function Home() {
       ) : (
          // Pass the mainnet USDX address to MarketsList
         <MarketsList usdxAddress={usdxAddress} markets={markets} />
+      )}
+
+      {/* Display user bets below the markets list */}
+      {/* Pass the fetched markets to the UserBetsList component */}
+      {!loading && !error && (
+         <UserBetsList markets={markets} />
       )}
     </main>
       </RainbowKitProvider>

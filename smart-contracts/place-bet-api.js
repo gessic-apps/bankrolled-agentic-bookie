@@ -4,7 +4,7 @@ app.post('/api/market/:address/place-bet', async (req, res) => {
     const { address } = req.params;
     const { amount, onHomeTeam, bettor } = req.body;
     
-    if (\!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
+    if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
       return res.status(400).json({ error: 'Valid amount is required (must be a positive number)' });
     }
     
@@ -12,7 +12,7 @@ app.post('/api/market/:address/place-bet', async (req, res) => {
       return res.status(400).json({ error: 'onHomeTeam (true/false) parameter is required' });
     }
     
-    if (\!bettor) {
+    if (!bettor) {
       return res.status(400).json({ error: 'bettor address is required' });
     }
     
@@ -52,7 +52,7 @@ app.post('/api/market/:address/place-bet', async (req, res) => {
     }
     
     // Confirm wallet address matches bettor
-    if (wallet.address.toLowerCase() \!== bettor.toLowerCase()) {
+    if (wallet.address.toLowerCase() !== bettor.toLowerCase()) {
       console.error(`Wallet address ${wallet.address} doesn't match bettor ${bettor}`);
       return res.status(400).json({
         error: "Wallet mismatch",

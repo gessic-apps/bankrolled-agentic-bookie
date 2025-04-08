@@ -37,6 +37,7 @@ const NBAMarketJson = require('./artifacts/contracts/NBAMarket.sol/NBAMarket.jso
 const LiquidityPoolJson = require('./artifacts/contracts/LiquidityPool.sol/LiquidityPool.json');
 const USDXJson = require('./artifacts/contracts/USDX.sol/USDX.json');
 const BettingEngineJson = require('./artifacts/contracts/BettingEngine.sol/BettingEngine.json');
+const MarketOddsJson = require('./artifacts/contracts/MarketOdds.sol/MarketOdds.json');
 
 // Note: setupProvider and wallet management functions are now imported from wallet-helper.js
 
@@ -84,7 +85,7 @@ app.post('/api/deploy/factory', async (req, res) => {
     }
     
     const provider = setupProvider();
-    const wallet = getDefaultWallet(provider);
+    const wallet = await getDefaultWallet(provider);
     
     const MarketFactory = new ethers.ContractFactory(
       MarketFactoryJson.abi, 
@@ -140,7 +141,13 @@ app.post('/api/deploy/factory', async (req, res) => {
 app.post('/api/market/create', async (req, res) => {
   try {
     console.log("Request body:", req.body);
-    const { homeTeam, awayTeam, gameTimestamp, oddsApiId, homeOdds, awayOdds, marketFunding } = req.body;
+    const {
+      homeTeam, awayTeam, gameTimestamp, oddsApiId, 
+      homeOdds, awayOdds, 
+      homeSpreadPoints, homeSpreadOdds, awaySpreadOdds,
+      totalPoints, overOdds, underOdds,
+      marketFunding 
+    } = req.body;
     
     console.log("DeployedContracts:", deployedContracts);
     
@@ -153,7 +160,8 @@ app.post('/api/market/create', async (req, res) => {
     }
     
     const provider = setupProvider();
-    
+    const adminSigner = await getRoleSigner('admin', provider); // Get signer explicitly
+
     // Get the factory address - handle both string and object formats
     let factoryAddress;
     if (typeof deployedContracts.marketFactory === 'string') {
@@ -174,90 +182,115 @@ app.post('/api/market/create', async (req, res) => {
     // Convert funding to wei representation if provided
     const fundingAmount = marketFunding ? ethers.utils.parseUnits(marketFunding.toString(), 6) : 0;
     
-    // Make sure odds are numbers, and properly handle when they're not provided
-    const parsedHomeOdds = homeOdds !== undefined ? parseInt(homeOdds) : 0;
-    const parsedAwayOdds = awayOdds !== undefined ? parseInt(awayOdds) : 0;
-    
-    console.log("Processed parameters:", {
+    // Make sure odds/lines are numbers, defaulting to 0
+    const params = [
       homeTeam, 
       awayTeam, 
-      gameTimestamp: parseInt(gameTimestamp), 
-      oddsApiId,
-      homeOdds: parsedHomeOdds,
-      awayOdds: parsedAwayOdds,
-      fundingAmount: fundingAmount.toString()
-    });
+      parseInt(gameTimestamp), 
+      oddsApiId, 
+      homeOdds !== undefined ? parseInt(homeOdds) : 0,
+      awayOdds !== undefined ? parseInt(awayOdds) : 0,
+      homeSpreadPoints !== undefined ? parseInt(homeSpreadPoints) : 0,
+      homeSpreadOdds !== undefined ? parseInt(homeSpreadOdds) : 0,
+      awaySpreadOdds !== undefined ? parseInt(awaySpreadOdds) : 0,
+      totalPoints !== undefined ? parseInt(totalPoints) : 0,
+      overOdds !== undefined ? parseInt(overOdds) : 0,
+      underOdds !== undefined ? parseInt(underOdds) : 0,
+      fundingAmount
+    ];
+
+    console.log("Processed parameters for createMarket:", params);
     
-    if (parsedHomeOdds > 0 && parsedAwayOdds > 0) {
-      // Create market with odds
-      result = await signAndSendTransaction({
-        contractAddress: factoryAddress,
-        contractAbi: MarketFactoryJson.abi,
-        method: 'createMarket',
-        params: [
-          homeTeam, 
-          awayTeam, 
-          parseInt(gameTimestamp), 
-          oddsApiId, 
-          parsedHomeOdds, 
-          parsedAwayOdds, 
-          fundingAmount
-        ],
-        role: 'admin'
-      }, provider);
-    } else {
-      // Create market without odds
-      result = await signAndSendTransaction({
-        contractAddress: factoryAddress,
-        contractAbi: MarketFactoryJson.abi,
-        method: 'createMarketWithoutOdds',
-        params: [
-          homeTeam, 
-          awayTeam, 
-          parseInt(gameTimestamp), 
-          oddsApiId, 
-          fundingAmount
-        ],
-        role: 'admin'
-      }, provider);
-    }
-    
+    // Always use createMarket, passing 0 for unspecified odds/lines
+    result = await signAndSendTransaction({
+      contractAddress: factoryAddress,
+      contractAbi: MarketFactoryJson.abi,
+      method: 'createMarket',
+      params: params,
+      signer: adminSigner // Pass the explicit signer
+    }, provider);
+
     if (!result.success) {
+      // If signAndSendTransaction failed (error during estimation, sending, or waiting), throw the error
+      console.error("signAndSendTransaction failed:", result.error);
       throw new Error(result.error);
     }
+
+    // At this point, signAndSendTransaction succeeded in sending AND waiting for the tx.
+    // However, the transaction might have *reverted* (status 0).
+    // Let's fetch the full receipt again now to get the logs, handling potential null.
     
-    // Get the receipt directly from the transaction result
+    console.log(`Fetching full receipt for confirmed tx: ${result.transaction}...`);
     const receipt = await provider.getTransactionReceipt(result.transaction);
+
+    // --- Check if the receipt was found and if the transaction reverted ---
+    if (!receipt) {
+        // This case is less likely if tx.wait() succeeded, but possible with node issues
+        console.error(`Failed to fetch receipt for transaction: ${result.transaction}. Transaction might not be mined or node is out of sync.`);
+        throw new Error(`Failed to fetch receipt for transaction ${result.transaction}.`);
+    }
+
+    if (receipt.status === 0) {
+      console.error(`Transaction reverted (status 0): ${result.transaction}`);
+      // Optional: Try to get revert reason (might not always work)
+      try {
+          const tx = await provider.getTransaction(result.transaction);
+          if (tx) { // Ensure tx exists before calling provider.call
+             await provider.call(tx, tx.blockNumber); // This might throw with the reason
+          } else {
+             console.error("Could not fetch transaction details to check revert reason.");
+          }
+      } catch (err) {
+          // This error often contains the revert reason
+          console.error("Revert reason check error:", err);
+          throw new Error(`Transaction reverted. Reason: ${err.reason || err.message || 'Unknown'}`);
+      }
+      // Fallback error if provider.call didn't throw a useful reason
+      throw new Error('Transaction reverted. Check contract logic, parameters, and potential revert reasons.');
+    }
+    // --- End revert check ---
+
+    // Transaction was successful (status 1), now parse the logs from the fetched receipt
+    console.log("Transaction successful (status 1), parsing logs...");
+    const marketFactoryInterface = new ethers.utils.Interface(MarketFactoryJson.abi);
+    // Corrected event signature: address, address, string, string, uint256, string, uint256
+    const correctEventSignature = "MarketCreated(address,address,string,string,uint256,string,uint256)";
+    const marketCreatedEventTopic = ethers.utils.id(correctEventSignature);
     
-    // Parse logs to get the market address
-    const marketFactory = new ethers.Contract(factoryAddress, MarketFactoryJson.abi, provider);
-    const eventTopic = marketFactory.interface.getEventTopic('MarketCreated');
-    
-    // Find the MarketCreated event
-    const marketEvent = receipt.logs.find(log => 
-      log.topics[0] === eventTopic
+    // ---- START ADDED DEBUG LOGGING ----
+    console.log("DEBUG: Searching for MarketCreated event in receipt for tx:", result.transaction);
+    console.log("DEBUG: Expected Factory Address:", factoryAddress.toLowerCase());
+    console.log("DEBUG: Expected Event Topic:", marketCreatedEventTopic);
+    console.log("DEBUG: Full Receipt Logs:", JSON.stringify(receipt.logs, (key, value) => 
+        typeof value === 'bigint' ? value.toString() : // Convert BigInts to strings for JSON
+        value, 2)); // Pretty print JSON
+    // ---- END ADDED DEBUG LOGGING ----
+
+    // Find the MarketCreated event using the correct topic
+    const marketEventLog = receipt.logs.find(log => 
+      log.topics[0] === marketCreatedEventTopic && log.address.toLowerCase() === factoryAddress.toLowerCase()
     );
     
-    if (!marketEvent) {
-      throw new Error('Could not find MarketCreated event in transaction logs');
+    if (!marketEventLog) {
+      console.warn("Could not find MarketCreated event in transaction logs for factory", factoryAddress, "Topic:", marketCreatedEventTopic);
+      // Attempt to fallback by checking the deployedMarkets array length change if needed, but error is safer
+      throw new Error('Could not reliably find MarketCreated event');
     }
     
     // Decode event data
-    const eventData = marketFactory.interface.parseLog(marketEvent);
-    const marketAddress = eventData.args[0];
+    const eventData = marketFactoryInterface.parseLog(marketEventLog);
+    const marketAddress = eventData.args.marketAddress;
     
     // Store market details
     const marketInfo = {
       address: marketAddress,
-      homeTeam,
-      awayTeam,
-      gameTimestamp,
-      oddsApiId,
-      homeOdds: homeOdds || 0,
-      awayOdds: awayOdds || 0,
-      oddsSet: !!(homeOdds && awayOdds && homeOdds >= 1000 && awayOdds >= 1000),
-      createdAt: new Date().toISOString(),
-      funding: marketFunding || "Default"
+      homeTeam: eventData.args.homeTeam,
+      awayTeam: eventData.args.awayTeam,
+      gameTimestamp: eventData.args.gameTimestamp.toNumber(),
+      oddsApiId: eventData.args.oddsApiId,
+      funding: ethers.utils.formatUnits(eventData.args.funding, 6),
+      transaction: result.transaction,
+      createdAt: new Date().toISOString()
     };
     
     deployedContracts.markets.push(marketInfo);
@@ -279,29 +312,59 @@ app.post('/api/market/create', async (req, res) => {
 app.post('/api/market/:address/update-odds', async (req, res) => {
   try {
     const { address } = req.params;
-    const { homeOdds, awayOdds } = req.body;
-    
-    if (!homeOdds || !awayOdds) {
-      return res.status(400).json({ error: 'homeOdds and awayOdds are required' });
+    const {
+      homeOdds, awayOdds, 
+      homeSpreadPoints, homeSpreadOdds, awaySpreadOdds,
+      totalPoints, overOdds, underOdds
+    } = req.body;
+
+    // Validate required fields - all are needed for the contract function
+    if (homeOdds === undefined || awayOdds === undefined || 
+        homeSpreadPoints === undefined || homeSpreadOdds === undefined || awaySpreadOdds === undefined ||
+        totalPoints === undefined || overOdds === undefined || underOdds === undefined) {
+      return res.status(400).json({ error: 'Missing one or more required odds/line parameters for updateOdds' });
     }
-    
-    if (homeOdds < 1000 || awayOdds < 1000) {
-      return res.status(400).json({ error: 'Odds must be at least 1.000 (1000)' });
+
+    // Parse all parameters as integers
+    const params = [
+        parseInt(homeOdds),
+        parseInt(awayOdds),
+        parseInt(homeSpreadPoints),
+        parseInt(homeSpreadOdds),
+        parseInt(awaySpreadOdds),
+        parseInt(totalPoints),
+        parseInt(overOdds),
+        parseInt(underOdds)
+    ];
+
+    // Basic NaN check after parsing
+    if (params.some(isNaN)) {
+         return res.status(400).json({ error: 'All odds/line parameters must be valid numbers' });
     }
-    
+
+    console.log(`Updating odds for ${address} with params:`, params);
+
     const provider = setupProvider();
-    
-    console.log(`Updating odds for market ${address}...`);
-    
-    // Use the odds provider role to update odds
+
+    // 1. Get the MarketOdds contract address from the NBAMarket contract
+    console.log("Fetching MarketOdds contract address...");
+    const nbaMarketContract = new ethers.Contract(address, NBAMarketJson.abi, provider); 
+    const marketOddsAddress = await nbaMarketContract.getMarketOddsContract();
+
+    if (!marketOddsAddress || marketOddsAddress === ethers.constants.AddressZero) {
+      return res.status(404).json({ error: `MarketOdds contract not found for NBAMarket ${address}` });
+    }
+    console.log(`Targeting MarketOdds contract: ${marketOddsAddress}`);
+
+    // 2. Send transaction to the MarketOdds contract
     const result = await signAndSendTransaction({
-      contractAddress: address,
-      contractAbi: NBAMarketJson.abi,
+      contractAddress: marketOddsAddress, // Target the odds contract
+      contractAbi: MarketOddsJson.abi,   // Use its ABI
       method: 'updateOdds',
-      params: [homeOdds, awayOdds],
-      role: 'oddsProvider'  // This will use the odds provider's private key
+      params: params,
+      role: 'oddsProvider' // Use odds provider signer
     }, provider);
-    
+
     if (!result.success) {
       throw new Error(result.error);
     }
@@ -311,6 +374,12 @@ app.post('/api/market/:address/update-odds', async (req, res) => {
     if (marketIndex >= 0) {
       deployedContracts.markets[marketIndex].homeOdds = homeOdds;
       deployedContracts.markets[marketIndex].awayOdds = awayOdds;
+      deployedContracts.markets[marketIndex].homeSpreadPoints = homeSpreadPoints;
+      deployedContracts.markets[marketIndex].homeSpreadOdds = homeSpreadOdds;
+      deployedContracts.markets[marketIndex].awaySpreadOdds = awaySpreadOdds;
+      deployedContracts.markets[marketIndex].totalPoints = totalPoints;
+      deployedContracts.markets[marketIndex].overOdds = overOdds;
+      deployedContracts.markets[marketIndex].underOdds = underOdds;
       deployedContracts.markets[marketIndex].oddsSet = true;
       deployedContracts.markets[marketIndex].updatedAt = new Date().toISOString();
       saveDeployedContracts();
@@ -322,6 +391,12 @@ app.post('/api/market/:address/update-odds', async (req, res) => {
       address,
       homeOdds,
       awayOdds,
+      homeSpreadPoints,
+      homeSpreadOdds,
+      awaySpreadOdds,
+      totalPoints,
+      overOdds,
+      underOdds,
       transaction: result.transaction
     });
   } catch (error) {
@@ -423,32 +498,64 @@ app.get('/api/market/:address', async (req, res) => {
     
     console.log(`Getting info for market ${address}...`);
     
-    // Get all market info using the individual getter functions
-    const homeTeam = await market.getHomeTeam();
-    const awayTeam = await market.getAwayTeam();
-    const gameTimestamp = await market.getGameTimestamp();
-    const oddsApiId = await market.getOddsApiId();
-    const odds = await market.getOdds();
-    const status = await market.getGameStatus();
-    const exposure = await market.getExposureInfo();
-    const isReadyForBetting = await market.isReadyForBetting();
+    // Fetch all details concurrently
+    const [details, fullOdds, exposure, bettingEngineAddress] = await Promise.all([
+         market.getMarketDetails(),
+         // Fetch odds from the associated MarketOdds contract
+         (async () => {
+            try {
+                const marketOddsAddr = await market.getMarketOddsContract();
+                if (!marketOddsAddr || marketOddsAddr === ethers.constants.AddressZero) return { error: "No MarketOdds contract linked" };
+                const oddsContract = new ethers.Contract(marketOddsAddr, MarketOddsJson.abi, provider);
+                const oddsData = await oddsContract.getFullOdds();
+                return { address: marketOddsAddr, data: oddsData }; // Return address and data
+            } catch (e) {
+                 console.error("Error fetching odds data:", e);
+                 return { error: e.message };
+            }
+         })(),
+         market.getExposureInfo(),
+         market.bettingEngine() // Get the associated betting engine
+    ]);
     
     // Format the response
     const marketInfo = {
       address,
-      homeTeam,
-      awayTeam,
-      gameTimestamp: gameTimestamp.toString(),
-      oddsApiId,
-      homeOdds: odds[0].toString(),
-      awayOdds: odds[1].toString(),
-      gameStarted: status[0],
-      gameEnded: status[1],
-      oddsSet: status[2],
-      outcome: status[3],
+      homeTeam: details._homeTeam,
+      awayTeam: details._awayTeam,
+      gameTimestamp: details._gameTimestamp.toNumber(),
+      oddsApiId: details._oddsApiId,
+      homeScore: details._homeScore.toNumber(),
+      awayScore: details._awayScore.toNumber(),
+      marketOddsAddress: fullOdds.address || null, // Include the odds contract address
+      ...(fullOdds.data ? { // Check if odds data was fetched successfully
+          homeOdds: fullOdds.data._homeOdds.toNumber() / 1000,
+          awayOdds: fullOdds.data._awayOdds.toNumber() / 1000,
+          homeSpreadPoints: formatLine(1, fullOdds.data._homeSpreadPoints),
+          homeSpreadOdds: fullOdds.data._homeSpreadOdds.toNumber() / 1000,
+          awaySpreadOdds: fullOdds.data._awaySpreadOdds.toNumber() / 1000,
+          totalPoints: formatLine(2, fullOdds.data._totalPoints),
+          overOdds: fullOdds.data._overOdds.toNumber() / 1000,
+          underOdds: fullOdds.data._underOdds.toNumber() / 1000,
+          // Raw Odds (optional, for debugging/internal use)
+          rawOdds: {
+              homeOdds: fullOdds.data._homeOdds.toString(),
+              awayOdds: fullOdds.data._awayOdds.toString(),
+              homeSpreadPoints: fullOdds.data._homeSpreadPoints.toString(),
+              homeSpreadOdds: fullOdds.data._homeSpreadOdds.toString(),
+              awaySpreadOdds: fullOdds.data._awaySpreadOdds.toString(),
+              totalPoints: fullOdds.data._totalPoints.toString(),
+              overOdds: fullOdds.data._overOdds.toString(),
+              underOdds: fullOdds.data._underOdds.toString(),
+          }
+      } : { oddsError: fullOdds.error || "Odds not loaded" }), // Include error if fetch failed
+      gameStarted: details._marketStatus[0],
+      gameEnded: details._marketStatus[1],
+      oddsSet: details._marketStatus[2],
+      outcome: details._marketStatus[3],
       maxExposure: ethers.utils.formatUnits(exposure[0], 6),
       currentExposure: ethers.utils.formatUnits(exposure[1], 6),
-      isReadyForBetting
+      bettingEngineAddress
     };
     
     res.json(marketInfo);
@@ -458,43 +565,57 @@ app.get('/api/market/:address', async (req, res) => {
   }
 });
 
-// Start or handle game results
+// Control game status (start game, set result)
 app.post('/api/market/:address/game-status', async (req, res) => {
   try {
     const { address } = req.params;
-    const { action, outcome } = req.body;
-    
-    if (!action || !['start', 'set-result'].includes(action)) {
-      return res.status(400).json({ error: 'Valid action is required (start or set-result)' });
-    }
-    
-    if (action === 'set-result' && ![1, 2].includes(outcome)) {
-      return res.status(400).json({ error: 'Valid outcome is required (1 for home win, 2 for away win)' });
-    }
-    
-    const provider = setupProvider();
-    
-    let result;
+    const { action, outcome, homeScore, awayScore } = req.body; // outcome is deprecated, use scores
+
+    let method;
+    let params = [];
+    let role;
+
     if (action === 'start') {
-      console.log(`Starting game for market ${address}...`);
-      result = await signAndSendTransaction({
-        contractAddress: address,
-        contractAbi: NBAMarketJson.abi,
-        method: 'startGame',
-        params: [],
-        role: 'admin'  // This will use the admin's private key
-      }, provider);
+      method = 'startGame';
+      role = 'resultsProvider';
+    } else if (action === 'set-result') {
+      // Validate scores for set-result
+      if (homeScore === undefined || awayScore === undefined) {
+        return res.status(400).json({ error: 'homeScore and awayScore are required for set-result' });
+      }
+      const parsedHomeScore = parseInt(homeScore);
+      const parsedAwayScore = parseInt(awayScore);
+      if (isNaN(parsedHomeScore) || isNaN(parsedAwayScore) || parsedHomeScore < 0 || parsedAwayScore < 0) {
+         return res.status(400).json({ error: 'Scores must be non-negative integers.' });
+      }
+
+      method = 'setResult';
+      params = [parsedHomeScore, parsedAwayScore]; // Pass scores
+      role = 'resultsProvider';
     } else {
-      console.log(`Setting result for market ${address}...`);
-      result = await signAndSendTransaction({
-        contractAddress: address,
-        contractAbi: NBAMarketJson.abi,
-        method: 'setResult',
-        params: [outcome],
-        role: 'resultsProvider'  // This will use the results provider's private key
-      }, provider);
+      return res.status(400).json({ error: 'Invalid action. Must be \"start\" or \"set-result\"' });
     }
-    
+
+    console.log(`Performing action '${action}' on market ${address} with role '${role}' and params:`, params);
+
+    const provider = setupProvider();
+    // Explicitly get the signer based on the required role
+    const actionSigner = await getRoleSigner(role, provider);
+    if (!actionSigner) {
+        console.error(`Could not get signer for role: ${role}`);
+        return res.status(500).json({ error: `Server configuration error: Could not load signer for role '${role}'.` });
+    }
+    console.log(`Using signer address: ${await actionSigner.getAddress()} for role ${role}`);
+
+    const result = await signAndSendTransaction({
+      contractAddress: address,
+      contractAbi: NBAMarketJson.abi,
+      method: method,
+      params: params,
+      // Pass the explicit signer object instead of the role string
+      signer: actionSigner 
+    }, provider);
+
     if (!result.success) {
       throw new Error(result.error);
     }
@@ -528,55 +649,96 @@ app.post('/api/market/:address/game-status', async (req, res) => {
 
 // Get all markets from factory
 app.get('/api/markets', async (req, res) => {
+  if (!deployedContracts.marketFactory) {
+    return res.status(400).json({ error: 'MarketFactory not deployed yet' });
+  }
+
   try {
-    if (!deployedContracts.marketFactory) {
-      return res.status(400).json({ error: 'MarketFactory not deployed yet' });
-    }
-    
     const provider = setupProvider();
-    const marketFactory = new ethers.Contract(
-      deployedContracts.marketFactory.address, 
-      MarketFactoryJson.abi, 
-      provider
-    );
+    const factoryAddress = (typeof deployedContracts.marketFactory === 'string')
+      ? deployedContracts.marketFactory
+      : deployedContracts.marketFactory.address;
+
+    const marketFactory = new ethers.Contract(factoryAddress, MarketFactoryJson.abi, provider);
     
-    console.log('Getting all markets...');
-    const count = await marketFactory.getDeployedMarketsCount();
-    
-    const markets = [];
-    for (let i = 0; i < count; i++) {
-      const marketAddress = await marketFactory.deployedMarkets(i);
-      const market = new ethers.Contract(marketAddress, NBAMarketJson.abi, provider);
-      
-      // Get all market info using the individual getter functions
-      const homeTeam = await market.getHomeTeam();
-      const awayTeam = await market.getAwayTeam();
-      const gameTimestamp = await market.getGameTimestamp();
-      const oddsApiId = await market.getOddsApiId();
-      const odds = await market.getOdds();
-      const status = await market.getGameStatus();
-      const exposure = await market.getExposureInfo();
-      const isReadyForBetting = await market.isReadyForBetting();
-      
-      markets.push({
-        address: marketAddress,
-        homeTeam,
-        awayTeam,
-        gameTimestamp: gameTimestamp.toString(),
-        oddsApiId,
-        homeOdds: odds[0].toString(),
-        awayOdds: odds[1].toString(),
-        gameStarted: status[0],
-        gameEnded: status[1],
-        oddsSet: status[2],
-        outcome: status[3],
-        maxExposure: ethers.utils.formatUnits(exposure[0], 6),
-        currentExposure: ethers.utils.formatUnits(exposure[1], 6),
-        isReadyForBetting
-      });
+    let marketAddresses = [];
+    try {
+        marketAddresses = await marketFactory.getDeployedMarkets();
+    } catch (e) {
+        // Handle case where getDeployedMarkets might not exist or fails
+        console.warn("marketFactory.getDeployedMarkets() failed, trying stored markets:", e.message);
+        // Fallback to locally stored markets if necessary
+        if (deployedContracts.markets && deployedContracts.markets.length > 0) {
+            marketAddresses = deployedContracts.markets.map(m => m.address);
+            console.log(`Using ${marketAddresses.length} stored market addresses as fallback.`);
+        } else {
+            console.error("Failed to get markets from factory and no stored markets found.");
+            return res.json([]); // Return empty array if no markets found
+        }
     }
     
-    res.json(markets);
+    if (!marketAddresses || marketAddresses.length === 0) {
+        console.log("No market addresses found.");
+        return res.json([]);
+    }
+
+    // Fetch basic details for each market concurrently
+    const marketDetailsPromises = marketAddresses.map(async (address) => {
+      try {
+        const marketContract = new ethers.Contract(address, NBAMarketJson.abi, provider);
+        const details = await marketContract.getMarketDetails(); // Using new getter
+        const exposure = await marketContract.getExposureInfo();
+        
+        // Fetch odds from associated MarketOdds contract
+        let oddsDetails = {};
+        try {
+            const marketOddsAddress = await marketContract.getMarketOddsContract();
+            if (marketOddsAddress && marketOddsAddress !== ethers.constants.AddressZero) {
+               const oddsContract = new ethers.Contract(marketOddsAddress, MarketOddsJson.abi, provider);
+               const fullOddsData = await oddsContract.getFullOdds();
+               oddsDetails = {
+                  marketOddsAddress: marketOddsAddress,
+                  homeOdds: fullOddsData._homeOdds.toNumber() / 1000,
+                  awayOdds: fullOddsData._awayOdds.toNumber() / 1000,
+                  homeSpreadPoints: formatLine(1, fullOddsData._homeSpreadPoints), // Use helper
+                  homeSpreadOdds: fullOddsData._homeSpreadOdds.toNumber() / 1000,
+                  awaySpreadOdds: fullOddsData._awaySpreadOdds.toNumber() / 1000,
+                  totalPoints: formatLine(2, fullOddsData._totalPoints), // Use helper
+                  overOdds: fullOddsData._overOdds.toNumber() / 1000,
+                  underOdds: fullOddsData._underOdds.toNumber() / 1000,
+              };
+           } else {
+              oddsDetails = { marketOddsAddress: 'Not Set or Zero', error: 'Odds contract missing' };
+           }
+        } catch (oddsError) {
+             console.error(`Error fetching odds details for market ${address}:`, oddsError);
+             oddsDetails = { error: 'Failed to fetch odds details' };
+        }
+        
+        return {
+          address: address,
+          homeTeam: details._homeTeam,
+          awayTeam: details._awayTeam,
+          gameTimestamp: details._gameTimestamp.toNumber(),
+          oddsApiId: details._oddsApiId,
+          status: mapMarketStatusEnumToString(details._marketStatus), // Use helper
+          resultSettled: details._resultSettled,
+          homeScore: details._homeScore.toNumber(),
+          awayScore: details._awayScore.toNumber(),
+          // Include odds for quick view
+          ...oddsDetails, // Spread odds details into the market object
+          maxExposure: ethers.utils.formatUnits(exposure[0], 6), // Assuming 6 decimals for USDX
+          currentExposure: ethers.utils.formatUnits(exposure[1], 6)
+        };
+      } catch (marketError) {
+        console.error(`Error fetching details for market ${address}:`, marketError);
+        return { address: address, error: 'Failed to fetch details' }; // Return partial info on error
+      }
+    });
+
+    const markets = await Promise.all(marketDetailsPromises);
+    res.json(markets.filter(m => !m.error)); // Filter out markets that failed to load
+
   } catch (error) {
     console.error('Error getting markets:', error);
     res.status(500).json({ error: error.message });
@@ -739,252 +901,239 @@ app.listen(PORT, () => {
 // Export for PM2
 module.exports = app;
 
-// Place bet (USER DIRECT METHOD)
+// Place a bet on a market
 app.post('/api/market/:address/place-bet', async (req, res) => {
   try {
     const { address } = req.params;
-    const { amount, onHomeTeam, bettor } = req.body;
-    
-    if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
-      return res.status(400).json({ error: 'Valid amount is required (must be a positive number)' });
+    const { amount, betType, betSide, bettor } = req.body; // betType: 'moneyline', 'spread', 'total'; betSide: 'home'/'away' or 'over'/'under'
+
+    if (!amount || !betType || !betSide || !bettor) {
+      return res.status(400).json({ error: 'amount, betType, betSide, and bettor are required' });
     }
-    
-    if (onHomeTeam === undefined) {
-      return res.status(400).json({ error: 'onHomeTeam (true/false) parameter is required' });
+
+    // Map betType string to enum index
+    let betTypeEnum;
+    if (betType.toLowerCase() === 'moneyline') betTypeEnum = 0;
+    else if (betType.toLowerCase() === 'spread') betTypeEnum = 1;
+    else if (betType.toLowerCase() === 'total') betTypeEnum = 2;
+    else return res.status(400).json({ error: 'Invalid betType' });
+
+    // Map betSide string to boolean (isBettingOnHomeOrOver)
+    let isBettingOnHomeOrOver;
+    const sideLower = betSide.toLowerCase();
+    if (betTypeEnum === 0 || betTypeEnum === 1) { // ML or Spread
+        if (sideLower === 'home') isBettingOnHomeOrOver = true;
+        else if (sideLower === 'away') isBettingOnHomeOrOver = false;
+        else return res.status(400).json({ error: 'Invalid betSide for moneyline/spread' });
+    } else { // Total
+        if (sideLower === 'over') isBettingOnHomeOrOver = true;
+        else if (sideLower === 'under') isBettingOnHomeOrOver = false;
+        else return res.status(400).json({ error: 'Invalid betSide for total' });
     }
-    
-    if (!bettor) {
-      return res.status(400).json({ error: 'bettor address is required' });
-    }
-    
-    console.log("=== STARTING USER BET PLACEMENT ===");
-    console.log("Market address:", address);
-    console.log("Bettor:", bettor);
-    console.log("Amount:", amount);
-    console.log("On home team:", onHomeTeam);
     
     const provider = setupProvider();
     
-    // Find the correct wallet for this address
-    let wallet;
+    // --- Get the correct signer based on the 'bettor' address provided ---
+    let actualBettorSigner;
+    const hardhatAccounts = {
+        // Map addresses to their known private keys for local dev
+        '0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266': '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80', // Account 0 (Admin/Deployer)
+        '0x70997970c51812dc3a010c7d01b50e0d17dc79c8': '0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d', // Account 1 (Odds)
+        '0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc': '0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a', // Account 2 (Results)
+        '0x90f79bf6eb2c4f870365e785982e1f101e93b906': '0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6', // Account 3 (User 1)
+        '0x15d34aaf54267db7d7c367839aaf71a00a2c6a65': '0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a', // Account 4 (User 2)
+        '0xdc63788ada727255db07819632488d2629139ce8': '0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba'  // Account 5 (Added for UI) - Assuming Hardhat PK
+        // Add other known bettor private keys if needed for testing
+    };
     
-    // MUST MATCH EXACTLY - use checksum addresses for comparison
-    const checkSummedBettor = ethers.utils.getAddress(bettor);
-    console.log("Checksummed bettor address:", checkSummedBettor);
-    
-    if (checkSummedBettor === '0x70997970C51812dc3A010C7d01b50e0d17dc79C8') {
-      wallet = getRoleSigner('oddsProvider', provider);
-      console.log("Using oddsProvider wallet (account 1)");
-    } else if (checkSummedBettor === '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC') {
-      wallet = getRoleSigner('resultsProvider', provider);
-      console.log("Using resultsProvider wallet (account 2)");
-    } else if (checkSummedBettor === '0x90F79bf6EB2c4f870365E785982E1f101E93b906') {
-      wallet = getRoleSigner('user1', provider);
-      console.log("Using user1 wallet (account 3)");
-    } else if (checkSummedBettor === '0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65') {
-      wallet = getRoleSigner('user2', provider);
-      console.log("Using user2 wallet (account 4)");
+    const lowerCaseBettor = bettor.toLowerCase();
+    let foundPrivateKey = null;
+    for (const addressKey in hardhatAccounts) {
+        if (addressKey.toLowerCase() === lowerCaseBettor) {
+            foundPrivateKey = hardhatAccounts[addressKey];
+            break;
+        }
+    }
+
+    if (foundPrivateKey) {
+        actualBettorSigner = new ethers.Wallet(foundPrivateKey, provider);
+        console.log(`Found signer for ${bettor} using pre-configured local keys.`);
     } else {
-      console.error(`No wallet available for address ${bettor}`);
-      return res.status(400).json({
-        error: "Unknown bettor address",
-        details: `No wallet available for ${bettor}. Please use one of the test wallets.`
-      });
+        // Fallback or error handling if the bettor address isn't known/configured
+        // For now, we'll use the default wallet as a fallback, but this might not be desired
+        console.warn(`Could not find pre-configured private key for bettor ${bettor}. Falling back to default wallet.`);
+        // Using default wallet might lead to unexpected behavior if it doesnt have USDX or allowance
+        // Consider throwing an error instead:
+        return res.status(400).json({ error: `Signer for bettor address ${bettor} not configured on the server.` });
+        // actualBettorSigner = await getDefaultWallet(provider); 
     }
-    
-    // Confirm wallet address matches bettor
-    if (wallet.address.toLowerCase() !== bettor.toLowerCase()) {
-      console.error(`Wallet address ${wallet.address} doesn't match bettor ${bettor}`);
-      return res.status(400).json({
-        error: "Wallet mismatch",
-        details: `The wallet address (${wallet.address}) doesn't match the bettor address (${bettor}).`
-      });
+    // --- End signer determination ---
+
+    if (!actualBettorSigner) { // Basic check, though the logic above should handle it
+      return res.status(500).json({ error: `Could not load the signer for address ${bettor}. Check server configuration.` });
     }
+
+    console.log(`Placing bet using signer: ${await actualBettorSigner.getAddress()}`); // Use actualBettorSigner
+
+    // Convert amount to token units
+    const betAmountInTokens = ethers.utils.parseUnits(amount.toString(), 6);
     
-    console.log(`Using wallet with address ${wallet.address}`);
-    
-    // Convert amount to tokens
-    const amountInTokens = ethers.utils.parseUnits(amount.toString(), 6);
-    
-    // Connect to the market contract with the correct wallet
-    const market = new ethers.Contract(address, NBAMarketJson.abi, wallet);
-    
-    // --- Perform bet operations ---
+    // --- Get Betting Engine Address (Needed for Approval) ---
+    const marketContractReader = new ethers.Contract(address, NBAMarketJson.abi, provider); // Use provider for read-only call
+    let bettingEngineAddress;
     try {
-      // Check market readiness
-      const isReadyForBetting = await market.isReadyForBetting();
-      if (!isReadyForBetting) {
-        return res.status(400).json({
-          error: "Market not ready for betting",
-          details: "The market may not have odds set or the game might have already started or ended."
-        });
-      }
-
-      // Get necessary addresses
-      const usdxAddress = await market.usdx();
-      console.log("USDX token address:", usdxAddress);
-
-      // Declare and fetch bettingEngineAddress ONCE here
-      let bettingEngineAddress;
-      try {
-        bettingEngineAddress = await market.bettingEngine();
-        console.log(`Found BettingEngine address: ${bettingEngineAddress} for market ${address}`);
-      } catch (fetchError) {
-         console.error(`Error fetching betting engine address for market ${address}:`, fetchError);
-        return res.status(500).json({
-          error: "Failed to find Betting Engine",
-          details: `Could not retrieve BettingEngine address from market ${address}. ${fetchError.message}`
-        });
-      }
-      
-      // Connect to USDX contract with user wallet
-      const usdx = new ethers.Contract(usdxAddress, USDXJson.abi, wallet);
-      
-      // Check user's balance
-      const balance = await usdx.balanceOf(wallet.address);
-      console.log("User USDX balance:", ethers.utils.formatUnits(balance, 6));
-      if (balance.lt(amountInTokens)) {
-        console.log("Insufficient balance, trying to top up...");
-        try {
-            const adminWallet = getDefaultWallet(provider);
-            const usdxAdmin = usdx.connect(adminWallet);
-            try {
-                console.log("Attempting to mint tokens to user...");
-                const mintTx = await usdxAdmin.mint(wallet.address, amountInTokens.mul(10)); // Mint extra for gas etc.
-                await mintTx.wait();
-                console.log("Successfully minted tokens to user");
-            } catch (mintError) {
-                console.log("Minting failed, trying transfer instead:", mintError.message);
-                const adminBalance = await usdx.balanceOf(adminWallet.address);
-                if (adminBalance.lt(amountInTokens)) {
-                    return res.status(400).json({
-                        error: "Insufficient tokens",
-                        details: "Neither user nor admin has enough tokens for this bet, and minting failed."
-                    });
-                }
-                const transferTx = await usdxAdmin.transfer(wallet.address, amountInTokens.mul(10)); // Transfer extra
-                await transferTx.wait();
-                console.log("Successfully transferred tokens to user");
-            }
-            const newBalance = await usdx.balanceOf(wallet.address);
-            console.log("New user balance:", ethers.utils.formatUnits(newBalance, 6));
-            if (newBalance.lt(amountInTokens)) {
-                return res.status(400).json({
-                    error: "Insufficient balance",
-                    details: "Failed to provide enough tokens to the user after top-up attempt."
-                });
-            }
-        } catch (topUpError) {
-            console.error("Error topping up user balance:", topUpError);
-            return res.status(500).json({
-                error: "Token top-up failed",
-                details: topUpError.message
-            });
+        bettingEngineAddress = await marketContractReader.bettingEngine();
+        if (!bettingEngineAddress || bettingEngineAddress === ethers.constants.AddressZero) {
+            return res.status(500).json({ error: 'Could not find a valid BettingEngine address linked to this market.' });
         }
-      }
-      
-      // Check allowance for the BETTING ENGINE
-      const allowance = await usdx.allowance(wallet.address, bettingEngineAddress); // ASSUME bettingEngineAddress is fetched correctly above
-      console.log(`Current allowance for BettingEngine (${bettingEngineAddress}):`, ethers.utils.formatUnits(allowance, 6));
-      
-      // If allowance is too low, approve market to spend tokens
-      if (allowance.lt(amountInTokens)) {
-        console.log("Insufficient allowance for BettingEngine, approving...");
-        let approveTx;
-        try {
-          approveTx = await usdx.approve(bettingEngineAddress, ethers.constants.MaxUint256);
-          console.log(`Approval transaction submitted with hash: ${approveTx.hash}`);
-          await approveTx.wait();
-          console.log("Approved BettingEngine to spend tokens");
-        } catch (approveError) {
-          console.error("Error during BettingEngine approval transaction:", approveError);
-          const reason = approveError.reason || approveError.message;
-          const code = approveError.code;
-          console.error(`Approval failure details: Reason: ${reason}, Code: ${code}`);
-          return res.status(500).json({
-            error: "Approval transaction failed",
-            details: `Failed to approve BettingEngine ${bettingEngineAddress} to spend tokens. Reason: ${reason || 'Unknown (check server logs)'}`
-          });
-        }
-      }
-
-      // --- Place the bet ---
-      console.log("Placing bet with parameters:", {
-        amount: amountInTokens.toString(),
-        onHomeTeam: onHomeTeam
-      });
-
-      let receipt;
-      try {
-        // Estimate gas first (Restored)
-        let estimatedGas;
-        try {
-          estimatedGas = await market.estimateGas.placeBet(amountInTokens, onHomeTeam);
-          console.log(`Estimated gas for placeBet: ${estimatedGas.toString()}`);
-        } catch (estimateError) {
-          console.error("Error estimating gas for placeBet:", estimateError);
-          // If estimation fails now, it's likely a contract revert condition
-          return res.status(400).json({
-             error: "Gas estimation failed",
-             details: `Could not estimate gas. Transaction might fail. Reason: ${estimateError.reason || estimateError.message}`
-           });
-        }
-
-        // Place the bet using estimated gas + buffer (Restored)
-        const txOptions = { gasLimit: estimatedGas.mul(12).div(10) }; // Add 20% buffer
-        console.log("Submitting placeBet transaction with options:", txOptions);
-
-        const tx = await market.placeBet(amountInTokens, onHomeTeam, txOptions);
-        console.log("Place bet transaction submitted:", tx.hash);
-
-        receipt = await tx.wait();
-        console.log("Place bet transaction confirmed in block:", receipt.blockNumber);
-
-      } catch (betError) {
-        console.error("Error during place bet transaction:", betError);
-        const reason = betError.reason || betError.message;
-        const code = betError.code;
-        console.error(`Bet placement failure details: Reason: ${reason}, Code: ${code}`);
-        return res.status(500).json({
-          error: "Bet placement transaction failed",
-          details: `Failed to place bet. Reason: ${reason || 'Unknown (check server logs)'}`
-        });
-      }
-      // --- End Place the bet ---
-
-      // --- Success response ---
-      // bettingEngineAddress is already available from earlier fetch
-      const betIds = await market.getBettorBets(wallet.address);
-      let betId, potentialWinnings;
-      if (betIds && betIds.length > 0) {
-        betId = betIds[betIds.length - 1].toString();
-        const betDetails = await market.getBetDetails(betId);
-        potentialWinnings = ethers.utils.formatUnits(betDetails[2], 6);
-      }
-      return res.json({
-        success: true,
-        bettor: wallet.address,
-        betId,
-        amount,
-        potentialWinnings,
-        side: onHomeTeam ? 'home' : 'away',
-        transaction: receipt.transactionHash
-      });
-      // --- End Success response ---
-
-    } catch (error) { // Catch errors from outer operations (readiness check, address fetching)
-      console.error("Error during outer bet operations:", error);
-      return res.status(500).json({
-        error: "Error during bet preparation",
-        details: error.message
-      });
+        console.log(`Targeting BettingEngine for approval: ${bettingEngineAddress}`);
+    } catch (fetchError) {
+        console.error('Error fetching BettingEngine address for approval:', fetchError);
+        return res.status(500).json({ error: `Failed to fetch BettingEngine address: ${fetchError.message}` });
     }
-  } catch (error) { // Catch errors from initial setup (finding wallet, parsing input)
-    console.error('Fatal error in place bet endpoint:', error);
-    res.status(500).json({
-      error: error.message,
-      details: error.toString()
+    // --- End Get Betting Engine ---
+
+    // --- Approve USDX spending before placing bet ---
+    // Note: Approval should be for the BettingEngine contract, as it will call transferFrom
+    if (!deployedContracts.usdx) {
+      return res.status(500).json({ error: 'USDX contract address not found in deployment data.' });
+    }
+    const usdxAddress = deployedContracts.usdx;
+    const usdxContract = new ethers.Contract(usdxAddress, USDXJson.abi, actualBettorSigner); // Use actualBettorSigner
+
+    console.log(`Approving BettingEngine (${bettingEngineAddress}) to spend ${amount} USDX (${betAmountInTokens}) for ${await actualBettorSigner.getAddress()}...`); // Use actualBettorSigner
+    try {
+      // Check current allowance first
+      const currentAllowance = await usdxContract.allowance(await actualBettorSigner.getAddress(), bettingEngineAddress); // Check allowance for BettingEngine address
+      if (currentAllowance.lt(betAmountInTokens)) {
+           console.log(`Allowance (${currentAllowance}) is less than bet amount (${betAmountInTokens}). Approving...`);
+           const approveTx = await usdxContract.approve(bettingEngineAddress, betAmountInTokens); // Approve the BettingEngine address
+           console.log(`Approval transaction submitted: ${approveTx.hash}`);
+           const approveReceipt = await approveTx.wait();
+           if (approveReceipt.status !== 1) {
+               console.error('USDX approval transaction failed:', approveReceipt);
+               throw new Error('Failed to approve USDX spending for the BettingEngine contract.');
+           }
+           console.log('USDX spending approved.');
+      } else {
+          console.log(`Sufficient allowance (${currentAllowance}) already granted. Skipping approval.`);
+      }
+    } catch (approvalError) {
+        console.error('Error during USDX approval:', approvalError);
+        // Include more details from the error if possible
+        const errorMessage = approvalError.reason || approvalError.message || 'Unknown approval error';
+        return res.status(500).json({ 
+            error: `Failed to approve USDX tokens: ${errorMessage}`,
+            details: approvalError // Include the raw error for debugging
+        });
+    }
+    // --- End USDX Approval ---
+
+    // Prepare transaction parameters for NBAMarket.placeBet
+    const params = [
+      betTypeEnum,
+      betAmountInTokens,
+      isBettingOnHomeOrOver
+      // No need to pass odds/line here, NBAMarket fetches them
+    ];
+
+    console.log(`Placing bet via NBAMarket ${address}: Type=${betTypeEnum}, Amount=${betAmountInTokens}, Side=${isBettingOnHomeOrOver} by ${bettor}`);
+
+    // Send transaction using the bettor's signer to the NBAMarket contract
+    const result = await signAndSendTransaction({
+      contractAddress: address, // Target NBAMarket contract
+      contractAbi: NBAMarketJson.abi, // Use NBAMarket ABI
+      method: 'placeBet',
+      params: params, // Pass the 3 parameters for NBAMarket.placeBet
+      signer: actualBettorSigner // Pass the specific bettor's signer
+    }, provider);
+
+    if (!result.success) {
+        // Attempt to provide a more specific error message if possible
+        const errorDetails = result.error || 'Unknown error during transaction execution.';
+        console.error('Bet placement transaction failed:', errorDetails);
+        // Check for common revert reasons if available in the error string
+        if (typeof errorDetails === 'string' && errorDetails.includes('reverted with reason string')) {
+            const match = errorDetails.match(/reverted with reason string '([^']+)'/);
+            if (match && match[1]) {
+                throw new Error(`Bet placement failed: ${match[1]}`);
+            }
+        }
+        throw new Error(`Bet placement transaction failed: ${errorDetails}`);
+    }
+
+    // Get the receipt directly from the transaction result
+    const receipt = await provider.getTransactionReceipt(result.transaction);
+    
+    if (receipt.status === 0) {
+        console.error(`Transaction reverted: ${result.transaction}`);
+        // Add better revert reason fetching here if possible
+        throw new Error('Bet placement transaction reverted. Check parameters and contract state.');
+    }
+
+    // --- Fetch bet details *after* confirmation --- 
+    // The BetPlaced event is emitted by the BettingEngine, which is called by NBAMarket.
+    // We need to find the BettingEngine address first to correctly parse the log.
+    let betId = 'N/A';
+    let potentialWinnings = 'N/A';
+    try {
+        // Get Betting Engine address associated with the market
+        const marketContractReader = new ethers.Contract(address, NBAMarketJson.abi, provider); 
+        const bettingEngineAddress = await marketContractReader.bettingEngine();
+
+        if (!bettingEngineAddress || bettingEngineAddress === ethers.constants.AddressZero) {
+            console.warn("Could not retrieve BettingEngine address for market", address, "Unable to parse BetPlaced event accurately.");
+        } else {
+            // Use BettingEngine ABI to parse BetPlaced event
+            const bettingEngineInterface = new ethers.utils.Interface(BettingEngineJson.abi);
+            // Corrected event signature matching BettingEngine.sol
+            const betPlacedEventSignature = "BetPlaced(uint256,address,uint256,uint8,bool,int256,uint256,uint256)";
+            const betPlacedEventTopic = ethers.utils.id(betPlacedEventSignature); // Use updated signature
+
+            const betPlacedLog = receipt.logs.find(log => 
+                log.address.toLowerCase() === bettingEngineAddress.toLowerCase() &&
+                log.topics[0] === betPlacedEventTopic
+            );
+
+            if (betPlacedLog) {
+                const decodedEvent = bettingEngineInterface.parseLog(betPlacedLog);
+                betId = decodedEvent.args.betId.toString();
+                // Potential winnings are part of the event in BettingEngine
+                potentialWinnings = ethers.utils.formatUnits(decodedEvent.args.potentialWinnings, 6);
+                console.log(`Successfully parsed BetPlaced event. Bet ID: ${betId}, Potential Winnings: ${potentialWinnings}`);
+            } else {
+                console.warn("Could not find BetPlaced event in transaction receipt logs. Attempting fallback...");
+                // Fallback: Try fetching last bet ID from NBAMarket - less reliable
+                const bettorAddress = await actualBettorSigner.getAddress();
+                const betIds = await marketContractReader.getBettorBets(bettorAddress);
+                if (betIds && betIds.length > 0) {
+                  betId = betIds[betIds.length - 1].toString();
+                  // Need to fetch details from NBAMarket again
+                  const betDetails = await marketContractReader.getBetDetails(betId);
+                  potentialWinnings = ethers.utils.formatUnits(betDetails.potentialWinnings, 6);
+                  console.log(`Fallback: Fetched last Bet ID: ${betId}, Potential Winnings: ${potentialWinnings}`);
+                } else {
+                  console.warn("Fallback failed: No bets found for user.");
+                }
+            }
+        }
+    } catch(parseError) {
+        console.error("Error parsing BetPlaced event or fetching bet details:", parseError);
+    }
+    // --- End Fetch Bet Details ---
+
+    return res.json({
+      success: true,
+      bettor: await actualBettorSigner.getAddress(), // Address used for the bet
+      betId: betId,
+      amount: amount, // Original requested amount
+      potentialWinnings: potentialWinnings,
+      side: betSide, // Original requested side
+      transaction: result.transaction // Use the hash from signAndSendTransaction
     });
+  } catch (error) {
+    console.error('Error placing bet:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 
@@ -1004,7 +1153,7 @@ app.get('/api/market/:address/bets/:bettor', async (req, res) => {
     
     // Get user's bet IDs
     const betIds = await market.getBettorBets(bettor);
-    
+    console.log(betIds);
     // Get details for each bet
     const betDetails = [];
     for (const betId of betIds) {
@@ -1088,7 +1237,7 @@ app.post('/api/faucet', async (req, res) => {
     }
 
     const provider = setupProvider();
-    const adminWallet = getDefaultWallet(provider); // Wallet with minting privileges
+    const adminWallet = await getDefaultWallet(provider); // Wallet with minting privileges
     const usdxAddress = deployedContracts.usdx;
 
     console.log(`Faucet request: Minting ${amount} USDX to ${address}...`);
@@ -1118,3 +1267,62 @@ app.post('/api/faucet', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+// --- Helper Functions for Formatting ---
+
+function mapMarketStatusEnumToString(enumIndex) {
+    // Assuming MarketStatus { PENDING, OPEN, STARTED, SETTLED, CANCELLED }
+    switch (enumIndex) {
+        case 0: return 'Pending';
+        case 1: return 'Open';
+        case 2: return 'Started';
+        case 3: return 'Settled';
+        case 4: return 'Cancelled';
+        default: return 'Unknown';
+    }
+}
+
+function mapBetTypeEnumToString(enumIndex) {
+    // Assuming BetType { MONEYLINE, SPREAD, TOTAL }
+    switch (enumIndex) {
+        case 0: return 'Moneyline';
+        case 1: return 'Spread';
+        case 2: return 'Total';
+        default: return 'Unknown';
+    }
+}
+
+function mapBetSideToString(betType, isHomeOrOver) {
+    // BetType: 0=ML, 1=Spread, 2=Total
+    if (betType === 0 || betType === 1) { // Moneyline or Spread
+        return isHomeOrOver ? 'Home' : 'Away';
+    } else if (betType === 2) { // Total
+        return isHomeOrOver ? 'Over' : 'Under';
+    } else {
+        return 'N/A';
+    }
+}
+
+function formatLine(betType, lineBigNumber) {
+    // BetType: 0=ML, 1=Spread, 2=Total
+    // line is int256 for spread, uint256 for total in contract, but likely treated as BigNumber here
+    if (betType === 1 || betType === 2) { // Spread or Total
+        try {
+            const line = lineBigNumber.toNumber(); // Convert BigNumber to number
+            // Format with one decimal place
+            const formatted = (line / 10).toFixed(1);
+            // Add '+' sign for positive spreads only
+            if (betType === 1 && line > 0) {
+                return `+${formatted}`;
+            }
+            return formatted;
+        } catch (e) {
+            console.warn("Could not format line:", lineBigNumber, e);
+            return lineBigNumber.toString(); // Fallback to string representation
+        }
+    } else { // Moneyline has no line
+        return 'N/A';
+    }
+}
+
+// --- End Helper Functions ---

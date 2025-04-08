@@ -1,5 +1,5 @@
 /**
- * Script to place a bet on a market
+ * Script to place a bet on a market (moneyline, spread, or total)
  */
 const { ethers } = require('hardhat');
 const { 
@@ -13,17 +13,56 @@ async function main() {
     try {
         // Get command line arguments
         const args = process.argv.slice(2);
-        if (args.length < 3) {
-            console.error('Usage: npx hardhat run scripts/place-bet.js --network <network> <marketAddress> <betAmount> <onHomeTeam>');
-            console.error('  marketAddress: Address of the market to bet on');
-            console.error('  betAmount: Amount to bet in USDX tokens');
-            console.error('  onHomeTeam: true to bet on home team, false to bet on away team');
+        if (args.length < 4) {
+            console.error('Usage: npx hardhat run scripts/place-bet.js --network <network> <marketAddress> <betAmount> <betType> <betSide>');
+            console.error('  marketAddress: Address of the market');
+            console.error('  betAmount: Amount in USDX tokens (e.g., \"10\")');
+            console.error('  betType: \"moneyline\", \"spread\", or \"total\"');
+            console.error('  betSide: ');
+            console.error('    - For moneyline/spread: \"home\" or \"away\"');
+            console.error('    - For total: \"over\" or \"under\"');
             process.exit(1);
         }
 
         const marketAddress = args[0];
         const betAmount = args[1]; // Amount in tokens (e.g., "10" for 10 USDX)
-        const onHomeTeam = args[2].toLowerCase() === 'true';
+        const betTypeStr = args[2].toLowerCase();
+        const betSideStr = args[3].toLowerCase();
+
+        // Validate bet type
+        let betTypeEnum;
+        if (betTypeStr === 'moneyline') {
+            betTypeEnum = 0; // Corresponds to BettingEngine.BetType.MONEYLINE
+        } else if (betTypeStr === 'spread') {
+            betTypeEnum = 1; // Corresponds to BettingEngine.BetType.SPREAD
+        } else if (betTypeStr === 'total') {
+            betTypeEnum = 2; // Corresponds to BettingEngine.BetType.TOTAL
+        } else {
+            console.error('Invalid betType. Must be \"moneyline\", \"spread\", or \"total\"');
+            process.exit(1);
+        }
+
+        // Validate bet side based on type
+        let isBettingOnHomeOrOver;
+        if (betTypeEnum === 0 || betTypeEnum === 1) { // Moneyline or Spread
+            if (betSideStr === 'home') {
+                isBettingOnHomeOrOver = true;
+            } else if (betSideStr === 'away') {
+                isBettingOnHomeOrOver = false;
+            } else {
+                console.error('Invalid betSide for moneyline/spread. Must be \"home\" or \"away\"');
+                process.exit(1);
+            }
+        } else { // Total
+            if (betSideStr === 'over') {
+                isBettingOnHomeOrOver = true;
+            } else if (betSideStr === 'under') {
+                isBettingOnHomeOrOver = false;
+            } else {
+                console.error('Invalid betSide for total. Must be \"over\" or \"under\"');
+                process.exit(1);
+            }
+        }
 
         // Setup provider and wallet
         const provider = setupProvider();
@@ -32,7 +71,8 @@ async function main() {
         console.log(`Using wallet address: ${wallet.address}`);
         console.log(`Market address: ${marketAddress}`);
         console.log(`Bet amount: ${betAmount} USDX`);
-        console.log(`Betting on: ${onHomeTeam ? 'Home Team' : 'Away Team'}`);
+        console.log(`Bet Type: ${betTypeStr}`);
+        console.log(`Bet Side: ${betSideStr}`);
 
         // Read deployed contracts info
         const deployedContractsPath = path.join(__dirname, "../deployed-contracts.json");
@@ -53,15 +93,20 @@ async function main() {
         const NBAMarket = await ethers.getContractFactory('NBAMarket', wallet);
         const market = NBAMarket.attach(marketAddress);
 
-        // Get market info
-        const marketInfo = await market.getMarketInfo();
-        console.log(`\nMarket: ${marketInfo[0]} vs ${marketInfo[1]}`);
-        console.log(`Home odds: ${marketInfo[4] / 1000}`);
-        console.log(`Away odds: ${marketInfo[5] / 1000}`);
-        console.log(`Ready for betting: ${await market.isReadyForBetting()}`);
+        // Get market info - use new getters
+        const details = await market.getMarketDetails();
+        const fullOdds = await market.getFullOdds();
+        const marketStatus = details._marketStatus; // Enum index
 
-        if (!await market.isReadyForBetting()) {
-            throw new Error("Market is not ready for betting");
+        console.log(`\nMarket: ${details._homeTeam} vs ${details._awayTeam}`);
+        console.log(`Status: ${marketStatus}`); // TODO: Map index to string?
+        console.log(`Moneyline: Home ${fullOdds._homeOdds/1000} | Away ${fullOdds._awayOdds/1000}`);
+        console.log(`Spread: Home ${fullOdds._homeSpreadPoints/10} (${fullOdds._homeSpreadOdds/1000}) | Away ${-fullOdds._homeSpreadPoints/10} (${fullOdds._awaySpreadOdds/1000})`);
+        console.log(`Total: Over ${fullOdds._totalPoints/10} (${fullOdds._overOdds/1000}) | Under ${fullOdds._totalPoints/10} (${fullOdds._underOdds/1000})`);
+
+        // Check if market is open (assuming 1 is OPEN state)
+        if (marketStatus !== 1) {
+            throw new Error(`Market is not open for betting (Status: ${marketStatus})`);
         }
 
         // Convert bet amount to USDX units (6 decimals)
@@ -83,21 +128,30 @@ async function main() {
 
         // Place the bet
         console.log("\nPlacing bet...");
-        const betTx = await market.placeBet(betAmountInTokens, onHomeTeam);
+        // Call the updated placeBet function
+        const betTx = await market.placeBet(
+            betTypeEnum, 
+            betAmountInTokens, 
+            isBettingOnHomeOrOver
+        );
         await betTx.wait();
         console.log(`Bet placed successfully! Transaction hash: ${betTx.hash}`);
 
         // Get user's bets
         const userBets = await market.getBettorBets(wallet.address);
-        const latestBet = userBets[userBets.length - 1];
-        const betDetails = await market.getBetDetails(latestBet);
+        const latestBetId = userBets[userBets.length - 1];
+        const betDetails = await market.getBetDetails(latestBetId);
 
+        // betDetails mapping: [bettor, amount, potentialWinnings, betType, isBettingOnHomeOrOver, line, odds, settled, won]
         console.log("\nBet details:");
-        console.log(`Bet ID: ${latestBet}`);
-        console.log(`Amount: ${ethers.utils.formatUnits(betDetails[1], 6)} USDX`);
-        console.log(`Potential winnings: ${ethers.utils.formatUnits(betDetails[2], 6)} USDX`);
-        console.log(`Team: ${betDetails[3] ? 'Home Team' : 'Away Team'}`);
-        console.log(`Total payout if won: ${ethers.utils.formatUnits(betDetails[1].add(betDetails[2]), 6)} USDX`);
+        console.log(`Bet ID: ${latestBetId}`);
+        console.log(`Amount: ${ethers.utils.formatUnits(betDetails.amount, 6)} USDX`);
+        console.log(`Potential winnings: ${ethers.utils.formatUnits(betDetails.potentialWinnings, 6)} USDX`);
+        console.log(`Bet Type: ${betDetails.betType}`); // Shows enum index
+        console.log(`Side: ${betDetails.isBettingOnHomeOrOver}`); // true=Home/Over, false=Away/Under
+        console.log(`Line: ${betDetails.line.toString()}`); // Spread or Total points line
+        console.log(`Odds: ${betDetails.odds.toString()} (${betDetails.odds / 1000})`);
+        console.log(`Total payout if won: ${ethers.utils.formatUnits(betDetails.amount.add(betDetails.potentialWinnings), 6)} USDX`);
 
         console.log("\nBet placed successfully! ✅");
     } catch (error) {

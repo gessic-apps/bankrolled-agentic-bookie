@@ -14,9 +14,9 @@ async function main() {
     try {
         // Setup provider and signers
         const provider = setupProvider();
-        const deployer = getDefaultWallet(provider);
-        const oddsProvider = getRoleSigner('oddsProvider', provider);
-        const resultsProvider = getRoleSigner('resultsProvider', provider);
+        const deployer = await getDefaultWallet(provider);
+        const oddsProvider = await getRoleSigner('oddsProvider', provider);
+        const resultsProvider = await getRoleSigner('resultsProvider', provider);
         
         console.log(`Deploying from address: ${deployer.address}`);
         console.log(`Odds provider address: ${oddsProvider.address}`);
