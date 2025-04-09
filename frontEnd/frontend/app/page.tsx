@@ -134,7 +134,7 @@ function MarketDisplay() {
                 _homeScore,         // bigint (uint8)
                 _awayScore          // bigint (uint8)
              ] = marketDetailsResult;
-
+             console.log("marketDetailsResult", _resultSettled, _homeScore, _awayScore );
              // Derive boolean flags from the numeric status
              const gameStarted: boolean = numericStatus >= MarketStatus.STARTED; // STARTED, SETTLED, CANCELLED
              const gameEnded: boolean = numericStatus >= MarketStatus.SETTLED; // SETTLED, CANCELLED
