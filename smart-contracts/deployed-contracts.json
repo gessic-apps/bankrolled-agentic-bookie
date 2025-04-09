@@ -11,7 +11,82 @@
       "oddsApiId": "NBA_2023_LAL_BOS",
       "funding": "100.0",
       "transaction": "0x99a77dc1e377e397de9d1e69a6b8c121f3e9b4be4271cc65a82e60780ac6353d",
-      "createdAt": "2025-04-08T21:53:32.264Z"
+      "createdAt": "2025-04-08T21:53:32.264Z",
+      "gameStarted": true,
+      "updatedAt": "2025-04-08T22:25:31.119Z",
+      "gameEnded": true
+    },
+    {
+      "address": "0xf7A28aAb9DAD8895C468021A406913445996e61E",
+      "homeTeam": "Orlando Magic",
+      "awayTeam": "Atlanta Hawks",
+      "gameTimestamp": 1744153800,
+      "oddsApiId": "fad71575fd9759dae5820a1af4d0cc46",
+      "funding": "100000.0",
+      "transaction": "0x5894c396f831bfa094ce3f9a1a2fb935742c315789b2d95bbc9a47d6c6b02d6b",
+      "createdAt": "2025-04-08T22:28:33.654Z"
+    },
+    {
+      "address": "0x25757CA501A5a22F4a587d6B230F00a5BE3581d6",
+      "homeTeam": "Charlotte Hornets",
+      "awayTeam": "Memphis Grizzlies",
+      "gameTimestamp": 1744153800,
+      "oddsApiId": "0a627c5170c3cbe1838d20797c318495",
+      "funding": "100000.0",
+      "transaction": "0xd1fa7c627419dd1719b3f8d3e6f10d2a3a186924cb48db742526fa49b8749792",
+      "createdAt": "2025-04-08T22:28:38.812Z"
+    },
+    {
+      "address": "0x9A842d018c02ce1a6D6767145c6DbE5D71955700",
+      "homeTeam": "Cleveland Cavaliers",
+      "awayTeam": "Chicago Bulls",
+      "gameTimestamp": 1744153800,
+      "oddsApiId": "2fbf82565fe41441e129845eac84dc8d",
+      "funding": "100000.0",
+      "transaction": "0x907c2910c28c9518ccea6d468708c905e79f7b0f5bb8b006be75ac423b2326b0",
+      "createdAt": "2025-04-08T22:28:43.972Z"
+    },
+    {
+      "address": "0x551a679DB8aB3703Ea04B83A7899173e4C81CA1A",
+      "homeTeam": "Indiana Pacers",
+      "awayTeam": "Washington Wizards",
+      "gameTimestamp": 1744153800,
+      "oddsApiId": "17b10d4425b4741b0c5ae86a8dfed112",
+      "funding": "100000.0",
+      "transaction": "0xaebc27e53371086eb04a868ee6bdadce74686b2a71ea63f0c851b02f67f97b10",
+      "createdAt": "2025-04-08T22:28:49.115Z",
+      "homeOdds": 1941,
+      "awayOdds": 1891,
+      "homeSpreadPoints": 75,
+      "homeSpreadOdds": 1920,
+      "awaySpreadOdds": 1920,
+      "totalPoints": 200,
+      "overOdds": 1910,
+      "underOdds": 1920,
+      "oddsSet": true,
+      "updatedAt": "2025-04-09T18:24:45.671Z",
+      "gameStarted": true,
+      "gameEnded": true
+    },
+    {
+      "address": "0x3084e77342DE1ddeFce837851Db4c57726E9a777",
+      "homeTeam": "sd",
+      "awayTeam": "ds",
+      "gameTimestamp": 1744310479,
+      "oddsApiId": "NBA_2023_LAL_BOS",
+      "funding": "100000.0",
+      "transaction": "0x8fe9a9f2806db3838ba5aeb3ed626655697c389b6b0bf3460d4d53f711064b3f",
+      "createdAt": "2025-04-09T18:41:49.491Z"
+    },
+    {
+      "address": "0x6F7B069A85dE6890463cF163bFE4Da20A741757B",
+      "homeTeam": "sd",
+      "awayTeam": "ds",
+      "gameTimestamp": 1744310527,
+      "oddsApiId": "NBA_2023_LAL_BOS",
+      "funding": "10.0",
+      "transaction": "0x9d183ab2d9bacbf038dac5090edab1bf121ed8cea361c5ab666283063d4cd62d",
+      "createdAt": "2025-04-09T18:42:19.186Z"
     }
   ]
 }

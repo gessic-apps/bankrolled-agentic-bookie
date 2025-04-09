@@ -13,10 +13,6 @@ import {
 import { WagmiProvider } from 'wagmi';
 import {
   baseSepolia, // Removed baseSepolia
-  polygon,
-  optimism,
-  arbitrum,
-  base, // Added base
 } from 'wagmi/chains';
 import {
   QueryClientProvider,
@@ -34,7 +30,7 @@ const config = getDefaultConfig({
 });
 
 // Define USDX address for Base Mainnet
-const usdxAddress = "0xb0175c78b647E84b9cff8cAFE70Eee8aF12f6eA1";
+const usdxAddress = "0x0A9456Ec3B70000C81ea47D6090167A12241FECf";
 
 export default function Home() {
   const [markets, setMarkets] = useState<Market[]>([]);

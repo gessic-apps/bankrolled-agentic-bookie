@@ -2,15 +2,34 @@
 
 import { useState, useEffect } from "react";
 import { useAccount } from "wagmi";
-import { Market } from "../types/market"; // Assuming Market type is defined here
+import { ethers, Contract, formatUnits } from "ethers";
+import { Market } from "../types/market";
+import NBAMarketABI from '../abis/contracts/NBAMarket.sol/NBAMarket.json';
+import BettingEngineABI from '../abis/contracts/BettingEngine.sol/BettingEngine.json';
 
-// Define Bet type based on user provided example
+// Type for the tuple returned by BettingEngine.getBetDetails
+type BetDetailsTuple = [
+  string, // bettor
+  bigint, // amount
+  bigint, // potentialWinnings
+  number, // betType (uint8)
+  boolean,// isBettingOnHomeOrOver
+  bigint, // line
+  bigint, // odds
+  boolean,// settled
+  boolean // won
+];
+
+// Define Bet type based on getBetDetails + add betId
 type Bet = {
-  betId: string;
+  betId: bigint; // Bet ID
   bettor: string;
-  amount: string;
-  potentialWinnings: string;
-  onHomeTeam: boolean;
+  amount: bigint;
+  potentialWinnings: bigint;
+  betType: number;
+  isBettingOnHomeOrOver: boolean;
+  line: bigint;
+  odds: bigint;
   settled: boolean;
   won: boolean;
 };
@@ -20,6 +39,12 @@ type BetWithMarketInfo = Bet & {
   marketAddress: string;
   homeTeam: string;
   awayTeam: string;
+};
+
+// Helper to get provider (read-only)
+const getProvider = (): ethers.Provider => {
+  // Replace with your preferred provider setup, ensuring correct network
+  return new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org');
 };
 
 type UserBetsListProps = {
@@ -43,48 +68,93 @@ export default function UserBetsList({ markets }: UserBetsListProps) {
       setLoading(true);
       setError(null);
       let allBets: BetWithMarketInfo[] = [];
+      const provider = getProvider();
 
-      // Fetch bets for each market concurrently
-      const betPromises = markets.map(async (market) => {
-        try {
-          // Call the Next.js API route
-          const response = await fetch(`/api/user-bets/${market.address}/${address}`);
-          if (!response.ok) {
-            // Log specific error but don't block other requests
-            const errorData = await response.json();
-            console.error(`Failed to fetch bets for market ${market.address}:`, response.status, errorData);
+      try {
+         // --- Start Blockchain Fetch --- 
+         const betPromises = markets.map(async (market) => {
+          try {
+            const marketContract = new Contract(market.address, NBAMarketABI.abi, provider);
+            const bettingEngineAddress = await marketContract.bettingEngine();
+            
+            if (!bettingEngineAddress || bettingEngineAddress === ethers.ZeroAddress) {
+                console.warn(`No betting engine found for market ${market.address}`);
+                return []; // Skip if no engine address
+            }
+
+            const engineContract = new Contract(bettingEngineAddress, BettingEngineABI.abi, provider);
+            const betIds: bigint[] = await engineContract.getBettorBets(address);
+
+            if (!betIds || betIds.length === 0) {
+                 return []; // No bets for this user in this market
+            }
+            
+            // Fetch details for each bet ID
+            const betDetailsPromises = betIds.map(async (betId) => {
+                 try {
+                    const detailsTuple: BetDetailsTuple = await engineContract.getBetDetails(betId);
+                    // Format into Bet object
+                    const betData: Bet = {
+                        betId: betId,
+                        bettor: detailsTuple[0],
+                        amount: detailsTuple[1],
+                        potentialWinnings: detailsTuple[2],
+                        betType: detailsTuple[3],
+                        isBettingOnHomeOrOver: detailsTuple[4],
+                        line: detailsTuple[5],
+                        odds: detailsTuple[6],
+                        settled: detailsTuple[7],
+                        won: detailsTuple[8],
+                    };
+                    // Combine with market info
+                    return { 
+                        ...betData, 
+                        marketAddress: market.address, 
+                        homeTeam: market.homeTeam, 
+                        awayTeam: market.awayTeam 
+                    } as BetWithMarketInfo;
+                } catch (err) {
+                    console.error(`Error fetching details for bet ${betId} in market ${market.address}:`, err);
+                    return null; // Return null on error for this specific bet detail fetch
+                }
+            });
+
+            const detailedBetsResults = await Promise.allSettled(betDetailsPromises);
+            // Filter out nulls (errors) and extract fulfilled values
+            return detailedBetsResults
+                .filter(result => result.status === 'fulfilled' && result.value !== null)
+                .map(result => (result as PromiseFulfilledResult<BetWithMarketInfo>).value);
+
+          } catch (err: any) {
+            console.error(`Error processing market ${market.address} for user bets:`, err);
             return []; // Return empty array for this market on error
           }
-          const bets: Bet[] = await response.json();
-          // Add market info to each bet
-          return bets.map(bet => ({
-            ...bet,
-            marketAddress: market.address,
-            homeTeam: market.homeTeam,
-            awayTeam: market.awayTeam,
-          }));
-        } catch (err: any) {
-          console.error(`Error fetching bets for market ${market.address}:`, err);
-          return []; // Return empty array on network or parsing error
-        }
-      });
+        });
 
-      // Wait for all fetch requests to settle
-      const results = await Promise.allSettled(betPromises);
+        // Wait for all market processing to settle
+        const results = await Promise.allSettled(betPromises);
 
-      // Aggregate bets from successful fetches
-      results.forEach(result => {
-        if (result.status === 'fulfilled' && result.value) {
-          allBets = allBets.concat(result.value);
-        }
-        // Optionally handle 'rejected' statuses if more granular error reporting is needed
-      });
+        // Aggregate bets from successful market fetches
+        results.forEach(result => {
+          if (result.status === 'fulfilled' && result.value) {
+            allBets = allBets.concat(result.value);
+          }
+          // Optionally handle 'rejected' statuses if more granular error reporting is needed
+        });
+         // --- End Blockchain Fetch ---
 
-      // Sort bets perhaps by betId or market, if desired (optional)
-      // allBets.sort((a, b) => /* sorting logic */);
+        // Sort bets by ID (descending, newest first)
+        allBets.sort((a, b) => Number(b.betId - a.betId));
 
-      setUserBets(allBets);
-      setLoading(false);
+        setUserBets(allBets);
+
+      } catch (err: any) {
+        console.error("Failed to fetch user bets from blockchain:", err);
+        setError("Could not load bets from the blockchain.");
+        setUserBets([]); // Clear bets on major error
+      } finally {
+        setLoading(false);
+      }
     };
 
     fetchUserBets();
@@ -113,7 +183,7 @@ export default function UserBetsList({ markets }: UserBetsListProps) {
           <p>Error loading bets: {error}</p>
         </div>
       ) : userBets.length === 0 ? (
-        <p className="text-gray-500 dark:text-gray-400">You haven't placed any bets yet.</p>
+        <p className="text-gray-500 dark:text-gray-400">You have not placed any bets yet.</p>
       ) : (
         <div className="space-y-4">
           {userBets.map((bet) => (
@@ -129,17 +199,17 @@ export default function UserBetsList({ markets }: UserBetsListProps) {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-2 text-sm">
                  <div>
                     <span className="font-medium text-gray-600 dark:text-gray-300">Bet On:</span>
-                    <span className={`ml-1 font-semibold ${bet.onHomeTeam ? 'text-blue-600 dark:text-blue-400' : 'text-green-600 dark:text-green-400'}`}>
-                       {bet.onHomeTeam ? bet.homeTeam : bet.awayTeam}
+                    <span className={`ml-1 font-semibold ${bet.isBettingOnHomeOrOver ? 'text-blue-600 dark:text-blue-400' : 'text-green-600 dark:text-green-400'}`}>
+                       {bet.isBettingOnHomeOrOver ? bet.homeTeam : bet.awayTeam}
                     </span>
                  </div>
                  <div>
                     <span className="font-medium text-gray-600 dark:text-gray-300">Amount:</span>
-                    <span className="ml-1 text-gray-800 dark:text-white">{parseFloat(bet.amount).toFixed(2)} USDX</span>
+                    <span className="ml-1 text-gray-800 dark:text-white">{formatUnits(bet.amount, 6)} USDX</span>
                  </div>
                  <div>
                     <span className="font-medium text-gray-600 dark:text-gray-300">Potential Win:</span>
-                    <span className="ml-1 text-gray-800 dark:text-white">{parseFloat(bet.potentialWinnings).toFixed(2)} USDX</span>
+                    <span className="ml-1 text-gray-800 dark:text-white">{formatUnits(bet.potentialWinnings, 6)} USDX</span>
                  </div>
                   <div>
                     <span className="font-medium text-gray-600 dark:text-gray-300">Status:</span>

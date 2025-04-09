@@ -23,7 +23,7 @@ const MarketsList: React.FC<MarketsListProps> = ({ markets, usdxAddress }) => {
           key={market.address} 
           market={market} 
           usdxAddress={usdxAddress} 
-          expectedChainId={8453}
+          expectedChainId={84532}
         />
       ))}
     </div>

@@ -32,6 +32,7 @@ export async function POST(request: Request) {
     // Forward the success response from the backend
     return NextResponse.json(data, { status: 200 });
 
+   
   } catch (error: any) {
     console.error('Faucet API route error:', error);
     return NextResponse.json({ error: 'Internal Server Error', details: error.message }, { status: 500 });

@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Market } from '../types/market';
+import { Market, MarketStatus } from '../types/market';
 // Imports for ethers v6 and wagmi v1/v2
 import { ethers, BrowserProvider, Contract } from 'ethers'; // Use BrowserProvider, Contract from ethers v6
 import { useAccount, useWalletClient, useChainId } from 'wagmi'; // Use useChainId instead of useNetwork
 import { type WalletClient } from 'viem';
-import { abi as NBAMarketABI } from '../abis/contracts/NBAMarket.sol/NBAMarket.json';
-import { abi as USDXABI } from '../abis/contracts/USDX.sol/USDX.json';
+import NBAMarketABI from '../abis/contracts/NBAMarket.sol/NBAMarket.json';
+import USDXABI from '../abis/contracts/USDX.sol/USDX.json';
 // Consider using a toast library for better UX than alerts
 // import { toast } from 'react-toastify';
 
@@ -44,13 +44,44 @@ interface MarketCardProps {
   expectedChainId: number; // The chain ID the contracts are deployed on
 }
 
+// TODO: Confirm the actual enum value for Moneyline from BettingEngine.sol
+const MONEYLINE_BET_TYPE = 0; 
+const SPREAD_BET_TYPE = 1;
+const TOTAL_BET_TYPE = 2;
+
+// Define the structure for the odds tuple returned by getFullOdds (using bigint for v6)
+interface FullOdds {
+  homeOdds: bigint;
+  awayOdds: bigint;
+  homeSpreadPoints: bigint;
+  homeSpreadOdds: bigint;
+  awaySpreadOdds: bigint;
+  totalPoints: bigint;
+  overOdds: bigint;
+  underOdds: bigint;
+}
+
+// Helper function to get provider/signer (adjust based on your setup)
+const getProviderOrSigner = (signer?: ethers.Signer | null): ethers.Provider | ethers.Signer => {
+  // Use signer if available (for transactions), otherwise use a provider for reads
+  if (signer) return signer;
+  // Fallback to a default provider (replace with your preferred setup)
+  // Make sure this provider is connected to the correct network (e.g., Base Sepolia)
+  return new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org');
+};
+
 const MarketCard: React.FC<MarketCardProps> = ({ market, usdxAddress, expectedChainId }) => {
   const [betAmount, setBetAmount] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false); // For loading state
   const [signer, setSigner] = useState<ethers.Signer | null>(null); // State for ethers signer
+  const [isFetchingData, setIsFetchingData] = useState(true); // For initial odds/status fetch
+  const [fetchError, setFetchError] = useState<string | null>(null);
+
+  // State for selected bet type
+  const [selectedBetType, setSelectedBetType] = useState<number>(MONEYLINE_BET_TYPE);
 
   // --- Wallet Hooks ---
-  const { address: userAddress, isConnected } = useAccount();
+  const { address: userAddress, isConnected, chainId } = useAccount();
   const currentChainId = useChainId(); // Get current chain ID
   const { data: walletClient } = useWalletClient({ chainId: currentChainId }); // Get WalletClient for the expected chain
   // --- End Wallet Hooks ---
@@ -74,44 +105,172 @@ const MarketCard: React.FC<MarketCardProps> = ({ market, usdxAddress, expectedCh
   }, [walletClient]);
   // --- End Effect ---
 
-  // Convert Unix timestamp to readable date
-  const gameDate = new Date(parseInt(market.gameTimestamp) * 1000).toLocaleString();
-  
-  // Helper function to display odds in decimal format (e.g., 1850 -> 1.85)
-  const formatOdds = (odds: string) => {
-    const oddsNumber = parseInt(odds);
-    return oddsNumber ? (oddsNumber / 1000).toFixed(3) : 'Not set';
+  // State for blockchain-fetched data
+  const [marketStatus, setMarketStatus] = useState<MarketStatus | null>(null);
+  const [liveOdds, setLiveOdds] = useState<FullOdds | null>(null);
+
+  // Fetch Market Status and Odds from Blockchain
+  useEffect(() => {
+    const fetchMarketData = async () => {
+      setIsFetchingData(true);
+      setFetchError(null);
+      try {
+        const provider = getProviderOrSigner(); // Use read-only provider
+        const marketContract = new ethers.Contract(market.address, NBAMarketABI.abi, provider);
+
+        // Fetch status and odds concurrently
+        const [statusResult, oddsResult] = await Promise.all([
+          marketContract.getStatus(),
+          marketContract.getFullOdds()
+        ]);
+
+        console.log(`Market ${market.address} - Raw Status Result:`, statusResult);
+
+        // Convert bigint status to number before setting state
+        const numericStatus = Number(statusResult);
+        setMarketStatus(numericStatus as MarketStatus);
+
+        // Map the tuple to the FullOdds interface
+        setLiveOdds({
+          homeOdds: oddsResult[0],
+          awayOdds: oddsResult[1],
+          homeSpreadPoints: oddsResult[2],
+          homeSpreadOdds: oddsResult[3],
+          awaySpreadOdds: oddsResult[4],
+          totalPoints: oddsResult[5],
+          overOdds: oddsResult[6],
+          underOdds: oddsResult[7],
+        });
+
+      } catch (error: any) {
+        console.error(`Error fetching data for market ${market.address}:`, error);
+        setFetchError(`Failed to load market data: ${error.message || 'Unknown error'}`);
+        setMarketStatus(null); // Reset on error
+        setLiveOdds(null);
+      } finally {
+        setIsFetchingData(false);
+      }
+    };
+
+    if (market.address) {
+      fetchMarketData();
+    } else {
+        setIsFetchingData(false); // No address, nothing to fetch
+        setFetchError("Market address is missing.");
+    }
+
+    // Optional: Setup interval polling or event listeners for updates
+    // const intervalId = setInterval(fetchMarketData, 30000); // Re-fetch every 30s
+    // return () => clearInterval(intervalId); // Cleanup interval
+
+  }, [market.address]); // Re-fetch if market address changes
+
+  // Format odds (adjust divisor based on decimals used in contract)
+  // Assuming 3 decimal places (multiply by 1000 in contract)
+  const formatOdds = (oddsBigInt: bigint | undefined | null): string => {
+    if (oddsBigInt === undefined || oddsBigInt === null || oddsBigInt === 0n) return 'N/A';
+    try {
+      // Convert bigint to a fixed-point string using ethers v6
+      const formatted = ethers.formatUnits(oddsBigInt, 3); // 3 decimal places
+      // Ensure it shows at least 3 decimal places
+      const decimalPart = formatted.split('.')[1] || '';
+      return parseFloat(formatted).toFixed(Math.max(3, decimalPart.length));
+    } catch (e) {
+      console.error("Error formatting odds:", oddsBigInt, e);
+      return 'Error';
+    }
   };
 
-  // Helper function to display market status
+  // Format points (adjust divisor based on decimals used in contract)
+  // Assuming 1 decimal place (multiply by 10 in contract)
+  const formatPoints = (pointsBigInt: bigint | undefined | null): string => {
+    if (pointsBigInt === undefined || pointsBigInt === null) return 'N/A'; // No need to check for 0n, 0 points is valid
+    try {
+      // Convert bigint to a fixed-point string using ethers v6
+      const formatted = ethers.formatUnits(pointsBigInt, 1); // 1 decimal place
+      // Add sign for non-zero values
+      const num = parseFloat(formatted);
+      return num > 0 ? `+${num.toFixed(1)}` : num.toFixed(1);
+    } catch (e) {
+      console.error("Error formatting points:", pointsBigInt, e);
+      return 'Error';
+    }
+  };
+
+  // Game status display logic using fetched marketStatus
   const getStatusBadge = () => {
-    if (market.gameEnded) {
-      return <span className="px-2 py-1 text-xs rounded bg-gray-500 text-white">Game Ended</span>;
+    // Handle loading and initial null state first
+    if (isFetchingData || marketStatus === null) { 
+      return <span className="px-2 py-1 text-xs font-semibold text-gray-700 bg-gray-200 rounded-full">Loading...</span>;
     }
-    if (market.gameStarted) {
-      return <span className="px-2 py-1 text-xs rounded bg-blue-500 text-white">In Progress</span>;
+    if (fetchError) {
+      return <span className="px-2 py-1 text-xs font-semibold text-red-700 bg-red-200 rounded-full">Error</span>;
     }
-    if (market.isReadyForBetting) {
-      return <span className="px-2 py-1 text-xs rounded bg-green-500 text-white">Ready for Betting</span>;
+
+    switch (marketStatus) {
+      case MarketStatus.PENDING:
+        return <span className="px-2 py-1 text-xs font-semibold text-gray-700 bg-gray-200 rounded-full">Pending</span>;
+      case MarketStatus.OPEN:
+        // Check game time vs current time
+         const now = Date.now() / 1000; // Current time in seconds
+        if (parseInt(market.gameTimestamp, 10) > now) {
+            return <span className="px-2 py-1 text-xs font-semibold text-green-700 bg-green-200 rounded-full">Open</span>;
+        } else {
+            // If time has passed but status is still OPEN, maybe there's a delay? Treat as Started for UI.
+            return <span className="px-2 py-1 text-xs font-semibold text-yellow-700 bg-yellow-200 rounded-full">Live</span>;
+        }
+      case MarketStatus.STARTED:
+         return <span className="px-2 py-1 text-xs font-semibold text-yellow-700 bg-yellow-200 rounded-full">Live</span>;
+      case MarketStatus.SETTLED:
+        return <span className="px-2 py-1 text-xs font-semibold text-blue-700 bg-blue-200 rounded-full">Settled</span>;
+      case MarketStatus.CANCELLED:
+        return <span className="px-2 py-1 text-xs font-semibold text-red-700 bg-red-200 rounded-full">Cancelled</span>;
+      default:
+        return <span className="px-2 py-1 text-xs font-semibold text-gray-700 bg-gray-200 rounded-full">Unknown</span>;
     }
-    return <span className="px-2 py-1 text-xs rounded bg-yellow-500 text-white">Not Ready</span>;
   };
 
-  // Helper function to display outcome
+  // Game outcome display logic (remains mostly the same, uses props)
   const getOutcome = () => {
-    if (!market.gameEnded) return null;
-    
-    if (market.outcome === 1) {
-      return <div className="mt-2 text-green-600 font-semibold">{market.homeTeam} Won</div>;
-    }
-    if (market.outcome === 2) {
-      return <div className="mt-2 text-green-600 font-semibold">{market.awayTeam} Won</div>;
-    }
-    return <div className="mt-2 text-gray-600">No result yet</div>;
+     if (marketStatus !== MarketStatus.SETTLED) return null; // Only show outcome if settled
+
+    // Use market prop data if available, otherwise could fetch score from contract too
+    // For now, assuming the API that provided `market` also provided scores if settled.
+    // Need to ensure `market` type includes homeScore/awayScore if we rely on it here.
+    // Alternatively, fetch scores in the useEffect if status is SETTLED.
+
+    let outcomeText = "Result: Scores Pending"; // Default for SETTLED status
+    // This logic relies on the `market` prop having accurate settled scores.
+    const homeScore = market.homeScore; // Assuming these exist on Market type
+    const awayScore = market.awayScore; // Assuming these exist on Market type
+
+    // Placeholder for score display - fetch if needed
+    // const homeScore = "N/A";
+    // const awayScore = "N/A";
+
+     // TODO: Implement fetching/using actual scores for settled markets
+     if (typeof homeScore === 'number' && typeof awayScore === 'number') {
+         if (homeScore > awayScore) {
+             outcomeText = `${market.homeTeam} Won (${homeScore}-${awayScore})`;
+         } else if (awayScore > homeScore) {
+             outcomeText = `${market.awayTeam} Won (${homeScore}-${awayScore})`;
+         } else {
+             outcomeText = `Tie (${homeScore}-${awayScore})`;
+         }
+     } /* else if (marketStatus === MarketStatus.CANCELLED) { // This check is unreachable here
+         outcomeText = "Game Cancelled";
+     } */
+
+
+    return (
+      <div className="mt-4 text-center font-semibold text-gray-800">
+        {outcomeText}
+      </div>
+    );
   };
 
   // Function to handle placing a bet
-  const handleBet = async (onHomeTeam: boolean) => {
+  const handleBet = async (isBettingOnHomeOrOver: boolean) => {
     // --- Input Validations ---
     if (!betAmount || isNaN(parseFloat(betAmount)) || parseFloat(betAmount) <= 0) {
       alert('Please enter a valid positive bet amount.');
@@ -128,24 +287,33 @@ const MarketCard: React.FC<MarketCardProps> = ({ market, usdxAddress, expectedCh
        return;
     }
     // Check chain ID using the dedicated hook
-    // if (currentChainId !== expectedChainId) { 
-    //    alert(`Incorrect Network: Please switch to the network with Chain ID ${expectedChainId}. You are currently connected to Chain ID ${currentChainId}.`);
-    //    return;
-    // }
+    if (chainId !== expectedChainId) {
+        alert(`Please switch to the correct network (Expected: ${expectedChainId}, Connected: ${chainId}).`);
+        return;
+    }
     // --- End Validations ---
 
     setIsLoading(true);
-    const teamName = onHomeTeam ? market.homeTeam : market.awayTeam;
-    console.log(`Attempting to bet ${betAmount} USDX on ${teamName}`);
+    // Determine team/option name based on bet type
+    let betOnName: string;
+    if (selectedBetType === MONEYLINE_BET_TYPE || selectedBetType === SPREAD_BET_TYPE) {
+       betOnName = isBettingOnHomeOrOver ? market.homeTeam : market.awayTeam;
+    } else { // TOTAL_BET_TYPE
+       betOnName = isBettingOnHomeOrOver ? 'Over' : 'Under';
+    }
+    console.log(`Attempting to bet ${betAmount} USDX on ${betOnName}`);
     // toast.info(`Processing bet for ${teamName}...`);
 
     try {
       // --- Contract Setup (Ethers v6) ---
       // Pass signer directly to Contract constructor
-      const marketContract = new Contract(market.address, NBAMarketABI, signer);
-      const usdxContract = new Contract(usdxAddress, USDXABI, signer);
+      const marketContract = new Contract(market.address, NBAMarketABI.abi, signer);
+      const usdxContract = new Contract(usdxAddress, USDXABI.abi, signer);
       const bettingEngineAddress = await marketContract.bettingEngine(); // Fetch the engine address
-      const amountInWei = ethers.parseUnits(betAmount, 6); // Ethers v6 syntax
+      // TODO: Confirm USDX decimals
+       const decimals = 6; // await usdxContract.decimals(); // Fetch dynamically if needed
+       // Use ethers.parseUnits for v6
+       const amountInWei = ethers.parseUnits(betAmount, decimals);
       // --- End Contract Setup ---
 
       // --- Allowance Check ---
@@ -156,7 +324,7 @@ const MarketCard: React.FC<MarketCardProps> = ({ market, usdxAddress, expectedCh
       const currentAllowance = await usdxContract.allowance(userAddress, bettingEngineAddress);
 
       if (currentAllowance < amountInWei) { // Use standard comparison for BigInts
-        console.log(`Allowance (${ethers.formatUnits(currentAllowance, 18)}) is less than bet amount (${betAmount}). Requesting approval...`); // Ethers v6 syntax
+        console.log(`Allowance (${ethers.formatUnits(currentAllowance, decimals)}) is less than bet amount (${betAmount}). Requesting approval...`); // Ethers v6 syntax
         alert(`Approval Needed: The betting contract needs permission to spend ${betAmount} USDX on your behalf. Please confirm the approval transaction in your wallet.`);
         // toast.info('Approval required. Please confirm in your wallet.');
 
@@ -176,17 +344,30 @@ const MarketCard: React.FC<MarketCardProps> = ({ market, usdxAddress, expectedCh
         alert('Approval successful! You can now confirm the bet.');
         console.log('Approval confirmed.');
       } else {
-        console.log(`Sufficient allowance found: ${ethers.formatUnits(currentAllowance, 18)} USDX`); // Ethers v6 syntax
+        console.log(`Sufficient allowance found: ${ethers.formatUnits(currentAllowance, decimals)} USDX`); // Ethers v6 syntax
         // toast.success('Allowance sufficient.');
       }
       // --- End Allowance Check ---
 
       // --- Place Bet ---
-      console.log(`Calling placeBet on market ${market.address} for ${teamName} with amount ${betAmount} USDX (${amountInWei.toString()} wei)`);
-      alert(`Placing Bet: Please confirm the transaction in your wallet to bet ${betAmount} USDX on ${teamName}.`);
+      console.log(`Calling placeBet on market ${market.address} for ${betOnName} with amount ${betAmount} USDX (${amountInWei.toString()} wei)`);
+      alert(`Placing Bet: Please confirm the transaction in your wallet to bet ${betAmount} USDX on ${betOnName}.`);
       // toast.info('Placing bet. Please confirm in your wallet.');
 
-      const placeBetTx = await marketContract.placeBet(amountInWei, onHomeTeam);
+      // Get the correct odds from liveOdds state (use non-null assertion)
+       const oddsForBet = isBettingOnHomeOrOver ? liveOdds!.homeOdds : liveOdds!.awayOdds;
+      // Use bigint comparison for v6
+      if (oddsForBet === 0n || oddsForBet < 1000n) { // Simplified check since liveOdds is guaranteed non-null here
+          throw new Error("Selected odds are not available or invalid.");
+      }
+
+      // Updated placeBet call in NBAMarket contract
+      // placeBet(BettingEngine.BetType _betType, uint256 _amount, bool _isBettingOnHomeOrOver)
+      const placeBetTx = await marketContract.placeBet(
+        selectedBetType,      // _betType
+        amountInWei,          // _amount
+        isBettingOnHomeOrOver // _isBettingOnHomeOrOver
+       );
       // toast.loading('Waiting for betting transaction...');
       console.log('Bet transaction sent:', placeBetTx.hash);
       alert('Bet transaction sent. Waiting for confirmation...');
@@ -198,7 +379,7 @@ const MarketCard: React.FC<MarketCardProps> = ({ market, usdxAddress, expectedCh
 
       // toast.dismiss();
       // toast.success(`Successfully placed bet of ${betAmount} USDX on ${teamName}!`);
-      alert(`Success! Bet of ${betAmount} USDX placed on ${teamName}.`);
+      alert(`Success! Bet of ${betAmount} USDX placed on ${betOnName}.`);
       console.log('Bet transaction confirmed:', placeBetTx.hash);
       setBetAmount(''); // Reset input after successful bet
       // Consider triggering a refresh of market data or user balances here
@@ -223,6 +404,14 @@ const MarketCard: React.FC<MarketCardProps> = ({ market, usdxAddress, expectedCh
     }
   };
 
+  // Convert Unix timestamp to readable date
+  const gameDate = new Date(parseInt(market.gameTimestamp, 10) * 1000).toLocaleString();
+  
+  // Log state values before render
+  console.log(`Market ${market.address} - Rendering State:`, 
+    { isLoading, isFetchingData, marketStatus, fetchError }
+  );
+
   return (
     <div className="border rounded-lg overflow-hidden shadow-md bg-white">
       <div className="bg-gray-100 px-4 py-2 border-b flex justify-between items-center">
@@ -239,19 +428,79 @@ const MarketCard: React.FC<MarketCardProps> = ({ market, usdxAddress, expectedCh
         <div className="mb-4 grid grid-cols-2 gap-4">
           <div>
             <p className="text-sm text-gray-600 mb-1">{market.homeTeam} Odds:</p>
-            <p className="font-medium">{formatOdds(market.homeOdds)}</p>
+            <p className="font-medium">{isFetchingData ? 'Loading...' : formatOdds(liveOdds?.homeOdds)}</p>
           </div>
           <div>
             <p className="text-sm text-gray-600 mb-1">{market.awayTeam} Odds:</p>
-            <p className="font-medium">{formatOdds(market.awayOdds)}</p>
+            <p className="font-medium">{isFetchingData ? 'Loading...' : formatOdds(liveOdds?.awayOdds)}</p>
           </div>
         </div>
         
+        {/* Spread Odds */}
+        {!isFetchingData && liveOdds && liveOdds.homeSpreadOdds > 0n && (
+          <div className="mb-4">
+            <p className="text-sm text-gray-600 mb-1 font-semibold">Spread:</p>
+            <div className="grid grid-cols-2 gap-4 text-center">
+              <div>
+                <p className="text-xs text-gray-500">{market.homeTeam}</p>
+                <p className="font-medium">{formatPoints(liveOdds?.homeSpreadPoints)} ({formatOdds(liveOdds?.homeSpreadOdds)})</p>
+              </div>
+              <div>
+                 <p className="text-xs text-gray-500">{market.awayTeam}</p>
+                 {/* Away spread points are the negative of home spread points */}
+                 <p className="font-medium">{formatPoints(liveOdds && liveOdds.homeSpreadPoints ? -liveOdds.homeSpreadPoints : null)} ({formatOdds(liveOdds?.awaySpreadOdds)})</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Total Odds */}
+        {!isFetchingData && liveOdds && liveOdds.overOdds > 0n && (
+          <div className="mb-4">
+            <p className="text-sm text-gray-600 mb-1 font-semibold">Total:</p>
+             <div className="grid grid-cols-2 gap-4 text-center">
+               <div>
+                 <p className="text-xs text-gray-500">Over</p>
+                 <p className="font-medium">{formatPoints(liveOdds?.totalPoints)} ({formatOdds(liveOdds?.overOdds)})</p>
+               </div>
+               <div>
+                 <p className="text-xs text-gray-500">Under</p>
+                 <p className="font-medium">{formatPoints(liveOdds?.totalPoints)} ({formatOdds(liveOdds?.underOdds)})</p>
+               </div>
+             </div>
+          </div>
+        )}
+
         {getOutcome()}
         
-        {/* Betting Section - Show only if market is ready */}
-        {market.isReadyForBetting && !market.gameStarted && !market.gameEnded && (
+        {/* Betting Section - Show only if market status is OPEN */}
+        {!isFetchingData && marketStatus === MarketStatus.OPEN && (
           <div className="mt-4 pt-4 border-t">
+            {/* Bet Type Selection Tabs */}
+            <div className="mb-4 flex border-b">
+              <button 
+                className={`flex-1 py-2 px-4 text-center text-sm font-medium ${selectedBetType === MONEYLINE_BET_TYPE ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                onClick={() => setSelectedBetType(MONEYLINE_BET_TYPE)}
+                disabled={!liveOdds || liveOdds.homeOdds <= 0n} // Disable if ML odds not available
+              >
+                Moneyline
+              </button>
+              <button 
+                 className={`flex-1 py-2 px-4 text-center text-sm font-medium ${selectedBetType === SPREAD_BET_TYPE ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                 onClick={() => setSelectedBetType(SPREAD_BET_TYPE)}
+                 disabled={!liveOdds || liveOdds.homeSpreadOdds <= 0n} // Disable if spread odds not available
+              >
+                Spread
+              </button>
+              <button 
+                 className={`flex-1 py-2 px-4 text-center text-sm font-medium ${selectedBetType === TOTAL_BET_TYPE ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                 onClick={() => setSelectedBetType(TOTAL_BET_TYPE)}
+                 disabled={!liveOdds || liveOdds.overOdds <= 0n} // Disable if total odds not available
+              >
+                Total
+              </button>
+            </div>
+
             <div className="mb-3">
               <label htmlFor={`bet-amount-${market.address}`} className="block text-sm font-medium text-gray-700 mb-1">
                 Bet Amount (USDX)
@@ -266,29 +515,31 @@ const MarketCard: React.FC<MarketCardProps> = ({ market, usdxAddress, expectedCh
                 onChange={(e) => setBetAmount(e.target.value)}
                 min="0"
                 step="any" // Allow decimals
-                disabled={isLoading} // Only disable input while loading
+                disabled={isLoading || isFetchingData || marketStatus !== MarketStatus.OPEN}
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <button
                 type="button"
                 onClick={() => handleBet(true)}
-                disabled={isLoading || !betAmount || parseFloat(betAmount) <= 0}
+                disabled={isLoading || isFetchingData || marketStatus !== MarketStatus.OPEN || !betAmount || parseFloat(betAmount) <= 0}
                 className={`inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white ${
-                  isLoading || !betAmount || parseFloat(betAmount) <= 0 ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500'
+                  isLoading || isFetchingData || marketStatus !== MarketStatus.OPEN || !betAmount || parseFloat(betAmount) <= 0 ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500'
                 }`}
               >
-                {isLoading ? 'Processing...' : `Bet ${market.homeTeam}`}
+                {isLoading ? 'Processing...' : 
+                 (selectedBetType === MONEYLINE_BET_TYPE || selectedBetType === SPREAD_BET_TYPE) ? `Bet ${market.homeTeam}` : 'Bet Over'}
               </button>
               <button
                 type="button"
                 onClick={() => handleBet(false)}
-                disabled={isLoading || !betAmount || parseFloat(betAmount) <= 0}
+                disabled={isLoading || isFetchingData || marketStatus !== MarketStatus.OPEN || !betAmount || parseFloat(betAmount) <= 0}
                 className={`inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white ${
-                  isLoading || !betAmount || parseFloat(betAmount) <= 0 ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500'
+                  isLoading || isFetchingData || marketStatus !== MarketStatus.OPEN || !betAmount || parseFloat(betAmount) <= 0 ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500'
                 }`}
               >
-                {isLoading ? 'Processing...' : `Bet ${market.awayTeam}`}
+                {isLoading ? 'Processing...' : 
+                 (selectedBetType === MONEYLINE_BET_TYPE || selectedBetType === SPREAD_BET_TYPE) ? `Bet ${market.awayTeam}` : 'Bet Under'}
               </button>
             </div>
           </div>

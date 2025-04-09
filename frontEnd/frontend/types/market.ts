@@ -38,3 +38,12 @@ export interface Market {
   /** Whether the market is ready for betting (has odds and game hasn't started) */
   isReadyForBetting: boolean;
 }
+
+// Add the enum corresponding to NBAMarket.sol MarketStatus
+export enum MarketStatus {
+  PENDING = 0,
+  OPEN = 1,
+  STARTED = 2,
+  SETTLED = 3,
+  CANCELLED = 4,
+}

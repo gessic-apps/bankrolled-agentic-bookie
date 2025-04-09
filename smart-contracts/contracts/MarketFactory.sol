@@ -18,7 +18,7 @@ contract MarketFactory {
     // Token and liquidity
     IERC20 public usdx;
     LiquidityPool public liquidityPool;
-    uint256 public defaultMarketFunding = 100000 * 10**6; // 100k USDX by default (assuming 6 decimals)
+    uint256 public defaultMarketFunding = 1000 * 10**6; // 100k USDX by default (assuming 6 decimals)
     
     // Track all markets created
     NBAMarket[] public deployedMarkets;
