@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useAccount } from "wagmi";
-import { ethers, Contract, formatUnits } from "ethers";
+import { useAccount, useConfig } from "wagmi";
+import { readContract } from 'wagmi/actions';
+import { type Address, zeroAddress, formatUnits, BaseError } from 'viem';
 import { Market } from "../types/market";
 import NBAMarketABI from '../abis/contracts/NBAMarket.sol/NBAMarket.json';
 import BettingEngineABI from '../abis/contracts/BettingEngine.sol/BettingEngine.json';
@@ -41,18 +42,13 @@ type BetWithMarketInfo = Bet & {
   awayTeam: string;
 };
 
-// Helper to get provider (read-only)
-const getProvider = (): ethers.Provider => {
-  // Replace with your preferred provider setup, ensuring correct network
-  return new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org');
-};
-
 type UserBetsListProps = {
   markets: Market[]; // Pass the list of markets from the parent page
 };
 
 export default function UserBetsList({ markets }: UserBetsListProps) {
   const { address, isConnected } = useAccount();
+  const config = useConfig();
   const [userBets, setUserBets] = useState<BetWithMarketInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -68,22 +64,28 @@ export default function UserBetsList({ markets }: UserBetsListProps) {
       setLoading(true);
       setError(null);
       let allBets: BetWithMarketInfo[] = [];
-      const provider = getProvider();
 
       try {
          // --- Start Blockchain Fetch --- 
          const betPromises = markets.map(async (market) => {
           try {
-            const marketContract = new Contract(market.address, NBAMarketABI.abi, provider);
-            const bettingEngineAddress = await marketContract.bettingEngine();
+            const bettingEngineAddress = await readContract(config, {
+              address: market.address as Address,
+              abi: NBAMarketABI.abi,
+              functionName: 'bettingEngine',
+            }) as Address | undefined;
             
-            if (!bettingEngineAddress || bettingEngineAddress === ethers.ZeroAddress) {
+            if (!bettingEngineAddress || bettingEngineAddress === zeroAddress) {
                 console.warn(`No betting engine found for market ${market.address}`);
                 return []; // Skip if no engine address
             }
 
-            const engineContract = new Contract(bettingEngineAddress, BettingEngineABI.abi, provider);
-            const betIds: bigint[] = await engineContract.getBettorBets(address);
+            const betIds = await readContract(config, {
+                address: bettingEngineAddress,
+                abi: BettingEngineABI.abi,
+                functionName: 'getBettorBets',
+                args: [address as Address],
+            }) as bigint[] | undefined;
 
             if (!betIds || betIds.length === 0) {
                  return []; // No bets for this user in this market
@@ -92,7 +94,18 @@ export default function UserBetsList({ markets }: UserBetsListProps) {
             // Fetch details for each bet ID
             const betDetailsPromises = betIds.map(async (betId) => {
                  try {
-                    const detailsTuple: BetDetailsTuple = await engineContract.getBetDetails(betId);
+                    const detailsTuple = await readContract(config, {
+                        address: bettingEngineAddress,
+                        abi: BettingEngineABI.abi,
+                        functionName: 'getBetDetails',
+                        args: [betId],
+                    }) as BetDetailsTuple | undefined;
+
+                    if (!detailsTuple) {
+                        console.error(`Failed to fetch details for bet ID ${betId} in engine ${bettingEngineAddress}`);
+                        return null;
+                    }
+
                     // Format into Bet object
                     const betData: Bet = {
                         betId: betId,
@@ -115,7 +128,12 @@ export default function UserBetsList({ markets }: UserBetsListProps) {
                     } as BetWithMarketInfo;
                 } catch (err) {
                     console.error(`Error fetching details for bet ${betId} in market ${market.address}:`, err);
-                    return null; // Return null on error for this specific bet detail fetch
+                    if (err instanceof BaseError) {
+                        setError((prev) => prev ? `${prev}; Bet ${betId} fetch error: ${err.shortMessage}` : `Bet ${betId} fetch error: ${err.shortMessage}`);
+                    } else if (err instanceof Error) {
+                        setError((prev) => prev ? `${prev}; Bet ${betId} fetch error: ${err.message}` : `Bet ${betId} fetch error: ${err.message}`);
+                    }
+                    return null;
                 }
             });
 

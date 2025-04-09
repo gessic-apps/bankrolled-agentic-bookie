@@ -357,7 +357,7 @@ app.post('/api/market/:address/update-odds', async (req, res) => {
     console.log(`Targeting MarketOdds contract: ${marketOddsAddress}`);
 
     // 2. Send transaction to the MarketOdds contract
-    const result = await signAndSendTransaction({
+    const resultOddsUpdate = await signAndSendTransaction({
       contractAddress: marketOddsAddress, // Target the odds contract
       contractAbi: MarketOddsJson.abi,   // Use its ABI
       method: 'updateOdds',
@@ -365,10 +365,39 @@ app.post('/api/market/:address/update-odds', async (req, res) => {
       role: 'oddsProvider' // Use odds provider signer
     }, provider);
 
-    if (!result.success) {
-      throw new Error(result.error);
+    if (!resultOddsUpdate.success) {
+      // Keep original error handling
+      throw new Error(resultOddsUpdate.error);
     }
     
+    console.log(`Odds values updated in MarketOdds contract: ${marketOddsAddress}`);
+
+    // 3. After successful odds update, try to transition NBAMarket status to OPEN
+    try {
+      console.log(`Attempting to call tryOpenMarket on NBAMarket: ${address}`);
+      // We need a signer to call a state-changing function like tryOpenMarket
+      // Using 'admin' role signer as defined in NBAMarket.sol
+      const adminSigner = await getRoleSigner('admin', provider); 
+      const resultStatusUpdate = await signAndSendTransaction({
+          contractAddress: address, // Target NBAMarket contract
+          contractAbi: NBAMarketJson.abi, // Use NBAMarket ABI
+          method: 'tryOpenMarket', // Call the new function
+          params: [], // No parameters for tryOpenMarket
+          signer: adminSigner // Use admin signer
+      }, provider);
+
+      if (resultStatusUpdate.success) {
+          console.log(`Successfully called tryOpenMarket on NBAMarket: ${address}. Market might now be OPEN. Tx: ${resultStatusUpdate.transaction}`);
+      } else {
+          // Log a warning but don't fail the whole request. 
+          // This might fail if market was already Open, game started, or odds weren't readable by the contract yet.
+          console.warn(`Call to tryOpenMarket on NBAMarket ${address} did not succeed (it might have reverted). Odds were updated, but status might remain Pending. Error: ${resultStatusUpdate.error}`);
+      }
+    } catch (statusUpdateError) {
+         // Log a warning but don't fail the whole request
+         console.warn(`Error occurred while trying to call tryOpenMarket for ${address}:`, statusUpdateError);
+    }
+
     // Update stored market info
     const marketIndex = deployedContracts.markets.findIndex(m => m.address === address);
     if (marketIndex >= 0) {
@@ -397,7 +426,7 @@ app.post('/api/market/:address/update-odds', async (req, res) => {
       totalPoints,
       overOdds,
       underOdds,
-      transaction: result.transaction
+      transaction: resultOddsUpdate.transaction // Report the odds update transaction hash
     });
   } catch (error) {
     console.error('Error updating odds:', error);

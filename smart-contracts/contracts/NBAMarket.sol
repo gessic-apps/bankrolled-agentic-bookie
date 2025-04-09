@@ -353,6 +353,22 @@ contract NBAMarket is ReentrancyGuard {
         emit MarketStatusChanged(marketStatus);
     }
 
+    /**
+     * @dev Allows the admin to attempt to transition the market from PENDING to OPEN.
+     * This should be called after odds have been successfully set in the MarketOdds contract
+     * if the market didn't open automatically during creation.
+     */
+    function tryOpenMarket() external onlyAdmin onlyOddsProvider {
+        require(marketStatus == MarketStatus.PENDING, "NBAMarket: Market not in PENDING status");
+        require(marketOddsContract != address(0), "NBAMarket: Odds contract not set");
+        require(MarketOdds(marketOddsContract).initialOddsSet(), "NBAMarket: Odds not yet set in MarketOdds contract");
+        require(block.timestamp < gameTimestamp, "NBAMarket: Game has already started based on timestamp");
+        
+        // If all conditions met, open the market
+        marketStatus = MarketStatus.OPEN;
+        emit MarketStatusChanged(marketStatus);
+    }
+
     // --- View Functions ---
 
     function getBettorBets(address _bettor) 
