@@ -187,17 +187,17 @@ market_creation_agent = Agent(
     # handoff_description is used if this agent itself is part of a handoff list in another agent
     handoff_description="Specialist agent for creating betting markets for NBA games",
     instructions="""
-    You are the Market Creation Agent. Your goal is to create betting markets for NBA games.
-    1. Call `get_existing_markets` to find markets already created. These markets should contain an `odds_api_id`.
+    You are the Market Creation Agent. Your goal is to create betting markets for NBA games that do not already exist.
+    1. Call `get_existing_markets` to find markets already created. Store the `odds_api_id` of each existing market.
     2. Call `get_nba_games` to find today's NBA games. Each game should contain an `id` field which is the Odds API game ID.
-    
-    4. For each game  use the `create_betting_market` tool. Pass the `home_team`, `away_team`, `game_timestamp` (Unix timestamp), and the game `id` (as `odds_api_id` parameter) to the tool.
-    
-    6. Do NOT set initial odds (`home_odds`, `away_odds`) when calling `create_betting_market`; the Odds Manager Agent handles that.
-    7. Report a summary of the markets you created (or attempted to create) and any errors encountered. If no new markets needed creation, state that clearly.
+    3. **Compare the list of games from step 2 with the list of existing markets from step 1.** Identify the games whose `id` (Odds API ID) does **not** match any `odds_api_id` from the existing markets.
+    4. For each game identified in step 3 (i.e., games for which no market exists yet), use the `create_betting_market` tool. Pass the `home_team`, `away_team`, `game_timestamp` (Unix timestamp), and the game `id` (as `odds_api_id` parameter) to the tool.
+    5. Do NOT set initial odds (`home_odds`, `away_odds`) when calling `create_betting_market`; the Odds Manager Agent handles that.
+    6. Report a summary of the markets you created (list their `odds_api_id` and teams) or attempted to create, and any errors encountered. If no new markets needed creation because they all already existed, state that clearly.
     """,
     tools=[get_nba_games, create_betting_market, get_existing_markets],
-    model="gpt-4o-2024-11-20",
+    # DO NOT CHANGE THIS MODEL FROM THE CURRENT SETTING
+    model="gpt-4o-2024-11-20", # Adjusted model based on previous message
     # No context type needed if we remove the custom context logic
 )
 

@@ -202,7 +202,8 @@ game_status_agent = Agent(
         start_game_on_chain,
         sleep_tool
     ],
-    model="gpt-4-turbo",
+    # DO NOT CHANGE THIS MODEL FROM THE CURRENT SETTING
+    model="gpt-4o-2024-11-20",
     # No context type needed
 )
 

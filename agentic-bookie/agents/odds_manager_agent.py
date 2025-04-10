@@ -319,7 +319,8 @@ odds_manager_agent = Agent(
     5. Report back a summary of the markets you updated (providing market address and the *decimal* odds set) or attempted to update (including any errors). If no markets needed initial odds, state that. If you've updated the odds, state the before and after values. in readable decimal format.
     """,
     tools=[get_existing_markets, update_odds_for_market, get_games_with_odds],
-    model="gpt-4-turbo",
+    # DO NOT CHANGE THIS MODEL FROM THE CURRENT SETTING
+    model="gpt-4o-2024-11-20",
     # No context type needed
 )
 

@@ -1,7 +1,7 @@
 {
-  "usdx": "0x7A24C262B18671F96df030F0D804C82f4566cbD1",
-  "liquidityPool": "0x6657266d6c849bf443171Acd1d8e8D6617c3D11c",
-  "marketFactory": "0xAa3611195440cBB9756984bBa3Cfb04afAAE32aC",
+  "usdx": "0xA2Fb3DcFbB43a8798C8A42F47fbf9bA070a134b3",
+  "liquidityPool": "0x85FB3BB442b4A31CB91a6558d9f29409e1F30f69",
+  "marketFactory": "0x440DE84d9811417037Abd340Daf18Dcb5F867f70",
   "markets": [
     {
       "address": "0x79cCC6cd2169726800f1503A083FF2f9eF716A68",
@@ -292,6 +292,66 @@
       "underOdds": 1870,
       "oddsSet": true,
       "updatedAt": "2025-04-09T21:59:32.842Z"
+    },
+    {
+      "address": "0x8bDD77FE7066485EA293686fB72e3b81f7E6B492",
+      "homeTeam": "Indiana Pacers",
+      "awayTeam": "Cleveland Cavaliers",
+      "gameTimestamp": 1744326600,
+      "oddsApiId": "2d7c114ac266d890852c5a00d0a09c1c",
+      "funding": "1000.0",
+      "transaction": "0xdcc7fe381b96ad0763dcf79573699780c4a897a6978fd241673507bf7167ec3b",
+      "createdAt": "2025-04-10T07:51:48.260Z",
+      "homeOdds": 1240,
+      "awayOdds": 4300,
+      "homeSpreadPoints": -95,
+      "homeSpreadOdds": 1880,
+      "awaySpreadOdds": 1930,
+      "totalPoints": 2320,
+      "overOdds": 1910,
+      "underOdds": 1910,
+      "oddsSet": true,
+      "updatedAt": "2025-04-10T08:23:39.280Z"
+    },
+    {
+      "address": "0x4d0921Eb15Ab767AA7640476770e4B1d65F451ef",
+      "homeTeam": "Detroit Pistons",
+      "awayTeam": "New York Knicks",
+      "gameTimestamp": 1744326600,
+      "oddsApiId": "7aa9f4f6bb59b6a4453db958e2aa9f31",
+      "funding": "1000.0",
+      "transaction": "0x1f26d0ab2edf353ff79e55b31ae9f389fc33e908b2d2a660556fb815cd6c072f",
+      "createdAt": "2025-04-10T07:51:54.246Z",
+      "homeOdds": 1500,
+      "awayOdds": 2650,
+      "homeSpreadPoints": -50,
+      "homeSpreadOdds": 1890,
+      "awaySpreadOdds": 1920,
+      "totalPoints": 2270,
+      "overOdds": 1890,
+      "underOdds": 1920,
+      "oddsSet": true,
+      "updatedAt": "2025-04-10T08:23:45.431Z"
+    },
+    {
+      "address": "0xb00c913345dE0dE231CdC377E52222fB80f90905",
+      "homeTeam": "Brooklyn Nets",
+      "awayTeam": "Atlanta Hawks",
+      "gameTimestamp": 1744328400,
+      "oddsApiId": "c015dac4afa8286578bbfe4271eb4515",
+      "funding": "1000.0",
+      "transaction": "0x2d9775d9b3650990ec57391fa4ebb1e90977dc272fd56a22b0e1ae566b6ca702",
+      "createdAt": "2025-04-10T07:52:00.190Z",
+      "homeOdds": 6500,
+      "awayOdds": 1130,
+      "homeSpreadPoints": 135,
+      "homeSpreadOdds": 1930,
+      "awaySpreadOdds": 1880,
+      "totalPoints": 2290,
+      "overOdds": 1910,
+      "underOdds": 1910,
+      "oddsSet": true,
+      "updatedAt": "2025-04-10T08:23:51.421Z"
     }
   ]
 }

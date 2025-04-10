@@ -207,7 +207,8 @@ triage_agent = Agent(
             tool_description_override="Transfer task to the agent specializing in monitoring game start times and updating market status."
         )
     ],
-    model="gpt-4-turbo",
+    # DO NOT CHANGE THIS MODEL FROM THE CURRENT SETTING
+    model="gpt-4o-2024-11-20",
     # Note: Tools defined above are not directly used by Triage, but are available
     # if needed, and are used by the agents it hands off to.
     # tools=[get_nba_games, get_existing_markets, create_betting_market, update_odds_for_market, get_games_with_odds]
