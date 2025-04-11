@@ -40,17 +40,35 @@ from agents import Agent, function_tool
 # If tools are in agentGroup.py, they need to be importable or moved.
 # For now, we define placeholders or assume they are globally available where this agent is used.
 # from .agentGroup import get_nba_games, create_betting_market, get_existing_markets
+
+# Define the list of target sports
+SUPPORTED_SPORT_KEYS = [
+    "basketball_nba",
+    "soccer_epl", # English Premier League
+    "soccer_france_ligue_one",
+    "soccer_italy_serie_a",
+    "soccer_germany_bundesliga",
+    "soccer_spain_la_liga",
+    "soccer_uefa_champs_league",
+    "soccer_uefa_europa_league"
+]
+
 # Placeholder definitions if not imported:
 @function_tool
-def get_nba_games() -> List[Dict[str, Any]]:
-    """Fetches today's NBA games from The Odds API."""
+def fetch_games_today(sport_keys: List[str]) -> List[Dict[str, Any]]:
+    """Fetches today's games for the specified sports from The Odds API."""
     if not SPORTS_API_KEY:
-        print("Error: Cannot fetch NBA games, SPORTS_API_KEY is missing.", file=sys.stderr)
+        print("Error: Cannot fetch games, SPORTS_API_KEY is missing.", file=sys.stderr)
+        return []
+    if not sport_keys:
+        print("Warning: No sport_keys provided to fetch_games_today.", file=sys.stderr)
         return []
 
+    all_games = []
+    processed_game_ids = set()
+
     # Define the sport and region
-    sport = "basketball_nba"
-    regions = "us"
+    regions = "us" # Adjust if necessary for soccer leagues, though 'us' often covers major international sports
     markets = "h2h" # Head-to-head market is sufficient to get game details
     odds_format = "decimal"
     date_format = "iso"
@@ -65,45 +83,56 @@ def get_nba_games() -> List[Dict[str, Any]]:
     commence_time_from = start_of_day_utc.strftime('%Y-%m-%dT%H:%M:%SZ')
     commence_time_to = end_of_day_utc.strftime('%Y-%m-%dT%H:%M:%SZ')
 
-    try:
-        response = requests.get(
-            f"https://api.the-odds-api.com/v4/sports/{sport}/odds",
-            params={
-                "apiKey": SPORTS_API_KEY,
-                "regions": regions,
-                "markets": markets,
-                "oddsFormat": odds_format,
-                "dateFormat": date_format,
-                "commenceTimeFrom": commence_time_from,
-                "commenceTimeTo": commence_time_to,
-            }
-        )
-        response.raise_for_status() # Raise HTTPError for bad responses (4xx or 5xx)
-        games_data = response.json()
+    for sport_key in sport_keys:
+        print(f"Fetching games for sport: {sport_key}...")
+        try:
+            response = requests.get(
+                f"https://api.the-odds-api.com/v4/sports/{sport_key}/odds",
+                params={
+                    "apiKey": SPORTS_API_KEY,
+                    "regions": regions,
+                    "markets": markets,
+                    "oddsFormat": odds_format,
+                    "dateFormat": date_format,
+                    "commenceTimeFrom": commence_time_from,
+                    "commenceTimeTo": commence_time_to,
+                }
+            )
+            response.raise_for_status() # Raise HTTPError for bad responses (4xx or 5xx)
+            games_data = response.json()
 
-        # Extract relevant game details
-        games = []
-        for game in games_data:
-             # Convert ISO commence_time to Unix timestamp (integer seconds)
-            commence_dt = datetime.datetime.fromisoformat(game['commence_time'].replace('Z', '+00:00'))
-            commence_timestamp = int(commence_dt.timestamp())
-            games.append({
-                "id": game["id"], # Odds API specific game ID
-                "home_team": game["home_team"],
-                "away_team": game["away_team"],
-                "commence_time": game["commence_time"], # Keep ISO for reference?
-                "game_timestamp": commence_timestamp, # Add Unix timestamp
-            })
-        print(f"Successfully fetched {len(games)} NBA games for today.")
-        return games
+            # Extract relevant game details
+            games_count = 0
+            for game in games_data:
+                game_id = game.get("id")
+                if not game_id or game_id in processed_game_ids:
+                    continue # Skip if ID missing or game already added from another sport query (unlikely but possible)
 
-    except requests.exceptions.RequestException as e:
-        print(f"Error fetching NBA games from The Odds API: {e}", file=sys.stderr)
-        return []
-    except Exception as e:
-        print(f"An unexpected error occurred in get_nba_games: {e}", file=sys.stderr)
-        return []
+                # Convert ISO commence_time to Unix timestamp (integer seconds)
+                commence_dt = datetime.datetime.fromisoformat(game['commence_time'].replace('Z', '+00:00'))
+                commence_timestamp = int(commence_dt.timestamp())
 
+                all_games.append({
+                    "id": game_id, # Odds API specific game ID
+                    "sport_key": sport_key, # Add sport key for context
+                    "home_team": game["home_team"],
+                    "away_team": game["away_team"],
+                    "commence_time": game["commence_time"], # Keep ISO for reference?
+                    "game_timestamp": commence_timestamp, # Add Unix timestamp
+                })
+                processed_game_ids.add(game_id)
+                games_count += 1
+            print(f"Successfully fetched {games_count} games for {sport_key}.")
+
+        except requests.exceptions.RequestException as e:
+            print(f"Error fetching games for {sport_key} from The Odds API: {e}", file=sys.stderr)
+            # Continue to next sport key if one fails
+        except Exception as e:
+            print(f"An unexpected error occurred fetching games for {sport_key}: {e}", file=sys.stderr)
+            # Continue to next sport key
+
+    print(f"Total unique games fetched across all sports: {len(all_games)}")
+    return all_games
 
 @function_tool
 def create_betting_market(
@@ -231,9 +260,9 @@ market_creation_agent = Agent(
     # handoff_description is used if this agent itself is part of a handoff list in another agent
     handoff_description="Specialist agent for creating betting markets for NBA games",
     instructions="""
-    You are the Market Creation Agent. Your goal is to create betting markets for NBA games that do not already exist.
+    You are the Market Creation Agent. Your goal is to create betting markets for today's games across supported sports (NBA and major Soccer leagues) that do not already exist.
     1. First, call `get_existing_markets` to retrieve a list of all markets already created.
-    2. Second, call `get_nba_games` to find today's NBA games. Each game contains an `id` field and a `game_timestamp` (Unix timestamp).
+    2. Second, call `fetch_games_today` with the list of supported sport keys to find today's games. Each game contains an `id` field (Odds API ID), `sport_key`, teams, and a `game_timestamp` (Unix timestamp).
     3. For each game obtained in step 2:
        a. Call `check_event_exists`, passing the game's `id` and the list of existing markets obtained in step 1.
        b. If `check_event_exists` returns `False` (meaning no market exists for this game):
@@ -242,7 +271,7 @@ market_creation_agent = Agent(
     4. Report a summary of the markets you attempted to create (list their `game_id` and teams) and the results (success or error). If no new markets needed creation, state that clearly.
     """,
     # Ensure all necessary tools are available
-    tools=[get_existing_markets, get_nba_games, check_event_exists, create_betting_market],
+    tools=[get_existing_markets, fetch_games_today, check_event_exists, create_betting_market],
     # DO NOT CHANGE THIS MODEL FROM THE CURRENT SETTING
     model="gpt-4o-2024-11-20", # Adjusted model based on previous message
     # No context type needed if we remove the custom context logic
@@ -256,7 +285,7 @@ if __name__ == '__main__':
 
     async def test_market_creation():
         # Input prompt to trigger the agent's logic
-        prompt = "Create markets for today's NBA games."
+        prompt = f"Create markets for today's games in supported sports: {', '.join(SUPPORTED_SPORT_KEYS)}."
         print(f"--- Running Market Creation Agent with prompt: '{prompt}' ---")
         # Ensure environment variables are loaded if running directly
         if not SPORTS_API_KEY or not API_URL:

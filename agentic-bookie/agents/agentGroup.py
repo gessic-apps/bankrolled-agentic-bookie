@@ -16,6 +16,8 @@ from tools.createMarket import create_market, get_all_markets, update_market_odd
 # Import OpenAI Agent SDK
 from agents import Agent, Runner, function_tool, handoff
 
+# Import SUPPORTED_SPORT_KEYS from one of the agents
+from .market_creation_agent import SUPPORTED_SPORT_KEYS
 # Import the specialized agents
 from .market_creation_agent import market_creation_agent
 from .odds_manager_agent import odds_manager_agent
@@ -37,16 +39,18 @@ from .game_status_agent import game_status_agent
 triage_agent = Agent(
     name="Triage Agent",
     instructions="""
-    You are the main dispatcher for a sports betting platform automation system.
+    You are the main dispatcher for a sports betting platform automation system handling NBA and major European Soccer leagues.
     Your role is to understand the user's request and route it to the correct specialized agent.
 
-    1.  If the request is about **creating new betting markets** for NBA games, hand off to the `Market Creation Agent`.
-        Keywords: create markets, set up games, new NBA markets, list games for betting.
-    2.  If the request is about **setting or updating odds** for existing markets, hand off to the `Odds Manager Agent`.
-        Keywords: update odds, set odds, manage odds, check prices.
-    3.  If the request is about **checking game start times or updating game statuses**, hand off to the `Game Status Agent`.
-        Keywords: game start, check status, monitor games, start betting.
-    4.  For any other requests, politely explain that you currently only support market creation, odds management, and game status updates for NBA games via the specialized agents. Do not attempt to fulfill other requests yourself.
+    Supported Sports: NBA and Soccer (EPL, Ligue 1, Serie A, Bundesliga, La Liga, Champions League).
+
+    1.  If the request is about **creating new betting markets** for supported sports, hand off to the `Market Creation Agent`.
+        Keywords: create markets, set up games, new markets, list games for betting, add soccer/NBA games.
+    2.  If the request is about **setting or updating odds** for existing markets in supported sports, hand off to the `Odds Manager Agent`.
+        Keywords: update odds, set odds, manage odds, check prices, set lines, soccer odds, NBA odds.
+    3.  If the request is about **checking game completion or setting final results** for markets in supported sports, hand off to the `Game Result Settlement Agent`.
+        Keywords: check status, monitor games, settle results, game finished, final score.
+    4.  For any other requests, politely explain that you currently only support market creation, odds management, and game result settlement for NBA and the specified Soccer leagues via the specialized agents. Do not attempt to fulfill other requests yourself.
 
     Use the provided handoff tools to transfer the task.
     """,
@@ -88,9 +92,10 @@ if __name__ == "__main__":
              # return
 
         # Example prompts for each agent
-        market_creation_prompt = "Create betting markets for today's NBA games."
-        odds_management_prompt = "Set initial odds for any markets that need them and update odds for existing markets."
-        game_status_prompt = "Monitor game start times and update market status for games that have started." # Prompt for the new agent
+        supported_sports_str = ", ".join(SUPPORTED_SPORT_KEYS)
+        market_creation_prompt = f"Create betting markets for today's games in these leagues: {supported_sports_str}."
+        odds_management_prompt = f"Set or update odds for all existing markets for these sports: {supported_sports_str}."
+        game_status_prompt = f"Check for completed games and settle results for markets in these sports: {supported_sports_str}." # Updated prompt
 
         # --- Run Market Creation Agent ---
         print("\n--- Running Market Creation Agent ---")

@@ -233,9 +233,9 @@ DEPLOY_CMD_FACTORY="npm run deploy:factory -- --network ${NETWORK}"
 echo -e "${YELLOW}2. Deploying Market Factory...${NC}"
 run_deploy_command "${DEPLOY_CMD_FACTORY}" "critical"
 
-DEPLOY_CMD_MARKETS="npm run create:markets -- --network ${NETWORK}"
-echo -e "${YELLOW}3. Creating sample markets...${NC}"
-run_deploy_command "${DEPLOY_CMD_MARKETS}" "" # Not critical
+# DEPLOY_CMD_MARKETS="npm run create:markets -- --network ${NETWORK}"
+# echo -e "${YELLOW}3. Creating sample markets...${NC}"
+# run_deploy_command "${DEPLOY_CMD_MARKETS}" "" # Not critical
 
 # Check if PM2 is installed, install if not
 if ! command -v pm2 &> /dev/null; then

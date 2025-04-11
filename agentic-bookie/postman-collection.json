@@ -29,7 +29,7 @@
         },
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"oddsProviderAddress\": \"0x70997970C51812dc3A010C7d01b50e0d17dc79C8\",\n  \"resultsProviderAddress\": \"0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC\"\n}",
+          "raw": "{\n  \"oddsProviderAddress\": \"0x70997970C51812dc3A010C7d01b50e0d17dc79C8\",\n  \"resultsProviderAddress\": \"0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC\",\n  \"usdxAddress\": \"{{USDX_ADDRESS}}\",\n  \"liquidityPoolAddress\": \"{{LIQUIDITY_POOL_ADDRESS}}\"\n}",
           "options": {
             "raw": {
               "language": "json"
@@ -50,14 +50,14 @@
         },
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"homeTeam\": \"Lakers\",\n  \"awayTeam\": \"Celtics\",\n  \"gameTimestamp\": \"{{$timestamp + 86400}}\",\n  \"homeOdds\": 1850,\n  \"awayOdds\": 2000\n}",
+          "raw": "{\n  \"homeTeam\": \"Lakers\",\n  \"awayTeam\": \"Celtics\",\n  \"gameTimestamp\": \"{{$timestamp + 86400}}\",\n  \"oddsApiId\": \"NBA_2023_LAL_BOS\",\n  \"homeOdds\": 1850,\n  \"awayOdds\": 2000,\n  \"marketFunding\": 50000\n}",
           "options": {
             "raw": {
               "language": "json"
             }
           }
         },
-        "description": "Create a new market with initial odds"
+        "description": "Create a new market with initial odds and funding"
       }
     },
     {
@@ -71,7 +71,7 @@
         },
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"homeTeam\": \"Warriors\",\n  \"awayTeam\": \"Bulls\",\n  \"gameTimestamp\": \"{{$timestamp + 86400}}\"\n}",
+          "raw": "{\n  \"homeTeam\": \"Warriors\",\n  \"awayTeam\": \"Bulls\",\n  \"gameTimestamp\": \"{{$timestamp + 86400}}\",\n  \"oddsApiId\": \"NBA_2023_GSW_CHI\"\n}",
           "options": {
             "raw": {
               "language": "json"
@@ -85,14 +85,16 @@
       "name": "Update Odds",
       "request": {
         "method": "POST",
-        "url": {
-          "raw": "{{API_URL}}/api/market/{{MARKET_ADDRESS}}/update-odds",
-          "host": ["{{API_URL}}"],
-          "path": ["api", "market", "{{MARKET_ADDRESS}}", "update-odds"]
-        },
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"homeOdds\": 1941,\n  \"awayOdds\": 1051\n}",
+          "raw": "{\n    \"homeOdds\": 1800,\n    \"awayOdds\": 2100,\n    \"homeSpreadPoints\": -45, \n    \"homeSpreadOdds\": 1910,\n    \"awaySpreadOdds\": 1910,\n    \"totalPoints\": 2155,\n    \"overOdds\": 1910,\n    \"underOdds\": 1910\n}",
           "options": {
             "raw": {
               "language": "json"
@@ -100,6 +102,39 @@
           }
         },
         "description": "Update odds for a specific market"
+      }
+    },
+    {
+      "name": "Add Liquidity to Market",
+      "request": {
+        "method": "POST",
+        "url": {
+          "raw": "{{API_URL}}/api/market/{{MARKET_ADDRESS}}/add-liquidity",
+          "host": ["{{API_URL}}"],
+          "path": ["api", "market", "{{MARKET_ADDRESS}}", "add-liquidity"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"amount\": 10000\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "description": "Add liquidity to a specific market"
+      }
+    },
+    {
+      "name": "Get Liquidity Pool Info",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{API_URL}}/api/liquidity-pool",
+          "host": ["{{API_URL}}"],
+          "path": ["api", "liquidity-pool"]
+        },
+        "description": "Get information about the liquidity pool"
       }
     },
     {
@@ -163,14 +198,16 @@
       "name": "Set Game Result",
       "request": {
         "method": "POST",
-        "url": {
-          "raw": "{{API_URL}}/api/market/{{MARKET_ADDRESS}}/game-status",
-          "host": ["{{API_URL}}"],
-          "path": ["api", "market", "{{MARKET_ADDRESS}}", "game-status"]
-        },
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"action\": \"set-result\",\n  \"outcome\": 1\n}",
+          "raw": "{\n    \"action\": \"set-result\",\n    \"homeScore\": 112,\n    \"awayScore\": 109\n}",
           "options": {
             "raw": {
               "language": "json"
@@ -191,12 +228,69 @@
         },
         "description": "Get detailed information about a specific transaction, including decoded events"
       }
+    },
+    {
+      "name": "Place Bet",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"amount\": 100,\n    \"betType\": \"spread\", \n    \"betSide\": \"away\",    \n    \"bettor\": \"{{user1_address}}\" \n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "description": "Place a bet on a specific market (User 1 default)"
+      }
+    },
+    {
+      "name": "Get User Bets",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{API_URL}}/api/market/{{MARKET_ADDRESS}}/bets/{{USER_ADDRESS}}",
+          "host": ["{{API_URL}}"],
+          "path": ["api", "market", "{{MARKET_ADDRESS}}", "bets", "{{USER_ADDRESS}}"]
+        },
+        "description": "Get all bets placed by a specific user on a specific market"
+      }
+    },
+    {
+      "name": "Faucet (Mint USDX)",
+      "request": {
+        "method": "POST",
+        "url": {
+          "raw": "{{API_URL}}/api/faucet",
+          "host": ["{{API_URL}}"],
+          "path": ["api", "faucet"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"address\": \"{{USER_ADDRESS}}\",\n  \"amount\": 1000\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "description": "Mint USDX tokens to a specified address (uses admin wallet)"
+      }
     }
   ],
   "variable": [
     {
       "key": "API_URL",
-      "value": "http://localhost:3000"
+      "value": "http://localhost:3002"
     },
     {
       "key": "MARKET_ADDRESS",
@@ -205,6 +299,18 @@
     {
       "key": "TX_HASH",
       "value": ""
+    },
+    {
+      "key": "USDX_ADDRESS",
+      "value": ""
+    },
+    {
+      "key": "LIQUIDITY_POOL_ADDRESS",
+      "value": ""
+    },
+    {
+      "key": "USER_ADDRESS",
+      "value": "0x90F79bf6EB2c4f870365E785982E1f101E93b906"
     }
   ]
 }

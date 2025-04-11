@@ -35,9 +35,9 @@ const config = getDefaultConfig({
 });
 
 // --- TODO: Replace with your ACTUAL deployed MarketFactory address ---
-const MARKET_FACTORY_ADDRESS = "0xC3F82EccCcAA260c7d55416149E9518f5E605a21"; // Replace this placeholder
+const MARKET_FACTORY_ADDRESS = "0xB79F55c124C3F945F0348F1384bcB8b66DD32539"; // Replace this placeholder
 
-const usdxAddress = "0xAED009c60d9E0199a4C9881D2cD52779f4B72F34";
+const usdxAddress = "0x4cBb41C0dfc64A4a5E2F8d6f23D9B4dbE719E4bd";
 
 // Helper function to format odds/lines (similar to backend)
 const formatContractValue = (value: bigint | number | undefined, decimals: number = 3): string => {
