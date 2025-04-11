@@ -344,5 +344,5 @@ if __name__ == '__main__':
         print("---------------------------------")
 
     # Note: Running requires tool implementations or proper imports
-    # asyncio.run(test_odds_management())
+    asyncio.run(test_odds_management())
     print("Odds Manager Agent defined. Run agentGroup.py to test via Triage.") 

@@ -28,145 +28,6 @@ from .game_status_agent import game_status_agent
 #     # Consider exiting or letting the SDK handle the missing key error
 #     # sys.exit(1)
 
-# ======================= TOOL FUNCTION WRAPPERS =======================
-# These functions wrap the imported implementations for the Agent SDK
-
-@function_tool
-def get_nba_games() -> List[Dict[str, Any]]:
-    """
-    Fetches today's NBA games from the sports API.
-    Returns a list of game dictionaries suitable for the agent.
-    """
-    try:
-        games = fetch_nba_games_today()
-        # Convert GameEvent objects (if returned) to simple dicts for the agent
-        return [
-            {
-                "id": game.id, # Access attributes directly if GameEvent is a class/dataclass
-                "odds_api_id": game.odds_api_id,
-                "home_team": {
-                    "name": game.home_team.name,
-                    "abbreviation": game.home_team.abbreviation
-                },
-                "away_team": {
-                    "name": game.away_team.name,
-                    "abbreviation": game.away_team.abbreviation
-                },
-                # Convert datetime to timestamp if necessary, or pass as string
-                "start_time": int(game.start_time.timestamp()) if hasattr(game.start_time, 'timestamp') else str(game.start_time),
-                "status": game.status
-            }
-            for game in games
-        ]
-    except Exception as e:
-        print(f"Error fetching NBA games: {e}")
-        # Return an empty list or an error structure if preferred
-        return []
-
-@function_tool
-def get_existing_markets() -> List[Dict[str, Any]]:
-    """
-    Fetches all existing betting markets from the API.
-    Returns a list of market dictionaries.
-    """
-    try:
-        markets = get_all_markets()
-        # Assuming get_all_markets already returns a list of dicts
-        # Add error handling if necessary
-        return markets
-    except Exception as e:
-        print(f"Error fetching existing markets: {e}")
-        return []
-
-@function_tool
-def create_betting_market(
-    home_team: str,
-    away_team: str,
-    game_timestamp: int,
-    odds_api_id: str,
-    home_odds: Optional[int] = None,
-    away_odds: Optional[int] = None
-) -> Dict[str, Any]:
-    """
-    Creates a new betting market via the smart contract API.
-    Uses the imported `create_market` function.
-    """
-    try:
-        result = create_market(
-            home_team=home_team,
-            away_team=away_team,
-            game_timestamp=game_timestamp,
-            odds_api_id=odds_api_id,
-            home_odds=home_odds,
-            away_odds=away_odds
-        )
-        # Add logging or confirmation
-        print(f"Tool 'create_betting_market' called for {home_team} vs {away_team}. Result: {result.get('status', 'unknown')}")
-        return result
-    except Exception as e:
-        print(f"Error creating betting market for {home_team} vs {away_team}: {e}")
-        return {"error": str(e), "status": "failed"}
-
-@function_tool
-def update_odds_for_market(market_address: str, home_odds: int, away_odds: int) -> Dict[str, Any]:
-    """
-    Updates the odds for an existing market via the API.
-    Uses the imported `update_market_odds` function.
-    """
-    try:
-        # Basic validation
-        if home_odds < 1000 or away_odds < 1000:
-             raise ValueError("Odds must be at least 1.000 (represented as 1000)")
-
-        result = update_market_odds(market_address, home_odds, away_odds)
-        print(f"Tool 'update_odds_for_market' called for {market_address}. Result: {result.get('status', 'unknown')}")
-        return result
-    except Exception as e:
-        print(f"Error updating odds for market {market_address}: {e}")
-        return {"error": str(e), "status": "failed", "market_address": market_address}
-
-@function_tool
-def get_games_with_odds() -> List[Dict[str, Any]]:
-    """
-    Fetches today's NBA games including the latest odds data.
-    (Currently uses mock odds).
-    """
-    try:
-        games = fetch_nba_games_today() # Re-fetch games or use a cached list
-
-        # Mock odds data - replace with actual odds API call later
-        mock_odds_data = {
-            game.odds_api_id: {
-                "home_odds": 1850 + hash(game.odds_api_id) % 300, # Slightly varied mock odds
-                "away_odds": 2150 - hash(game.odds_api_id) % 300
-            } for game in games
-        }
-
-        result_list = []
-        for game in games:
-             game_data = {
-                "id": game.id,
-                "odds_api_id": game.odds_api_id,
-                "home_team": {
-                    "name": game.home_team.name,
-                    "abbreviation": game.home_team.abbreviation
-                },
-                "away_team": {
-                    "name": game.away_team.name,
-                    "abbreviation": game.away_team.abbreviation
-                },
-                "start_time": int(game.start_time.timestamp()) if hasattr(game.start_time, 'timestamp') else str(game.start_time),
-                "status": game.status,
-                # Get mock odds or default if not found
-                "odds": mock_odds_data.get(game.odds_api_id, {"home_odds": 2000, "away_odds": 2000})
-            }
-             result_list.append(game_data)
-
-        print(f"Tool 'get_games_with_odds' called. Found {len(result_list)} games.")
-        return result_list
-    except Exception as e:
-        print(f"Error fetching games with odds: {e}")
-        return []
 
 
 # ======================= AGENT DEFINITIONS =======================
@@ -209,80 +70,12 @@ triage_agent = Agent(
     ],
     # DO NOT CHANGE THIS MODEL FROM THE CURRENT SETTING
     model="gpt-4o-2024-11-20",
-    # Note: Tools defined above are not directly used by Triage, but are available
-    # if needed, and are used by the agents it hands off to.
-    # tools=[get_nba_games, get_existing_markets, create_betting_market, update_odds_for_market, get_games_with_odds]
 )
 
 # ======================= MAIN EXECUTION =======================
 
 if __name__ == "__main__":
     print("=== Testing the Simplified Agentic Bookie System ===")
-
-#     # Example 1: Market Creation Request
-#     print("--- Test 1: Market Creation Request ---")
-#     market_request = "Please set up betting markets for today's NBA action."
-#     print(f"User Request: {market_request}")
-#     try:
-#         # Use Runner.run_sync for simple synchronous execution
-#         market_result = Runner.run_sync(
-#             triage_agent,
-#             input=market_request,
-#             # No context needed for this simplified setup
-#             # No run_config needed unless specific tracing/model overrides are desired
-#         )
-#         print("--- Triage Agent Final Output (Market Creation) ---")
-#         print(market_result.final_output)
-#         print("-" * 50)
-
-#         # You could inspect market_result.new_items for details on tool calls/handoffs
-#         # print("
-# # --- Run Details (Market Creation) ---")
-#         # for item in market_result.new_items:
-#         #     print(f"- {item.type}: {item.raw_item}")
-#         # print("-" * 50)
-
-#     except Exception as e:
-#         print(f"Error during market creation test: {e}")
-
-#     # Example 2: Odds Management Request
-#     print("--- Test 2: Odds Management Request ---")
-#     odds_request = "Update the odds for all markets that need it."
-#     print(f"User Request: {odds_request}")
-#     try:
-#         odds_result = Runner.run_sync(
-#             triage_agent,
-#             input=odds_request,
-#         )
-#         print("--- Triage Agent Final Output (Odds Management) ---")
-#         print(odds_result.final_output)
-#         print("-" * 50)
-
-#         # print("--- Run Details (Odds Management) ---")
-#         # for item in odds_result.new_items:
-#         #     print(f"- {item.type}: {item.raw_item}")
-#         # print("-" * 50)
-
-#     except Exception as e:
-#         print(f"Error during odds management test: {e}")
-
-#     # Example 3: Unrelated Request
-#     print("--- Test 3: Unrelated Request ---")
-#     other_request = "What's the weather like today?"
-#     print(f"User Request: {other_request}")
-#     try:
-#         other_result = Runner.run_sync(
-#             triage_agent,
-#             input=other_request,
-#         )
-#         print("--- Triage Agent Final Output (Unrelated) ---")
-#         print(other_result.final_output)
-#         print("-" * 50)
-
-#     except Exception as e:
-#         print(f"Error during unrelated request test: {e}")
-
-#     print("=== Agent Testing Complete ===")
 
     # --- Test Runner ---
     async def test_bookie_system():
@@ -305,7 +98,6 @@ if __name__ == "__main__":
         triage_result_market = await Runner.run(triage_agent, market_creation_prompt)
         print("Triage Result (Market Creation):", triage_result_market.final_output)
 
-
         # --- Run Odds Manager Agent ---
         print("\n--- Running Odds Manager Agent ---")
         triage_result_odds = await Runner.run(triage_agent, odds_management_prompt)
@@ -316,14 +108,7 @@ if __name__ == "__main__":
         triage_result_status = await Runner.run(triage_agent, game_status_prompt)
         print("Triage Result (Game Status):", triage_result_status.final_output)
 
-
         print("\n--- Test Sequence Complete ---")
 
-
     import asyncio
-    # The triage_agent instance is already defined above. We just need to run the test function.
-    # Remove the incorrect re-definition line below:
-    # available_agents = [market_creation_agent, odds_manager_agent, game_status_agent]
-    # triage_agent = TriageAgent(agents=available_agents) # <--- REMOVE THIS LINE
-
     asyncio.run(test_bookie_system())

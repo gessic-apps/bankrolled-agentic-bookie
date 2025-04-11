@@ -7,6 +7,7 @@ import time
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 from dotenv import load_dotenv
+from pydantic import BaseModel
 
 # Add the project root to path if needed (adjust based on actual structure)
 # project_root = Path(__file__).resolve().parent.parent
@@ -24,6 +25,13 @@ if not SPORTS_API_KEY:
 if not API_URL:
     print("Warning: API_URL not found, defaulting to http://localhost:3000", file=sys.stderr)
 
+# Define data structure for Market objects
+class Market(BaseModel):
+    oddsApiId: str
+    # Add other fields if known and needed by the agent/tools
+    # e.g., id: Optional[str] = None
+    # homeTeam: Optional[str] = None
+    # awayTeam: Optional[str] = None
 
 # Import Agent SDK components
 from agents import Agent, function_tool
@@ -102,7 +110,7 @@ def create_betting_market(
     home_team: str,
     away_team: str,
     game_timestamp: int, # Expecting Unix timestamp
-    odds_api_id: str,
+    game_id: str, # Renamed from odds_api_id
     home_odds: Optional[int] = None, # Market Creation Agent shouldn't set odds
     away_odds: Optional[int] = None  # Market Creation Agent shouldn't set odds
 ) -> Dict[str, Any]:
@@ -116,7 +124,7 @@ def create_betting_market(
         "homeTeam": home_team,
         "awayTeam": away_team,
         "gameTimestamp": game_timestamp, # API expects Unix timestamp directly
-        "oddsApiId": odds_api_id,
+        "oddsApiId": game_id, # Use the passed game_id for the internal API's oddsApiId field
         # Do not include homeOdds or awayOdds
     }
 
@@ -142,7 +150,6 @@ def create_betting_market(
          print(error_message, file=sys.stderr)
          return {"status": "error", "message": error_message}
 
-
 @function_tool
 def get_existing_markets() -> List[Dict[str, Any]]:
     """Fetches all existing betting markets from the smart contract API."""
@@ -156,15 +163,13 @@ def get_existing_markets() -> List[Dict[str, Any]]:
         response.raise_for_status()
         markets = response.json()
         # The API response seems to be a list directly
-        # We need to ensure each market dict has an 'odds_api_id' field for comparison
-        # Let's assume the API returns 'oddsApiId' field in each market object.
-        # If not, we might need to adjust the comparison logic in the agent.
+        # We need to ensure each market dict has an 'oddsApiId' field for comparison
+        # Assume the API returns 'oddsApiId' field in each market object.
         cleaned_markets = []
         if isinstance(markets, list):
              for market in markets:
                  if isinstance(market, dict) and "oddsApiId" in market:
-                     # Rename oddsApiId to odds_api_id for consistency if needed, or just use it directly
-                     market['odds_api_id'] = market.pop('oddsApiId') # Example renaming
+                     # Use the oddsApiId field directly without renaming
                      cleaned_markets.append(market)
                  else:
                       print(f"Warning: Skipping market entry due to missing 'oddsApiId' or incorrect format: {market}", file=sys.stderr)
@@ -173,13 +178,52 @@ def get_existing_markets() -> List[Dict[str, Any]]:
              return []
 
         print(f"Successfully fetched {len(cleaned_markets)} existing markets with oddsApiId.")
-        return cleaned_markets # Assuming the response is the list of markets
+        return cleaned_markets
     except requests.exceptions.RequestException as e:
         print(f"Error fetching existing markets: {e}", file=sys.stderr)
         return []
     except Exception as e:
         print(f"An unexpected error occurred in get_existing_markets: {e}", file=sys.stderr)
         return []
+
+@function_tool
+def check_event_exists(game_id: str, existing_markets: List[Market]) -> bool:
+    """Checks if a betting market already exists for a given Odds API game ID within a provided list.
+
+    Args:
+        game_id: The unique identifier (id) of the game from The Odds API.
+        existing_markets: A list of existing market objects.
+
+    Returns:
+        True if a market exists for this game_id in the list, False otherwise.
+    """
+    # print(f"Checking existence for game_id: {game_id} against {len(existing_markets)} provided markets.")
+
+    if not isinstance(existing_markets, list):
+        print("Error: check_event_exists received invalid existing_markets data (not a list).", file=sys.stderr)
+        return False
+
+    for market_data in existing_markets:
+        # The SDK should handle converting the List[Dict] from get_existing_markets
+        # to List[Market] for this tool call based on the type hint.
+        # If it doesn't, we might need to adjust get_existing_markets return type too.
+        try:
+            # Directly compare attributes if conversion worked
+            if isinstance(market_data, Market) and market_data.oddsApiId == game_id:
+                 return True
+            # Fallback if it's still a dict (less ideal)
+            elif isinstance(market_data, dict) and market_data.get("oddsApiId") == game_id:
+                 print("Warning: Market data was dict, not Pydantic model in check_event_exists", file=sys.stderr)
+                 return True
+        except AttributeError:
+             print(f"Warning: Market data item lacked oddsApiId: {market_data}", file=sys.stderr)
+             continue # Skip malformed entries
+        except Exception as e:
+            print(f"Error processing market data item {market_data}: {e}", file=sys.stderr)
+            continue # Skip problematic entries
+
+    # print(f"No existing market found for game_id: {game_id} in the provided list.")
+    return False
 
 # Define the Market Creation Agent
 market_creation_agent = Agent(
@@ -188,14 +232,17 @@ market_creation_agent = Agent(
     handoff_description="Specialist agent for creating betting markets for NBA games",
     instructions="""
     You are the Market Creation Agent. Your goal is to create betting markets for NBA games that do not already exist.
-    1. Call `get_existing_markets` to find markets already created. Store the `odds_api_id` of each existing market.
-    2. Call `get_nba_games` to find today's NBA games. Each game should contain an `id` field which is the Odds API game ID.
-    3. **Compare the list of games from step 2 with the list of existing markets from step 1.** Identify the games whose `id` (Odds API ID) does **not** match any `odds_api_id` from the existing markets.
-    4. For each game identified in step 3 (i.e., games for which no market exists yet), use the `create_betting_market` tool. Pass the `home_team`, `away_team`, `game_timestamp` (Unix timestamp), and the game `id` (as `odds_api_id` parameter) to the tool.
-    5. Do NOT set initial odds (`home_odds`, `away_odds`) when calling `create_betting_market`; the Odds Manager Agent handles that.
-    6. Report a summary of the markets you created (list their `odds_api_id` and teams) or attempted to create, and any errors encountered. If no new markets needed creation because they all already existed, state that clearly.
+    1. First, call `get_existing_markets` to retrieve a list of all markets already created.
+    2. Second, call `get_nba_games` to find today's NBA games. Each game contains an `id` field and a `game_timestamp` (Unix timestamp).
+    3. For each game obtained in step 2:
+       a. Call `check_event_exists`, passing the game's `id` and the list of existing markets obtained in step 1.
+       b. If `check_event_exists` returns `False` (meaning no market exists for this game):
+          i. Call `create_betting_market`, passing the `home_team`, `away_team`, `game_timestamp` (Unix timestamp), and the game's `id` (as the `game_id` parameter).
+          ii. Do NOT set initial odds (`home_odds`, `away_odds`); the Odds Manager Agent handles that.
+    4. Report a summary of the markets you attempted to create (list their `game_id` and teams) and the results (success or error). If no new markets needed creation, state that clearly.
     """,
-    tools=[get_nba_games, create_betting_market, get_existing_markets],
+    # Ensure all necessary tools are available
+    tools=[get_existing_markets, get_nba_games, check_event_exists, create_betting_market],
     # DO NOT CHANGE THIS MODEL FROM THE CURRENT SETTING
     model="gpt-4o-2024-11-20", # Adjusted model based on previous message
     # No context type needed if we remove the custom context logic
@@ -221,5 +268,5 @@ if __name__ == '__main__':
         print("------------------------------------")
 
     # Note: Running requires tool implementations or proper imports
-    # asyncio.run(test_market_creation())
+    asyncio.run(test_market_creation())
     print("Market Creation Agent defined. Run agentGroup.py to test via Triage.") # Updated message 
