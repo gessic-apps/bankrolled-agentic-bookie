@@ -109,6 +109,9 @@ const MarketCard: React.FC<MarketCardProps> = ({ market, usdxAddress, expectedCh
   // State for blockchain-fetched data
   const [marketStatus, setMarketStatus] = useState<MarketStatus | null>(null);
   const [liveOdds, setLiveOdds] = useState<FullOdds | null>(null);
+  // Add state for scores
+  const [homeScore, setHomeScore] = useState<number | null>(null);
+  const [awayScore, setAwayScore] = useState<number | null>(null);
 
   // Fetch Market Status and Odds from Blockchain
   useEffect(() => {
@@ -119,19 +122,23 @@ const MarketCard: React.FC<MarketCardProps> = ({ market, usdxAddress, expectedCh
         const provider = getProviderOrSigner(); // Use read-only provider
         const marketContract = new ethers.Contract(market.address, NBAMarketABI.abi, provider);
 
-        // Fetch status and odds concurrently
-        const [statusResult, oddsResult] = await Promise.all([
-          marketContract.getStatus(),
+        // Fetch details (includes status and scores) and odds concurrently
+        const [details, oddsResult] = await Promise.all([
+          marketContract.getMarketDetails(),
           marketContract.getFullOdds()
         ]);
 
-        console.log(`Market ${market.address} - Raw Status Result:`, statusResult);
+        console.log(`Market ${market.address} - Raw Details Result:`, details);
+        console.log(`Market ${market.address} - Raw Odds Result:`, oddsResult);
 
-        // Convert bigint status to number before setting state
-        const numericStatus = Number(statusResult);
+        // Extract and set status, home score, and away score from details
+        // Indices based on user feedback: 0: homeTeam, 1: awayTeam, 2: timestamp, 3: oddsApiId, 4: status, 5: settled, 6: homeScore, 7: awayScore
+        const numericStatus = Number(details[4]); // Status is at index 4
         setMarketStatus(numericStatus as MarketStatus);
+        setHomeScore(Number(details[6])); // Home score is at index 6
+        setAwayScore(Number(details[7])); // Away score is at index 7
 
-        // Map the tuple to the FullOdds interface
+        // Map the tuple to the FullOdds interface (remains the same)
         setLiveOdds({
           homeOdds: oddsResult[0],
           awayOdds: oddsResult[1],
@@ -148,6 +155,8 @@ const MarketCard: React.FC<MarketCardProps> = ({ market, usdxAddress, expectedCh
         setFetchError(`Failed to load market data: ${error.message || 'Unknown error'}`);
         setMarketStatus(null); // Reset on error
         setLiveOdds(null);
+        setHomeScore(null); // Reset scores on error
+        setAwayScore(null); // Reset scores on error
       } finally {
         setIsFetchingData(false);
       }
@@ -231,39 +240,18 @@ const MarketCard: React.FC<MarketCardProps> = ({ market, usdxAddress, expectedCh
     }
   };
 
-  // Game outcome display logic (remains mostly the same, uses props)
+  // Game outcome display logic (reads from state now)
   const getOutcome = () => {
-     if (marketStatus !== MarketStatus.SETTLED) return null; // Only show outcome if settled
-
-    // Use market prop data if available, otherwise could fetch score from contract too
-    // For now, assuming the API that provided `market` also provided scores if settled.
-    // Need to ensure `market` type includes homeScore/awayScore if we rely on it here.
-    // Alternatively, fetch scores in the useEffect if status is SETTLED.
+     // Only show outcome if settled and scores are available
+     if (marketStatus !== MarketStatus.SETTLED || homeScore === null || awayScore === null) return null;
 
     let outcomeText = "Result: Scores Pending"; // Default for SETTLED status
-    // This logic relies on the `market` prop having accurate settled scores.
-    //@ts-expect-error TODO: Fix this
-    const homeScore = market.homeScore; // Assuming these exist on Market type
-    //@ts-expect-error TODO: Fix this
-    const awayScore = market.awayScore; // Assuming these exist on Market type
 
-    // Placeholder for score display - fetch if needed
-    // const homeScore = "N/A";
-    // const awayScore = "N/A";
-
-     // TODO: Implement fetching/using actual scores for settled markets
+     // Use scores from state
      if (typeof homeScore === 'number' && typeof awayScore === 'number') {
-         if (homeScore > awayScore) {
-             outcomeText = `${market.homeTeam} Won (${homeScore}-${awayScore})`;
-         } else if (awayScore > homeScore) {
-             outcomeText = `${market.awayTeam} Won (${homeScore}-${awayScore})`;
-         } else {
-             outcomeText = `Tie (${homeScore}-${awayScore})`;
-         }
-     } /* else if (marketStatus === MarketStatus.CANCELLED) { // This check is unreachable here
-         outcomeText = "Game Cancelled";
-     } */
-
+         // Format changed to: homeTeamName homeScore - awayScore awayTeamName
+         outcomeText = `${market.homeTeam} ${homeScore} - ${awayScore} ${market.awayTeam}`;
+     }
 
     return (
       <div className="mt-4 text-center font-semibold text-gray-800">

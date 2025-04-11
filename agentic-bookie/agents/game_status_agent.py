@@ -8,12 +8,26 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional
 from dotenv import load_dotenv
 from collections import defaultdict
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 # Load environment variables from .env file
 load_dotenv()
 SPORTS_API_KEY = os.getenv("SPORTS_API_KEY")
 API_URL = os.getenv("API_URL", "http://localhost:3000") # Default matching other agents
+
+# Define the list of target soccer sports (copied from odds_manager_agent)
+# TODO: Consider sharing this list via a common config/module later
+SOCCER_SPORT_KEYS = [
+    "soccer_epl", # English Premier League
+    "soccer_france_ligue_one",
+    "soccer_italy_serie_a",
+    "soccer_germany_bundesliga",
+    "soccer_spain_la_liga",
+    "soccer_uefa_champs_league",
+    "soccer_uefa_europa_league"
+]
+# Example non-soccer key (adjust if more are supported by this agent)
+NON_SOCCER_SPORT_KEYS = ["basketball_nba"]
 
 if not SPORTS_API_KEY:
     print("Error: SPORTS_API_KEY not found in environment variables.", file=sys.stderr)
@@ -36,7 +50,10 @@ def sleep_tool(duration_seconds: int) -> str:
 
 @function_tool
 def get_bettable_unsettled_markets() -> List[Dict[str, Any]]:
-    """Fetches markets from the API that are ready for betting but not yet settled (game not ended)."""
+    """
+    Fetches markets from the API that are ready for betting but not yet settled.
+    Includes 'sportKey' if available in the API response.
+    """
     if not API_URL:
         print("Error: Cannot get markets, API_URL is not configured.", file=sys.stderr)
         return []
@@ -50,20 +67,28 @@ def get_bettable_unsettled_markets() -> List[Dict[str, Any]]:
         relevant_markets = []
         if isinstance(all_markets_data, list):
             for market in all_markets_data:
+                # print(f"Market: {market}") # DEBUG: Print raw market data
                 # Market must be ready for betting AND not yet ended
+                # Check for core required fields
                 if isinstance(market, dict) and \
-                   all(k in market for k in ["address", "oddsApiId", "status", "resultSettled", "sportKey"]) and \
+                   all(k in market for k in ["address", "oddsApiId", "status", "resultSettled"]) and \
                    market.get("status") == "Open" and \
                    market.get("resultSettled") is False:
-                    relevant_markets.append({
+
+                    market_data = {
                         "address": market["address"],
                         "oddsApiId": market["oddsApiId"],
-                        "sportKey": market["sportKey"]
-                        # Only include necessary fields
-                    })
+                        # Attempt to get sportKey, default to None if not present
+                        "sportKey": market.get("sportKey")
+                    }
+                    relevant_markets.append(market_data)
+                    if not market_data["sportKey"]:
+                         print(f"Warning: Market {market.get('address')} fetched without a sportKey.", file=sys.stderr)
                 # Optional: Log skipped markets for debugging if needed
                 # else:
-                #     print(f"Skipping market: {market.get('address', 'N/A')} - Status: {market.get('status')}, Settled: {market.get('resultSettled')}", file=sys.stderr)
+                #     status = market.get('status', 'N/A')
+                #     settled = market.get('resultSettled', 'N/A')
+                #     print(f"Skipping market: {market.get('address', 'N/A')} - Status: {status}, Settled: {settled}", file=sys.stderr)
 
         else:
              print(f"Warning: Expected a list from /api/markets, but got {type(all_markets_data)}", file=sys.stderr)
@@ -79,33 +104,24 @@ def get_bettable_unsettled_markets() -> List[Dict[str, Any]]:
         return []
 
 # Define a Pydantic model for the market info needed by check_completed_games
+# Make sportKey optional
 class MarketInfo(BaseModel):
     oddsApiId: str
-    sportKey: str
+    sportKey: Optional[str] = None # Make sportKey optional
 
 @function_tool
 def check_completed_games(markets_to_check: List[MarketInfo]) -> List[Dict[str, Any]]:
     """
-    Checks if games with the given IDs are completed by querying the scores endpoint.
-    Returns only information for games that are actually completed.
+    Checks if games associated with the given markets are completed.
+    If a market's sportKey is missing, it tries all known soccer sportKeys.
+    Returns information only for games that are confirmed completed with scores.
 
     Args:
-        markets_to_check: List of dictionaries, each containing 'oddsApiId' and 'sportKey'.
+        markets_to_check: List of MarketInfo objects, potentially with missing sportKey.
 
     Returns:
-        List of dictionaries containing information about completed games:
-        [
-            {
-                "odds_api_id": str,
-                "completed": bool, # Will always be true in the filtered list
-                "home_team": str,
-                "away_team": str,
-                "home_score": Optional[str],
-                "away_score": Optional[str],
-                "last_update": Optional[str]
-            },
-            ...
-        ]
+        List of dictionaries containing information about completed games.
+        (Structure unchanged from original)
     """
     if not SPORTS_API_KEY:
         print("Error: Cannot fetch game scores, SPORTS_API_KEY is missing.", file=sys.stderr)
@@ -115,37 +131,47 @@ def check_completed_games(markets_to_check: List[MarketInfo]) -> List[Dict[str, 
         print("Warning: No markets provided to check_completed_games.", file=sys.stderr)
         return []
 
-    # Group markets by sport_key
-    games_by_sport: Dict[str, List[str]] = defaultdict(list)
+    # --- Group markets ---
+    # Group by known sport_key (specific soccer leagues or other sports)
+    games_by_known_sport: Dict[str, List[str]] = defaultdict(list)
+    # Collect oddsApiIds for markets with unknown/missing sportKey
+    ids_with_unknown_sport: set[str] = set()
+
     for market_info in markets_to_check:
-        # Use attribute access now
         sport_key = market_info.sportKey
         odds_api_id = market_info.oddsApiId
-        if sport_key and odds_api_id:
-            games_by_sport[sport_key].append(odds_api_id)
+
+        if not odds_api_id:
+             print(f"Warning: Skipping market in check_completed_games due to missing oddsApiId: {market_info}", file=sys.stderr)
+             continue
+
+        # Check if sportKey is known (either specific soccer or other known types)
+        if sport_key and (sport_key in SOCCER_SPORT_KEYS or sport_key in NON_SOCCER_SPORT_KEYS):
+            games_by_known_sport[sport_key].append(odds_api_id)
         else:
-            print(f"Warning: Skipping market in check_completed_games due to missing sportKey or oddsApiId: {market_info}", file=sys.stderr)
+            # If sportKey is missing or not recognized, add ID to the 'unknown' set
+            ids_with_unknown_sport.add(odds_api_id)
+            if sport_key:
+                 print(f"Info: Market {odds_api_id} has unrecognized sportKey '{sport_key}'. Will attempt soccer checks.", file=sys.stderr)
+            else:
+                 print(f"Info: Market {odds_api_id} has missing sportKey. Will attempt soccer checks.", file=sys.stderr)
+
 
     all_completed_games_info = []
-    processed_ids = set()
+    processed_ids = set() # Track globally processed game IDs to avoid duplicates
     date_format = "iso"
-    # Get games from the last 3 days (max allowed) to ensure we capture recently completed games
-    days_from = 3
-    total_checked_count = len(markets_to_check) # Use the original list size for reporting
-    
-    # Iterate through each sport and fetch scores
-    for sport_key, game_ids_for_sport in games_by_sport.items():
-        if not game_ids_for_sport:
+    days_from = 3 # Check games from the last 3 days
+
+    # --- 1. Check games with known sport keys ---
+    for sport_key, game_ids_for_sport in games_by_known_sport.items():
+        unique_game_ids_for_sport = list(set(game_ids_for_sport)) # Remove duplicates for this sport batch
+
+        if not unique_game_ids_for_sport:
             continue
 
-        unique_game_ids_for_sport = list(set(game_ids_for_sport)) # Remove duplicates for this sport
-
         try:
-            # Use comma-separated game IDs to filter for specific games
             event_ids_param = ",".join(unique_game_ids_for_sport)
-
-            # Fetch game data from scores endpoint
-            print(f"Checking completion status for {len(unique_game_ids_for_sport)} games in sport {sport_key}...")
+            print(f"Checking {len(unique_game_ids_for_sport)} games with known sportKey: {sport_key}...")
             response = requests.get(
                 f"https://api.the-odds-api.com/v4/sports/{sport_key}/scores/",
                 params={
@@ -158,65 +184,142 @@ def check_completed_games(markets_to_check: List[MarketInfo]) -> List[Dict[str, 
             response.raise_for_status()
             api_data = response.json()
 
-            completed_games_info = []
-
+            completed_this_batch = 0
             for game in api_data:
                 game_id = game.get("id")
-                # Check against the unique IDs *for this sport* and globally processed IDs
+                # Check if ID is valid, was requested for this sport, and not already processed
                 if not game_id or game_id not in unique_game_ids_for_sport or game_id in processed_ids:
-                    continue # Skip if ID is missing, not requested for this sport, or already processed
+                    continue
 
                 completed = game.get("completed", False)
-
-                # Only process games that are marked as completed
                 if completed:
-                    processed_ids.add(game_id) # Avoid duplicates if API returns multiple entries
-                    game_info = {
-                        "odds_api_id": game_id,
-                        "completed": True,
-                        "home_team": game.get("home_team"),
-                        "away_team": game.get("away_team"),
-                        "home_score": None,
-                        "away_score": None,
-                        "last_update": game.get("last_update")
-                    }
+                    # Extract and validate game info (same logic as before)
+                    game_info = extract_valid_completed_game_info(game)
+                    if game_info:
+                        all_completed_games_info.append(game_info)
+                        processed_ids.add(game_id) # Mark as processed globally
+                        completed_this_batch += 1
 
-                    # Add scores if available and valid
-                    scores = game.get("scores")
-                    home_score_found = False
-                    away_score_found = False
-                    if scores and isinstance(scores, list):
-                        for team_score in scores:
-                            team_name = team_score.get("name")
-                            score = team_score.get("score") # Score is returned as string
-
-                            if score is None: continue # Skip if score is null
-
-                            if team_name == game_info["home_team"]:
-                                game_info["home_score"] = score
-                                home_score_found = True
-                            elif team_name == game_info["away_team"]:
-                                game_info["away_score"] = score
-                                away_score_found = True
-
-                    # Only add if scores are validly found for both teams
-                    if home_score_found and away_score_found:
-                        completed_games_info.append(game_info)
-                    else:
-                        print(f"Warning: Game {game_id} marked completed but missing valid scores for both teams. Skipping result setting.", file=sys.stderr)
-
-            all_completed_games_info.extend(completed_games_info)
-            print(f"Found {len(completed_games_info)} completed games with scores for sport {sport_key}.")
+            print(f"Found {completed_this_batch} completed games with scores for known sportKey {sport_key}.")
 
         except requests.exceptions.RequestException as e:
-            print(f"Error fetching game completion status for sport {sport_key}: {e}", file=sys.stderr)
-            # Continue to next sport key
+            print(f"Error fetching game completion status for known sportKey {sport_key}: {e}", file=sys.stderr)
         except Exception as e:
-            print(f"An unexpected error occurred checking completed games for sport {sport_key}: {e}", file=sys.stderr)
-            # Continue to next sport key
+            print(f"An unexpected error occurred checking completed games for known sportKey {sport_key}: {e}", file=sys.stderr)
 
-    print(f"Found {len(all_completed_games_info)} completed games with scores across all sports out of {total_checked_count} markets checked.")
+    # --- 2. Check games with unknown sport keys (try all soccer keys) ---
+    # Filter out IDs that might have already been found via a known sportKey check
+    ids_to_check_against_soccer = list(ids_with_unknown_sport - processed_ids)
+
+    if ids_to_check_against_soccer:
+        print(f"Checking {len(ids_to_check_against_soccer)} games with unknown sportKey against all soccer leagues...")
+        event_ids_param = ",".join(ids_to_check_against_soccer)
+
+        for soccer_key in SOCCER_SPORT_KEYS:
+            # Avoid re-checking if the ID was already processed
+            if not (ids_with_unknown_sport - processed_ids):
+                 print("All unknown sportKey games have been processed. Stopping soccer checks.")
+                 break # No more IDs left to check
+
+            try:
+                # Re-filter event IDs for *this specific* soccer key iteration
+                current_ids_to_check = list(ids_with_unknown_sport - processed_ids)
+                if not current_ids_to_check: continue # Skip if none left for this key
+
+                event_ids_param_current = ",".join(current_ids_to_check)
+
+                print(f"Attempting check against soccer key: {soccer_key} for {len(current_ids_to_check)} IDs...")
+                response = requests.get(
+                    f"https://api.the-odds-api.com/v4/sports/{soccer_key}/scores/",
+                    params={
+                        "apiKey": SPORTS_API_KEY,
+                        "dateFormat": date_format,
+                        "daysFrom": days_from,
+                        "eventIds": event_ids_param_current # Use the potentially reduced list
+                    }
+                )
+                response.raise_for_status()
+                api_data = response.json()
+
+                completed_this_soccer_key = 0
+                for game in api_data:
+                    game_id = game.get("id")
+                    # Check if ID is valid, was in the unknown list, and not already processed
+                    if not game_id or game_id not in ids_with_unknown_sport or game_id in processed_ids:
+                        continue
+
+                    completed = game.get("completed", False)
+                    if completed:
+                        game_info = extract_valid_completed_game_info(game)
+                        if game_info:
+                            all_completed_games_info.append(game_info)
+                            processed_ids.add(game_id) # Mark as processed globally
+                            completed_this_soccer_key += 1
+
+                if completed_this_soccer_key > 0:
+                     print(f"Found {completed_this_soccer_key} completed games with scores checking against {soccer_key}.")
+
+            except requests.exceptions.RequestException as e:
+                # Don't print error for 404/422 if it's just because the game ID isn't in this sport key
+                if isinstance(e, requests.exceptions.HTTPError) and e.response.status_code in [404, 422]:
+                     print(f"Info: No results found for pending IDs checking against {soccer_key} (HTTP {e.response.status_code}).")
+                else:
+                    print(f"Error fetching game completion status checking against soccer key {soccer_key}: {e}", file=sys.stderr)
+            except Exception as e:
+                print(f"An unexpected error occurred checking completed games against soccer key {soccer_key}: {e}", file=sys.stderr)
+
+
+    total_checked_count = len(markets_to_check)
+    print(f"Completed checks. Found {len(all_completed_games_info)} total completed games with scores across all checks for {total_checked_count} markets provided.")
     return all_completed_games_info
+
+
+# Helper function to process and validate game data from the scores API
+def extract_valid_completed_game_info(game: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Extracts and validates game info if completed and has valid scores."""
+    game_id = game.get("id")
+    home_team = game.get("home_team")
+    away_team = game.get("away_team")
+
+    if not all([game_id, home_team, away_team]):
+        print(f"Warning: Game {game_id or 'N/A'} marked completed but missing ID or team names. Skipping.", file=sys.stderr)
+        return None
+
+    game_info = {
+        "odds_api_id": game_id,
+        "completed": True,
+        "home_team": home_team,
+        "away_team": away_team,
+        "home_score": None,
+        "away_score": None,
+        "last_update": game.get("last_update")
+    }
+
+    # Add scores if available and valid
+    scores = game.get("scores")
+    home_score_found = False
+    away_score_found = False
+    if scores and isinstance(scores, list):
+        for team_score in scores:
+            team_name = team_score.get("name")
+            score = team_score.get("score") # Score is returned as string
+
+            if score is None: continue # Skip if score is null
+
+            if team_name == game_info["home_team"]:
+                game_info["home_score"] = score
+                home_score_found = True
+            elif team_name == game_info["away_team"]:
+                game_info["away_score"] = score
+                away_score_found = True
+
+    # Only return if scores are validly found for both teams
+    if home_score_found and away_score_found:
+        return game_info
+    else:
+        print(f"Warning: Game {game_id} marked completed but missing valid scores for both teams. Skipping result setting.", file=sys.stderr)
+        return None
+
 
 @function_tool
 def set_game_result(market_address: str, home_score: str, away_score: str) -> Dict[str, Any]:
@@ -337,8 +440,8 @@ def set_game_result(market_address: str, home_score: str, away_score: str) -> Di
         "message": final_message # Contains details from both steps or the final error
     }
 
-# --- Agent Definition ---
 
+# --- Agent Definition ---
 game_status_agent = Agent(
     name="Game Result Settlement Agent",
     handoff_description="Specialist agent for checking game completion and setting final results on settled markets.",
@@ -347,12 +450,12 @@ game_status_agent = Agent(
 
     Your workflow should be as follows:
 
-    1. Call `get_bettable_unsettled_markets` to find markets whose `status` is "Open" and `resultSettled` is false. These markets will have an `address`, `oddsApiId`, and `sportKey`.
+    1. Call `get_bettable_unsettled_markets` to find markets whose `status` is "Open" and `resultSettled` is false. These markets will have an `address`, `oddsApiId`, and potentially a `sportKey`.
     2. If the list of markets is empty, no work needs to be done currently. Proceed to step 6 (sleep).
-    3. Prepare a list of dictionaries, where each dictionary contains the `oddsApiId` and `sportKey` for each market found in step 1.
-    4. Call `check_completed_games` with the list prepared in step 3 to get data for completed games with valid scores across all relevant sports.
+    3. Prepare a list of `MarketInfo` objects (containing `oddsApiId` and optional `sportKey`) for each market found in step 1.
+    4. Call `check_completed_games` with the list prepared in step 3. This tool will check known sportKeys and also attempt to check unknown/missing ones against all supported soccer keys to get data for completed games with valid scores.
     5. Iterate through the list of completed games returned by `check_completed_games`. For each completed game:
-        a. Find the corresponding market(s) from the list obtained in step 1 using the `odds_api_id`. (Note: Multiple markets might exist for the same game ID if created separately, handle each).
+        a. Find the corresponding market(s) from the list originally obtained in step 1 using the `odds_api_id`. (Note: Multiple markets might exist for the same game ID if created separately, handle each).
         b. Extract the `home_score` and `away_score` from the completed game data.
         c. For each corresponding market address found in step 5a, call `set_game_result` with the market's `address`, `home_score`, and `away_score`. **If the call to `set_game_result` indicates an error for a specific market (e.g., returns a status other than 'success'), log the error details including the market address and the reason for failure, but continue processing the next completed game or market. Do not stop the entire process due to a single market failure.**
     6. Report a summary of the markets for which you attempted to set the result (mentioning success or failure for each attempt, based on the outcome of step 5c). If no markets were processed or no games were found completed, state that.
@@ -370,7 +473,8 @@ game_status_agent = Agent(
     # No context type needed
 )
 
-# Example of how this agent might be run (usually done by a Runner via Triage)
+
+# --- Main Execution / Test ---
 if __name__ == '__main__':
     # This part is just for testing the agent directly if needed
     from agents import Runner
@@ -391,7 +495,7 @@ if __name__ == '__main__':
         print(result.final_output)
         print("------------------------------------------------------")
 
-    # To run the test: 
+    # To run the test:
     asyncio.run(test_game_result_settlement())
     # Remember that this only runs *one* cycle. The agent's instructions describe a continuous loop.
     print("Game Result Settlement Agent defined. Run agentGroup.py or similar orchestrator to manage its lifecycle.") 
