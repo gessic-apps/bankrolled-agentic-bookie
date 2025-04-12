@@ -46,6 +46,30 @@ type UserBetsListProps = {
   markets: Market[]; // Pass the list of markets from the parent page
 };
 
+// Helper function to get bet type string
+const getBetTypeString = (betType: number): string => {
+  switch (betType) {
+    case 0: return 'Moneyline';
+    case 1: return 'Spread';
+    case 2: return 'Total (O/U)';
+    case 3: return 'Draw'; // Already handled specially below, but good for completeness
+    default: return 'Unknown';
+  }
+};
+
+// Helper function to format the line based on bet type
+const formatLine = (line: bigint, betType: number): string => {
+  const lineValue = Number(line) / 10; // Assuming line is stored * 10 in contract
+
+  if (betType === 1) { // Spread
+    return lineValue > 0 ? `+${lineValue}` : `${lineValue}`;
+  }
+  if (betType === 2) { // Total
+    return `${lineValue}`;
+  }
+  return ''; // No line for Moneyline or Draw
+};
+
 export default function UserBetsList({ markets }: UserBetsListProps) {
   const { address, isConnected } = useAccount();
   const config = useConfig();
@@ -216,15 +240,20 @@ export default function UserBetsList({ markets }: UserBetsListProps) {
               </div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-2 text-sm">
                  <div>
+                    <span className="font-medium text-gray-600 dark:text-gray-300">Bet Type:</span>
+                    <span className="ml-1 text-gray-800 dark:text-white">{getBetTypeString(bet.betType)}</span>
+                 </div>
+                 <div>
                     <span className="font-medium text-gray-600 dark:text-gray-300">Bet On:</span>
-                    {/* For draw bets, betType 3 means draw regardless of isBettingOnHomeOrOver value */}
                     {bet.betType === 3 ? (
                       <span className="ml-1 font-semibold text-yellow-600 dark:text-yellow-400">
                         Draw
                       </span>
                     ) : (
                       <span className={`ml-1 font-semibold ${bet.isBettingOnHomeOrOver ? 'text-blue-600 dark:text-blue-400' : 'text-green-600 dark:text-green-400'}`}>
-                        {bet.isBettingOnHomeOrOver ? bet.homeTeam : bet.awayTeam}
+                        {bet.betType === 0 && (bet.isBettingOnHomeOrOver ? bet.homeTeam : bet.awayTeam)} {/* Moneyline: Team */}
+                        {bet.betType === 1 && `${bet.isBettingOnHomeOrOver ? bet.homeTeam : bet.awayTeam} ${formatLine(bet.line, bet.betType)}`} {/* Spread: Team +/-Line */}
+                        {bet.betType === 2 && `${bet.isBettingOnHomeOrOver ? 'Over' : 'Under'} ${formatLine(bet.line, bet.betType)}`} {/* Total: Over/Under Line */}
                       </span>
                     )}
                  </div>
@@ -236,7 +265,8 @@ export default function UserBetsList({ markets }: UserBetsListProps) {
                     <span className="font-medium text-gray-600 dark:text-gray-300">Potential Win:</span>
                     <span className="ml-1 text-gray-800 dark:text-white">{formatUnits(bet.potentialWinnings, 6)} USDX</span>
                  </div>
-                  <div>
+                 {/* Keep Status column as the last item */}
+                  <div className="md:col-start-4"> 
                     <span className="font-medium text-gray-600 dark:text-gray-300">Status:</span>
                     {bet.settled ? (
                        <span className={`ml-1 px-2 py-0.5 rounded-full text-xs font-medium ${bet.won ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'}`}>
