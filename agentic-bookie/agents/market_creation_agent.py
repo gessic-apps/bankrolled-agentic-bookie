@@ -4,6 +4,7 @@ import requests
 import os
 import datetime
 import time
+import json
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 from dotenv import load_dotenv
@@ -28,10 +29,17 @@ if not API_URL:
 # Define data structure for Market objects
 class Market(BaseModel):
     oddsApiId: str
-    # Add other fields if known and needed by the agent/tools
-    # e.g., id: Optional[str] = None
-    # homeTeam: Optional[str] = None
-    # awayTeam: Optional[str] = None
+    # Adding other optional fields that might be present in API responses
+    address: Optional[str] = None
+    homeTeam: Optional[str] = None
+    awayTeam: Optional[str] = None 
+    gameTimestamp: Optional[int] = None
+    homeOdds: Optional[int] = None
+    awayOdds: Optional[int] = None
+    gameStarted: Optional[bool] = None
+    gameEnded: Optional[bool] = None
+    oddsSet: Optional[bool] = None
+    isReadyForBetting: Optional[bool] = None
 
 # Import Agent SDK components
 from agents import Agent, function_tool
@@ -55,7 +63,7 @@ SUPPORTED_SPORT_KEYS = [
 
 # Placeholder definitions if not imported:
 @function_tool
-def fetch_games_today(sport_keys: List[str]) -> List[Dict[str, Any]]:
+def fetch_games_today(sport_keys: List[str]) -> List[str]:
     """Fetches today's games for the specified sports from The Odds API."""
     if not SPORTS_API_KEY:
         print("Error: Cannot fetch games, SPORTS_API_KEY is missing.", file=sys.stderr)
@@ -112,14 +120,15 @@ def fetch_games_today(sport_keys: List[str]) -> List[Dict[str, Any]]:
                 commence_dt = datetime.datetime.fromisoformat(game['commence_time'].replace('Z', '+00:00'))
                 commence_timestamp = int(commence_dt.timestamp())
 
-                all_games.append({
+                game_info = {
                     "id": game_id, # Odds API specific game ID
                     "sport_key": sport_key, # Add sport key for context
                     "home_team": game["home_team"],
                     "away_team": game["away_team"],
-                    "commence_time": game["commence_time"], # Keep ISO for reference?
+                    "commence_time": game["commence_time"], # Keep ISO for reference
                     "game_timestamp": commence_timestamp, # Add Unix timestamp
-                })
+                }
+                all_games.append(json.dumps(game_info))
                 processed_game_ids.add(game_id)
                 games_count += 1
             print(f"Successfully fetched {games_count} games for {sport_key}.")
@@ -142,11 +151,26 @@ def create_betting_market(
     game_id: str, # Renamed from odds_api_id
     home_odds: Optional[int] = None, # Market Creation Agent shouldn't set odds
     away_odds: Optional[int] = None  # Market Creation Agent shouldn't set odds
-) -> Dict[str, Any]:
+) -> str:
     """Creates a new betting market via the smart contract API."""
     if not API_URL:
         print("Error: Cannot create market, API_URL is not configured.", file=sys.stderr)
-        return {"status": "error", "message": "API_URL not configured"}
+        return json.dumps({"status": "error", "message": "API_URL not configured"})
+
+    # Double-check market doesn't already exist
+    try:
+        existing_markets = get_existing_markets()
+        if check_event_exists(game_id, existing_markets):
+            print(f"DUPLICATE PREVENTION: Market for game ID {game_id} ({home_team} vs {away_team}) already exists. Skipping creation.")
+            return json.dumps({
+                "status": "skipped", 
+                "message": f"Market for game ID {game_id} already exists",
+                "game_id": game_id,
+                "home_team": home_team,
+                "away_team": away_team
+            })
+    except Exception as e:
+        print(f"Warning: Error during duplicate check: {e}. Will attempt market creation anyway.", file=sys.stderr)
 
     # The agent instructions say *not* to set odds, so we ignore home_odds/away_odds
     payload = {
@@ -165,22 +189,22 @@ def create_betting_market(
         result = response.json()
         print(f"Successfully created market for {home_team} vs {away_team}. Response: {result}")
         # Assuming the API returns a success status and market details
-        return {"status": "success", "market": result.get("market", result)} # Adapt based on actual API response structure
+        return json.dumps({"status": "success", "market": result.get("market", result)}) 
     except requests.exceptions.HTTPError as e:
         error_message = f"HTTP Error creating market for {home_team} vs {away_team}: {e.response.status_code} - {e.response.text}"
         print(error_message, file=sys.stderr)
-        return {"status": "error", "message": error_message}
+        return json.dumps({"status": "error", "message": error_message})
     except requests.exceptions.RequestException as e:
         error_message = f"Request Error creating market for {home_team} vs {away_team}: {e}"
         print(error_message, file=sys.stderr)
-        return {"status": "error", "message": error_message}
+        return json.dumps({"status": "error", "message": error_message})
     except Exception as e:
          error_message = f"An unexpected error occurred in create_betting_market: {e}"
          print(error_message, file=sys.stderr)
-         return {"status": "error", "message": error_message}
+         return json.dumps({"status": "error", "message": error_message})
 
 @function_tool
-def get_existing_markets() -> List[Dict[str, Any]]:
+def get_existing_markets() -> List[str]:
     """Fetches all existing betting markets from the smart contract API."""
     if not API_URL:
         print("Error: Cannot get existing markets, API_URL is not configured.", file=sys.stderr)
@@ -188,25 +212,41 @@ def get_existing_markets() -> List[Dict[str, Any]]:
 
     try:
         url = f"{API_URL}/api/markets"
+        print(f"Fetching existing markets from: {url}")
         response = requests.get(url)
         response.raise_for_status()
         markets = response.json()
-        # The API response seems to be a list directly
-        # We need to ensure each market dict has an 'oddsApiId' field for comparison
-        # Assume the API returns 'oddsApiId' field in each market object.
+        
+        # Convert market objects to JSON strings
         cleaned_markets = []
         if isinstance(markets, list):
-             for market in markets:
-                 if isinstance(market, dict) and "oddsApiId" in market:
-                     # Use the oddsApiId field directly without renaming
-                     cleaned_markets.append(market)
-                 else:
-                      print(f"Warning: Skipping market entry due to missing 'oddsApiId' or incorrect format: {market}", file=sys.stderr)
+            for market in markets:
+                if isinstance(market, dict) and "oddsApiId" in market:
+                    # Create a simplified market object with just the essential fields
+                    market_data = {
+                        "oddsApiId": market["oddsApiId"],
+                        # Include other fields if they exist
+                        "address": market.get("address"),
+                        "homeTeam": market.get("homeTeam"),
+                        "awayTeam": market.get("awayTeam"),
+                        "gameTimestamp": market.get("gameTimestamp")
+                    }
+                    # Convert to JSON string
+                    cleaned_markets.append(json.dumps(market_data))
+                else:
+                    print(f"Warning: Skipping market entry due to missing 'oddsApiId': {market}", file=sys.stderr)
         else:
-             print(f"Warning: Expected a list from /api/markets, but got {type(markets)}", file=sys.stderr)
-             return []
+            print(f"Warning: Expected a list from /api/markets, but got {type(markets)}", file=sys.stderr)
+            return []
 
         print(f"Successfully fetched {len(cleaned_markets)} existing markets with oddsApiId.")
+        # Print the IDs for debugging
+        try:
+            oddsApiIds = [json.loads(m).get('oddsApiId') for m in cleaned_markets]
+            print(f"Existing market IDs: {oddsApiIds}")
+        except Exception as e:
+            print(f"Error parsing market IDs: {e}", file=sys.stderr)
+            
         return cleaned_markets
     except requests.exceptions.RequestException as e:
         print(f"Error fetching existing markets: {e}", file=sys.stderr)
@@ -216,43 +256,48 @@ def get_existing_markets() -> List[Dict[str, Any]]:
         return []
 
 @function_tool
-def check_event_exists(game_id: str, existing_markets: List[Market]) -> bool:
+def check_event_exists(game_id: str, existing_markets: List[str]) -> bool:
     """Checks if a betting market already exists for a given Odds API game ID within a provided list.
 
     Args:
         game_id: The unique identifier (id) of the game from The Odds API.
-        existing_markets: A list of existing market objects.
+        existing_markets: A list of existing market JSON strings.
 
     Returns:
         True if a market exists for this game_id in the list, False otherwise.
     """
-    # print(f"Checking existence for game_id: {game_id} against {len(existing_markets)} provided markets.")
+    print(f"Checking existence for game_id: {game_id} against {len(existing_markets)} provided markets.")
 
     if not isinstance(existing_markets, list):
         print("Error: check_event_exists received invalid existing_markets data (not a list).", file=sys.stderr)
         return False
 
-    for market_data in existing_markets:
-        # The SDK should handle converting the List[Dict] from get_existing_markets
-        # to List[Market] for this tool call based on the type hint.
-        # If it doesn't, we might need to adjust get_existing_markets return type too.
+    # Create a set of all oddsApiIds for more efficient lookup
+    existing_ids = set()
+    
+    for market_str in existing_markets:
         try:
-            # Directly compare attributes if conversion worked
-            if isinstance(market_data, Market) and market_data.oddsApiId == game_id:
-                 return True
-            # Fallback if it's still a dict (less ideal)
-            elif isinstance(market_data, dict) and market_data.get("oddsApiId") == game_id:
-                 print("Warning: Market data was dict, not Pydantic model in check_event_exists", file=sys.stderr)
-                 return True
-        except AttributeError:
-             print(f"Warning: Market data item lacked oddsApiId: {market_data}", file=sys.stderr)
-             continue # Skip malformed entries
+            # Parse the JSON string into a dict
+            if isinstance(market_str, str):
+                market_data = json.loads(market_str)
+                if "oddsApiId" in market_data:
+                    existing_ids.add(market_data["oddsApiId"])
+            elif isinstance(market_str, dict) and "oddsApiId" in market_str:
+                # Backward compatibility
+                existing_ids.add(market_str["oddsApiId"])
+            else:
+                print(f"Warning: Market data item has unexpected format", file=sys.stderr)
         except Exception as e:
-            print(f"Error processing market data item {market_data}: {e}", file=sys.stderr)
-            continue # Skip problematic entries
+            print(f"Error processing market data item: {e}", file=sys.stderr)
+            continue
 
-    # print(f"No existing market found for game_id: {game_id} in the provided list.")
-    return False
+    # Print the set of existing IDs for debugging
+    print(f"Existing oddsApiIds: {existing_ids}")
+    
+    # Check if game_id exists in the set
+    exists = game_id in existing_ids
+    print(f"Market exists for game_id {game_id}: {exists}")
+    return exists
 
 # Define the Market Creation Agent
 market_creation_agent = Agent(
@@ -262,10 +307,11 @@ market_creation_agent = Agent(
     instructions="""
     You are the Market Creation Agent. Your goal is to create betting markets for today's games across supported sports (NBA and major Soccer leagues) that do not already exist.
     1. First, call `get_existing_markets` to retrieve a list of all markets already created.
-    2. Second, call `fetch_games_today` with the list of supported sport keys to find today's games. Each game contains an `id` field (Odds API ID), `sport_key`, teams, and a `game_timestamp` (Unix timestamp).
+    2. Second, call `fetch_games_today` with the list of supported sport keys to find today's games. Each game is returned as a JSON string.
     3. For each game obtained in step 2:
-       a. Call `check_event_exists`, passing the game's `id` and the list of existing markets obtained in step 1.
-       b. If `check_event_exists` returns `False` (meaning no market exists for this game):
+       a. First parse the JSON string to get the game data.
+       b. Call `check_event_exists`, passing the game's `id` field (Odds API ID) and the list of existing markets obtained in step 1.
+       c. If `check_event_exists` returns `False` (meaning no market exists for this game):
           i. Call `create_betting_market`, passing the `home_team`, `away_team`, `game_timestamp` (Unix timestamp), and the game's `id` (as the `game_id` parameter).
           ii. Do NOT set initial odds (`home_odds`, `away_odds`); the Odds Manager Agent handles that.
     4. Report a summary of the markets you attempted to create (list their `game_id` and teams) and the results (success or error). If no new markets needed creation, state that clearly.

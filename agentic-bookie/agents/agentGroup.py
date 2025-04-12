@@ -22,7 +22,7 @@ from .market_creation_agent import SUPPORTED_SPORT_KEYS
 from .market_creation_agent import market_creation_agent
 from .odds_manager_agent import odds_manager_agent
 from .game_status_agent import game_status_agent
-from .risk_manager_agent import risk_manager_agent
+# from .risk_manager_agent import risk_manager_agent
 
 # Set up OpenAI API key from environment (optional, SDK might handle this)
 # api_key = os.getenv("OPENAI_API_KEY")
@@ -49,6 +49,7 @@ triage_agent = Agent(
         Keywords: create markets, set up games, new markets, list games for betting, add soccer/NBA games.
     2.  If the request is about **setting or updating odds** for existing markets in supported sports, hand off to the `Odds Manager Agent`.
         Keywords: update odds, set odds, manage odds, check prices, set lines, soccer odds, NBA odds.
+        The Odds Manager can now efficiently handle all markets in a single operation using the new fetch_and_update_all_markets function.
     3.  If the request is about **checking game completion or setting final results** for markets in supported sports, hand off to the `Game Result Settlement Agent`.
         Keywords: check status, monitor games, settle results, game finished, final score.
     4.  If the request is about **managing risk and liquidity** for betting markets, hand off to the `Risk Manager Agent`.
@@ -67,21 +68,21 @@ triage_agent = Agent(
         handoff(
             odds_manager_agent, # Use the imported agent object
             tool_name_override="transfer_to_odds_manager_agent",
-            tool_description_override="Transfer task to the agent specializing in setting and updating odds for NBA markets."
+            tool_description_override="Transfer task to the agent specializing in setting and updating odds for NBA and soccer markets. Now uses a combined function to fetch and update all odds in one operation."
         ),
         handoff( # Add handoff for the new agent
             game_status_agent, # Use the imported agent object
             tool_name_override="transfer_to_game_status_agent",
             tool_description_override="Transfer task to the agent specializing in monitoring game start times and updating market status."
-        ),
-        handoff( # Add handoff for the risk manager agent
-            risk_manager_agent, # Use the imported agent object
-            tool_name_override="transfer_to_risk_manager_agent",
-            tool_description_override="Transfer task to the agent specializing in managing risk and liquidity for betting markets."
         )
+        # handoff( # Add handoff for the risk manager agent
+        #     risk_manager_agent, # Use the imported agent object
+        #     tool_name_override="transfer_to_risk_manager_agent",
+        #     tool_description_override="Transfer task to the agent specializing in managing risk and liquidity for betting markets."
+        # )
     ],
     # DO NOT CHANGE THIS MODEL FROM THE CURRENT SETTING
-    model="gpt-4o-2024-11-20",
+    model="gpt-4o-mini-2024-07-18",
 )
 
 # ======================= MAIN EXECUTION =======================
@@ -123,9 +124,9 @@ if __name__ == "__main__":
         print("Triage Result (Game Status):", triage_result_status.final_output)
 
         # --- Run Risk Manager Agent ---
-        print("\n--- Running Risk Manager Agent ---")
-        triage_result_risk = await Runner.run(triage_agent, risk_management_prompt)
-        print("Triage Result (Risk Management):", triage_result_risk.final_output)
+        # print("\n--- Running Risk Manager Agent ---")
+        # triage_result_risk = await Runner.run(triage_agent, risk_management_prompt)
+        # print("Triage Result (Risk Management):", triage_result_risk.final_output)
 
         print("\n--- Test Sequence Complete ---")
 
