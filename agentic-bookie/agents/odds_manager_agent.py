@@ -89,6 +89,7 @@ def update_odds_for_market(
     market_address: str,
     home_odds: float,
     away_odds: float,
+    draw_odds: Optional[float],
     home_spread_points: float,
     home_spread_odds: float,
     away_spread_odds: float,
@@ -96,7 +97,7 @@ def update_odds_for_market(
     over_odds: float,
     under_odds: float
 ) -> Dict[str, Any]:
-    """Updates all odds types (moneyline, spread, total) for a specific market. Expects decimal floats/points, converts to integer format for the API call."""
+    """Updates all odds types (moneyline including draw, spread, total) for a specific market. Expects decimal floats/points, converts to integer format for the API call. Draw odds should be provided for relevant markets (e.g., soccer), otherwise pass 0.0 or None."""
     if not API_URL:
         print("Error: Cannot update odds, API_URL is not configured.", file=sys.stderr)
         return {"status": "error", "message": "API_URL not configured"}
@@ -108,6 +109,7 @@ def update_odds_for_market(
         payload = {
             "homeOdds": int(home_odds * 1000),
             "awayOdds": int(away_odds * 1000),
+            "drawOdds": int(draw_odds * 1000) if draw_odds is not None and draw_odds >= 1.0 else 0,
             "homeSpreadPoints": int(home_spread_points * 10),
             "homeSpreadOdds": int(home_spread_odds * 1000),
             "awaySpreadOdds": int(away_spread_odds * 1000),
@@ -116,33 +118,33 @@ def update_odds_for_market(
             "underOdds": int(under_odds * 1000)
         }
     except (ValueError, TypeError) as e:
-        error_message = f"Error converting odds/points to integer format: {e}. Input: home_odds={home_odds}, away_odds={away_odds}, home_spread_points={home_spread_points}, home_spread_odds={home_spread_odds}, away_spread_odds={away_spread_odds}, total_points={total_points}, over_odds={over_odds}, under_odds={under_odds}"
+        error_message = f"Error converting odds/points to integer format: {e}. Input: home_odds={home_odds}, away_odds={away_odds}, draw_odds={draw_odds}, home_spread_points={home_spread_points}, home_spread_odds={home_spread_odds}, away_spread_odds={away_spread_odds}, total_points={total_points}, over_odds={over_odds}, under_odds={under_odds}"
         print(error_message, file=sys.stderr)
         return {"status": "error", "message": error_message, "market_address": market_address}
 
     try:
         url = f"{API_URL}/api/market/{market_address}/update-odds"
-        print(f"Attempting to update full odds: POST {url} with payload: {payload}")
+        print(f"Attempting to update full odds (inc. draw): POST {url} with payload: {payload}")
         response = requests.post(url, json=payload)
         response.raise_for_status()
         result = response.json()
-        print(f"Successfully updated full odds for market {market_address}. Response: {result}")
+        print(f"Successfully updated full odds (inc. draw) for market {market_address}. Response: {result}")
         # Report success with the original decimal odds/points for clarity
         return {
             "status": "success",
             "market_address": market_address,
             "decimal_odds_set": {
-                "home": home_odds, "away": away_odds,
+                "home": home_odds, "away": away_odds, "draw": draw_odds,
                 "home_spread_points": home_spread_points, "home_spread_odds": home_spread_odds, "away_spread_odds": away_spread_odds,
                 "total_points": total_points, "over_odds": over_odds, "under_odds": under_odds
             }
         }
     except requests.exceptions.HTTPError as e:
-        error_message = f"HTTP Error updating full odds for market {market_address}: {e.response.status_code} - {e.response.text}"
+        error_message = f"HTTP Error updating full odds (inc. draw) for market {market_address}: {e.response.status_code} - {e.response.text}"
         print(error_message, file=sys.stderr)
         return {"status": "error", "message": error_message, "market_address": market_address}
     except requests.exceptions.RequestException as e:
-        error_message = f"Request Error updating full odds for market {market_address}: {e}"
+        error_message = f"Request Error updating full odds (inc. draw) for market {market_address}: {e}"
         print(error_message, file=sys.stderr)
         return {"status": "error", "message": error_message, "market_address": market_address}
     except Exception as e:
@@ -184,6 +186,7 @@ def fetch_games_with_odds(sport_keys: List[str]) -> List[Dict[str, Any]]:
                     "dateFormat": date_format,
                 }
             )
+            print(f"Response: {response.json()}")
             response.raise_for_status()
             odds_api_data = response.json()
             print(f"Received {len(odds_api_data)} game events from The Odds API.")
@@ -212,21 +215,32 @@ def fetch_games_with_odds(sport_keys: List[str]) -> List[Dict[str, Any]]:
                         market_key = market.get("key")
                         outcomes = market.get("outcomes", [])
 
+                        # Initialize best_odds structure here for clarity
+                        if market_key == "h2h":
+                            if "home_odds" not in best_odds["h2h"]: # Initialize if not already
+                                best_odds["h2h"] = {"home_odds": None, "away_odds": None, "draw_odds": None} # Add draw_odds field
+                        elif market_key == "spreads":
+                             if "home_spread_points" not in best_odds["spreads"]:
+                                best_odds["spreads"] = {"home_spread_points": None, "home_spread_odds": None, "away_spread_odds": None}
+                        elif market_key == "totals":
+                             if "total_points" not in best_odds["totals"]:
+                                best_odds["totals"] = {"total_points": None, "over_odds": None, "under_odds": None}
+
+
                         if market_key == "h2h" and len(outcomes) == 2:
                             # Standard 2-way H2H (e.g., NBA)
-                            if not sport_key.startswith("soccer_"):
-                                for outcome in outcomes:
-                                    name = outcome.get("name")
-                                    price = outcome.get("price")
-                                    if name == home_team and price is not None:
-                                        best_odds["h2h"]["home_odds"] = price # Take first found for now
-                                    elif name == away_team and price is not None:
-                                        best_odds["h2h"]["away_odds"] = price # Take first found for now
-                            # Else: Should not happen if API returns 3 outcomes for soccer H2H
+                            # draw_odds remains None (default from initialization)
+                            for outcome in outcomes:
+                                name = outcome.get("name")
+                                price = outcome.get("price")
+                                if name == home_team and price is not None:
+                                    best_odds["h2h"]["home_odds"] = price # Take first found for now
+                                elif name == away_team and price is not None:
+                                    best_odds["h2h"]["away_odds"] = price # Take first found for now
 
                         elif market_key == "h2h" and len(outcomes) == 3 and sport_key.startswith("soccer_"):
                             # Soccer H2H - Expect 3 outcomes (Home, Away, Draw)
-                            home_found, away_found = False, False
+                            home_found, away_found, draw_found = False, False, False # Add draw_found
                             # print(f"DEBUG: Processing SOCCER H2H market for game {game_id}. Raw outcomes: {outcomes}", file=sys.stderr) # DEBUG LOG
                             for outcome in outcomes:
                                 name = outcome.get("name")
@@ -239,14 +253,20 @@ def fetch_games_with_odds(sport_keys: List[str]) -> List[Dict[str, Any]]:
                                     # print(f"DEBUG: Found away odds for {game_id}: {price} ({name})", file=sys.stderr) # DEBUG LOG
                                     best_odds["h2h"]["away_odds"] = price
                                     away_found = True
-                                # Ignore the Draw outcome
-                            if not (home_found and away_found):
-                                # print(f"DEBUG: Missing home or away odds for soccer game {game_id}. Home found: {home_found}, Away found: {away_found}", file=sys.stderr) # DEBUG LOG
-                                print(f"Warning: Could not find both home and away odds in 3-way H2H for soccer game {game_id}", file=sys.stderr)
+                                elif name == "Draw" and price is not None: # Check for Draw
+                                    # print(f"DEBUG: Found draw odds for {game_id}: {price} ({name})", file=sys.stderr) # DEBUG LOG
+                                    best_odds["h2h"]["draw_odds"] = price
+                                    draw_found = True
+                                # Ignore other outcomes
+
+                            if not (home_found and away_found and draw_found): # Check all three
+                                # print(f"DEBUG: Missing home, away or draw odds for soccer game {game_id}. Home: {home_found}, Away: {away_found}, Draw: {draw_found}", file=sys.stderr) # DEBUG LOG
+                                print(f"Warning: Could not find all H2H odds (home, away, draw) for soccer game {game_id}", file=sys.stderr)
                                 best_odds["h2h"]["home_odds"] = None # Invalidate if incomplete
                                 best_odds["h2h"]["away_odds"] = None
+                                best_odds["h2h"]["draw_odds"] = None
                             else:
-                                print(f"DEBUG: Successfully found both home and away odds for soccer game {game_id}.", file=sys.stderr) # DEBUG LOG
+                                print(f"DEBUG: Successfully found H2H odds (inc. draw) for soccer game {game_id}.", file=sys.stderr) # DEBUG LOG
                         elif market_key == "spreads" and len(outcomes) == 2:
                             # Assuming first outcome is away, second is home (common pattern, might need verification)
                             # Or better: identify by name if possible, fallback to index
@@ -304,7 +324,16 @@ def fetch_games_with_odds(sport_keys: List[str]) -> List[Dict[str, Any]]:
                                 print(f"Warning: Could not parse totals market for game {game_id}, bookmaker {bookmaker.get('key')}", file=sys.stderr)
 
                 # Check if we found all necessary odds components
-                h2h_valid = all(v is not None for v in best_odds["h2h"].values())
+                # For H2H, we now need all three for soccer, but only two for others
+                h2h_valid = False
+                if sport_key.startswith("soccer_"):
+                     # Soccer needs home, away, and draw
+                     h2h_valid = all(v is not None for v in best_odds["h2h"].values())
+                else:
+                     # Other sports only need home and away (draw_odds will be None)
+                     h2h_valid = best_odds["h2h"]["home_odds"] is not None and best_odds["h2h"]["away_odds"] is not None
+
+
                 spreads_valid = all(v is not None for v in best_odds["spreads"].values())
                 totals_valid = all(v is not None for v in best_odds["totals"].values())
 
@@ -314,6 +343,8 @@ def fetch_games_with_odds(sport_keys: List[str]) -> List[Dict[str, Any]]:
                         full_odds_data = {
                             "home_odds": float(best_odds["h2h"]["home_odds"]),
                             "away_odds": float(best_odds["h2h"]["away_odds"]),
+                            # Include draw_odds, converting None to 0.0 for non-soccer or if missing (though h2h_valid should prevent missing for soccer)
+                            "draw_odds": float(best_odds["h2h"]["draw_odds"]) if best_odds["h2h"]["draw_odds"] is not None else 0.0,
                             "home_spread_points": float(best_odds["spreads"]["home_spread_points"]),
                             "home_spread_odds": float(best_odds["spreads"]["home_spread_odds"]),
                             "away_spread_odds": float(best_odds["spreads"]["away_spread_odds"]),
@@ -322,10 +353,17 @@ def fetch_games_with_odds(sport_keys: List[str]) -> List[Dict[str, Any]]:
                             "under_odds": float(best_odds["totals"]["under_odds"]),
                         }
 
-                        # Basic validation (e.g., odds >= 1.0)
-                        if any(o < 1.0 for o in [full_odds_data["home_odds"], full_odds_data["away_odds"],
-                                                 full_odds_data["home_spread_odds"], full_odds_data["away_spread_odds"],
-                                                 full_odds_data["over_odds"], full_odds_data["under_odds"]]):
+                        # Basic validation (e.g., odds >= 1.0), skip draw_odds if it's 0.0
+                        odds_to_validate = [
+                            full_odds_data["home_odds"], full_odds_data["away_odds"],
+                            full_odds_data["home_spread_odds"], full_odds_data["away_spread_odds"],
+                            full_odds_data["over_odds"], full_odds_data["under_odds"]
+                        ]
+                        if full_odds_data["draw_odds"] > 0:
+                             odds_to_validate.append(full_odds_data["draw_odds"])
+
+
+                        if any(o < 1.0 for o in odds_to_validate):
                              print(f"Warning: Skipping game {game_id} due to invalid decimal odds < 1.0 found.", file=sys.stderr)
                              continue
 
@@ -338,7 +376,7 @@ def fetch_games_with_odds(sport_keys: List[str]) -> List[Dict[str, Any]]:
                          print(f"Warning: Could not parse or validate final odds structure for game {game_id}. Error: {e}", file=sys.stderr)
                 else:
                     missing = []
-                    if not h2h_valid: missing.append("H2H")
+                    if not h2h_valid: missing.append("H2H (check home/away/draw as applicable)")
                     if not spreads_valid: missing.append("Spreads")
                     if not totals_valid: missing.append("Totals")
                     print(f"Warning: Could not find complete odds ({', '.join(missing)}) for game {game_id} ({home_team} vs {away_team}) across all bookmakers.", file=sys.stderr)
@@ -361,23 +399,23 @@ def fetch_games_with_odds(sport_keys: List[str]) -> List[Dict[str, Any]]:
 # Define the Odds Manager Agent
 odds_manager_agent = Agent(
     name="Odds Manager Agent",
-    handoff_description="Specialist agent for managing and updating odds for NBA betting markets",
+    handoff_description="Specialist agent for managing and updating odds (including draw odds for soccer) for NBA & Soccer betting markets",
     instructions="""
-    You are the Odds Manager Agent. Your goal is to set or update odds (moneyline, spreads, totals) for markets across supported sports (NBA & Soccer).
-    1. Call `fetch_games_with_odds` with the list of supported sport keys (`SUPPORTED_SPORT_KEYS`). This tool fetches the latest H2H, spreads, and totals odds in *decimal* format from The Odds API for all specified sports. Each result contains `odds_api_id`, `sport_key`, and an `odds` dictionary.
+    You are the Odds Manager Agent. Your goal is to set or update odds (moneyline including draw, spreads, totals) for markets across supported sports (NBA & Soccer).
+    1. Call `fetch_games_with_odds` with the list of supported sport keys (`SUPPORTED_SPORT_KEYS`). This tool fetches the latest H2H (including draw odds for soccer, which will be 0.0 if not applicable/found), spreads, and totals odds in *decimal* format from The Odds API. Each result contains `odds_api_id`, `sport_key`, and an `odds` dictionary.
     2. Create a mapping from `odds_api_id` to the fetched game/odds data (the entire dictionary including `sport_key` and `odds`) from step 1 for efficient lookup.
     3. Call `get_existing_markets` to get all current markets from your platform's API. Note: These markets might *not* have `sportKey` and could have various statuses (e.g., "Pending", "Open").
     4. Iterate through the existing markets obtained in step 3. For each market, regardless of its `status`:
         a. Use the market's `oddsApiId` to look up the corresponding game/odds data in the mapping created in step 2.
         b. If a match is found in the map and it contains a valid `odds` dictionary:
-           i. Extract all the decimal odds/points (home_odds, away_odds, home_spread_points, etc.) from the matched `odds` data.
-           ii. Call `update_odds_for_market` using the market's `address` and all these *decimal float* odds/points. The tool handles the conversion to the required integer format for the API. The underlying API call will determine if the update is allowed based on the market's current status.
+           i. Extract all the decimal odds/points (home_odds, away_odds, draw_odds, home_spread_points, home_spread_odds, away_spread_odds, total_points, over_odds, under_odds) from the matched `odds` data. Note that `draw_odds` will be 0.0 if not applicable (e.g., for NBA).
+           ii. Call `update_odds_for_market` using the market's `address` and *all* these extracted decimal float odds/points, explicitly including `draw_odds`. The tool handles the conversion to the required integer format for the API (sending `drawOdds: 0` if the input `draw_odds` is 0.0 or invalid). The underlying API call will determine if the update is allowed based on the market's current status.
         c. If no match is found in the map for the market's `oddsApiId`, log a warning (the game might not be happening today or odds aren't available yet) and continue to the next market.
-    5. Report back a summary of the markets you attempted to update (providing market address and the *decimal* odds set) or could not find odds data for. Include any errors returned by the `update_odds_for_market` tool (e.g., if the API rejected the update due to market status).
+    5. Report back a summary of the markets you attempted to update (providing market address and the *decimal* odds set including draw) or could not find odds data for. Include any errors returned by the `update_odds_for_market` tool (e.g., if the API rejected the update due to market status).
     """,
     tools=[get_existing_markets, update_odds_for_market, fetch_games_with_odds],
     # DO NOT CHANGE THIS MODEL FROM THE CURRENT SETTING
-    model="gpt-4o-2024-11-20",
+    model="gpt-4o-mini-2024-07-18",
     # No context type needed
 )
 

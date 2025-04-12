@@ -14,9 +14,9 @@ async function main() {
     const args = process.argv.slice(2);
     
     if (args.length < 4) {
-        console.error('Usage: npx hardhat run scripts/create-market.js --network <network> <homeTeam> <awayTeam> <gameTimestamp> <oddsApiId> [homeOdds] [awayOdds] [homeSpreadPoints] [homeSpreadOdds] [awaySpreadOdds] [totalPoints] [overOdds] [underOdds] [marketFunding]');
-        console.error('Example: npx hardhat run scripts/create-market.js --network localhost "Lakers" "Celtics" 1680307200 "NBA_2023_LAL_BOS" 1850 2000 -75 1910 1910 2105 1910 1910 50000');
-        console.error('Note: If moneyline odds are omitted (0), the market will be created without odds. All odds/lines are optional.');
+        console.error('Usage: npx hardhat run scripts/create-market.js --network <network> <homeTeam> <awayTeam> <gameTimestamp> <oddsApiId> [homeOdds] [awayOdds] [drawOdds] [homeSpreadPoints] [homeSpreadOdds] [awaySpreadOdds] [totalPoints] [overOdds] [underOdds] [marketFunding]');
+        console.error('Example: npx hardhat run scripts/create-market.js --network localhost "Lakers" "Celtics" 1680307200 "NBA_2023_LAL_BOS" 1850 2000 3000 -75 1910 1910 2105 1910 1910 50000');
+        console.error('Note: If moneyline odds are omitted (0), the market will be created without odds. Draw odds can be 0 for non-soccer markets. All odds/lines are optional.');
         console.error('      marketFunding is optional (in USDX tokens)');
         process.exit(1);
     }
@@ -28,13 +28,14 @@ async function main() {
     // Parse odds and lines, defaulting to 0 if not provided
     const homeOdds = args[4] ? parseInt(args[4]) : 0;
     const awayOdds = args[5] ? parseInt(args[5]) : 0;
-    const homeSpreadPoints = args[6] ? parseInt(args[6]) : 0; // e.g., -75 for -7.5
-    const homeSpreadOdds = args[7] ? parseInt(args[7]) : 0;
-    const awaySpreadOdds = args[8] ? parseInt(args[8]) : 0;
-    const totalPoints = args[9] ? parseInt(args[9]) : 0; // e.g., 2105 for 210.5
-    const overOdds = args[10] ? parseInt(args[10]) : 0;
-    const underOdds = args[11] ? parseInt(args[11]) : 0;
-    const marketFunding = args[12] ? parseFloat(args[12]) : 0; // In USDX tokens
+    const drawOdds = args[6] ? parseInt(args[6]) : 0; // Draw odds for soccer markets, 0 for other markets
+    const homeSpreadPoints = args[7] ? parseInt(args[7]) : 0; // e.g., -75 for -7.5
+    const homeSpreadOdds = args[8] ? parseInt(args[8]) : 0;
+    const awaySpreadOdds = args[9] ? parseInt(args[9]) : 0;
+    const totalPoints = args[10] ? parseInt(args[10]) : 0; // e.g., 2105 for 210.5
+    const overOdds = args[11] ? parseInt(args[11]) : 0;
+    const underOdds = args[12] ? parseInt(args[12]) : 0;
+    const marketFunding = args[13] ? parseFloat(args[13]) : 0; // In USDX tokens
     
     // Validate inputs
     if (isNaN(gameTimestamp)) {
@@ -52,7 +53,7 @@ async function main() {
         console.log(`Odds API ID: ${oddsApiId}`);
         
         if (homeOdds > 0 && awayOdds > 0) {
-            console.log(`Moneyline: Home ${homeOdds} (${homeOdds/1000}) | Away ${awayOdds} (${awayOdds/1000})`);
+            console.log(`Moneyline: Home ${homeOdds} (${homeOdds/1000}) | Away ${awayOdds} (${awayOdds/1000})${drawOdds > 0 ? ` | Draw ${drawOdds} (${drawOdds/1000})` : ''}`);
         }
         if (homeSpreadOdds > 0 && awaySpreadOdds > 0) {
              // Display spread with one decimal place
@@ -113,6 +114,7 @@ async function main() {
             oddsApiId,
             homeOdds,
             awayOdds,
+            drawOdds,
             homeSpreadPoints,
             homeSpreadOdds,
             awaySpreadOdds,
@@ -166,6 +168,7 @@ async function main() {
                 oddsApiId,
                 homeOdds,
                 awayOdds,
+                drawOdds,
                 homeSpreadPoints,
                 homeSpreadOdds,
                 awaySpreadOdds,

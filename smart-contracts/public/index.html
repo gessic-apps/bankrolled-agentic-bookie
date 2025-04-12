@@ -94,13 +94,17 @@
                      <hr/>
                     <h6 class="mb-3">Initial Odds & Lines (Optional)</h6>
                      <div class="row mb-2">
-                         <div class="col-md-6">
+                         <div class="col-md-4">
                             <label for="homeOdds" class="form-label">Home ML Odds</label>
                             <input type="number" class="form-control" id="homeOdds" placeholder="e.g. 1850 (1.85)">
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <label for="awayOdds" class="form-label">Away ML Odds</label>
                             <input type="number" class="form-control" id="awayOdds" placeholder="e.g. 2000 (2.00)">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="drawOdds" class="form-label">Draw Odds (Soccer)</label>
+                            <input type="number" class="form-control" id="drawOdds" placeholder="e.g. 3000 (3.00)">
                         </div>
                     </div>
                     <div class="row mb-2">
@@ -157,13 +161,17 @@
                         <input type="text" class="form-control" id="marketAddress" placeholder="0x...">
                     </div>
                     <div class="row mb-2">
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <label for="updateHomeOdds" class="form-label">Home ML Odds</label>
                             <input type="number" class="form-control" id="updateHomeOdds" placeholder="e.g. 1941 (1.941)">
                         </div>
-                         <div class="col-md-6">
+                         <div class="col-md-4">
                             <label for="updateAwayOdds" class="form-label">Away ML Odds</label>
                             <input type="number" class="form-control" id="updateAwayOdds" placeholder="e.g. 1051 (1.051)">
+                        </div>
+                         <div class="col-md-4">
+                            <label for="updateDrawOdds" class="form-label">Draw Odds (Soccer)</label>
+                            <input type="number" class="form-control" id="updateDrawOdds" placeholder="e.g. 3000 (3.00)">
                         </div>
                     </div>
                      <div class="row mb-2">
@@ -318,6 +326,7 @@
                                 <option value="moneyline">Moneyline</option>
                                 <option value="spread">Spread</option>
                                 <option value="total">Total Points</option>
+                                <option value="draw">Draw (Soccer)</option>
                             </select>
                         </div>
                     </div>
@@ -528,6 +537,9 @@
             } else if (selectedType === 'total') {
                 betSideSelect.add(new Option('Over', 'over'));
                 betSideSelect.add(new Option('Under', 'under'));
+            } else if (selectedType === 'draw') {
+                betSideSelect.add(new Option('Draw', 'draw'));
+                // Draw bet type only needs one option as the side doesn't matter
             }
         };
 
@@ -596,6 +608,8 @@
             // Add odds/lines to payload only if they have values
             if (homeOdds) payload.homeOdds = parseInt(homeOdds);
             if (awayOdds) payload.awayOdds = parseInt(awayOdds);
+            const drawOdds = document.getElementById('drawOdds').value;
+            if (drawOdds) payload.drawOdds = parseInt(drawOdds);
             if (homeSpreadPoints) payload.homeSpreadPoints = parseInt(homeSpreadPoints);
             if (homeSpreadOdds) payload.homeSpreadOdds = parseInt(homeSpreadOdds);
             if (awaySpreadOdds) payload.awaySpreadOdds = parseInt(awaySpreadOdds);
@@ -654,6 +668,7 @@
             const payload = {
                 homeOdds: parseInt(homeOdds),
                 awayOdds: parseInt(awayOdds),
+                drawOdds: parseInt(document.getElementById('updateDrawOdds').value || '0'),
                 homeSpreadPoints: parseInt(homeSpreadPoints),
                 homeSpreadOdds: parseInt(homeSpreadOdds),
                 awaySpreadOdds: parseInt(awaySpreadOdds),
@@ -894,7 +909,7 @@
                     formattedInfo += `Settled: ${data.resultSettled} ${data.resultSettled ? `(Score: ${data.homeScore}-${data.awayScore})` : ''}\n`;
                     formattedInfo += `Odds API ID: ${data.oddsApiId}\n`;
                     formattedInfo += `---\nOdds:\n`;
-                    formattedInfo += `  Moneyline: Home ${data.homeOdds} | Away ${data.awayOdds}\n`;
+                    formattedInfo += `  Moneyline: Home ${data.homeOdds} | Away ${data.awayOdds}${data.drawOdds && data.drawOdds > 0 ? ` | Draw ${data.drawOdds}` : ''}\n`;
                     formattedInfo += `  Spread: Home ${data.homeSpreadPoints} (${data.homeSpreadOdds}) | Away ${data.homeSpreadPoints.startsWith('-') ? '+' : '-'}${data.homeSpreadPoints.substring(1)} (${data.awaySpreadOdds})\n`;
                     formattedInfo += `  Total: Over ${data.totalPoints} (${data.overOdds}) | Under ${data.totalPoints} (${data.underOdds})\n`;
                     formattedInfo += `---\nExposure:\n`;

@@ -18,7 +18,7 @@ contract BettingEngine is ReentrancyGuard {
     address public marketAddress;
     
     // Bet Type Enum
-    enum BetType { MONEYLINE, SPREAD, TOTAL }
+    enum BetType { MONEYLINE, SPREAD, TOTAL, DRAW }
     
     // Bet tracking
     struct Bet {
@@ -309,6 +309,9 @@ contract BettingEngine is ReentrancyGuard {
             return (homeScore > awayScore && bet.isBettingOnHomeOrOver) || 
                    (awayScore > homeScore && !bet.isBettingOnHomeOrOver);
             // Ties are losses for moneyline bets
+        } else if (bet.betType == BetType.DRAW) {
+            // Draw bet wins if scores are equal
+            return homeScore == awayScore;
         } else if (bet.betType == BetType.SPREAD) {
              // Spread calculation: Score + Spread Points (adjusting for 1 decimal precision)
              // Example: Home -7.5 (line = -75), Score 100-90. Home Bet: 1000 + (-75) = 925. Away score 900. 925 > 900 -> Home Wins.

@@ -62,6 +62,7 @@ contract MarketFactory {
      * @param oddsApiId Unique identifier for the game/market
      * @param homeOdds Initial home team moneyline odds (3 decimals, e.g., 1910)
      * @param awayOdds Initial away team moneyline odds (3 decimals, e.g., 2050)
+     * @param drawOdds Initial draw odds (3 decimals, e.g., 3000), 0 for markets without draws like NBA
      * @param homeSpreadPoints Home team spread points (1 decimal, e.g., -75 for -7.5)
      * @param homeSpreadOdds Odds for home team covering spread (3 decimals)
      * @param awaySpreadOdds Odds for away team covering spread (3 decimals)
@@ -79,6 +80,7 @@ contract MarketFactory {
         string memory oddsApiId,
         uint256 homeOdds,
         uint256 awayOdds,
+        uint256 drawOdds,
         int256 homeSpreadPoints,
         uint256 homeSpreadOdds,
         uint256 awaySpreadOdds,
@@ -104,6 +106,7 @@ contract MarketFactory {
             defaultOddsProvider,
             homeOdds,
             awayOdds,
+            drawOdds, // Added draw odds
             homeSpreadPoints,
             homeSpreadOdds,
             awaySpreadOdds,
@@ -154,6 +157,7 @@ contract MarketFactory {
      * @param oddsApiId Unique identifier for the game/market
      * @param homeOdds Initial home team moneyline odds (3 decimals)
      * @param awayOdds Initial away team moneyline odds (3 decimals)
+     * @param drawOdds Initial draw odds (3 decimals), 0 for markets without draws like NBA
      * @param homeSpreadPoints Home team spread points (1 decimal)
      * @param homeSpreadOdds Odds for home team covering spread (3 decimals)
      * @param awaySpreadOdds Odds for away team covering spread (3 decimals)
@@ -173,6 +177,7 @@ contract MarketFactory {
         string memory oddsApiId,
         uint256 homeOdds,
         uint256 awayOdds,
+        uint256 drawOdds,
         int256 homeSpreadPoints,
         uint256 homeSpreadOdds,
         uint256 awaySpreadOdds,
@@ -198,6 +203,7 @@ contract MarketFactory {
             oddsProvider, // Use the custom provider
             homeOdds,
             awayOdds,
+            drawOdds, // Added draw odds
             homeSpreadPoints,
             homeSpreadOdds,
             awaySpreadOdds,
@@ -317,6 +323,7 @@ contract MarketFactory {
             oddsApiId,
             0,
             0,
+            0, // Draw odds (0)
             0,
             0,
             0,

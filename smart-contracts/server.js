@@ -143,7 +143,7 @@ app.post('/api/market/create', async (req, res) => {
     console.log("Request body:", req.body);
     const {
       homeTeam, awayTeam, gameTimestamp, oddsApiId, 
-      homeOdds, awayOdds, 
+      homeOdds, awayOdds, drawOdds,
       homeSpreadPoints, homeSpreadOdds, awaySpreadOdds,
       totalPoints, overOdds, underOdds,
       marketFunding 
@@ -190,6 +190,7 @@ app.post('/api/market/create', async (req, res) => {
       oddsApiId, 
       homeOdds !== undefined ? parseInt(homeOdds) : 0,
       awayOdds !== undefined ? parseInt(awayOdds) : 0,
+      drawOdds !== undefined ? parseInt(drawOdds) : 0,
       homeSpreadPoints !== undefined ? parseInt(homeSpreadPoints) : 0,
       homeSpreadOdds !== undefined ? parseInt(homeSpreadOdds) : 0,
       awaySpreadOdds !== undefined ? parseInt(awaySpreadOdds) : 0,
@@ -313,13 +314,13 @@ app.post('/api/market/:address/update-odds', async (req, res) => {
   try {
     const { address } = req.params;
     const {
-      homeOdds, awayOdds, 
+      homeOdds, awayOdds, drawOdds,
       homeSpreadPoints, homeSpreadOdds, awaySpreadOdds,
       totalPoints, overOdds, underOdds
     } = req.body;
 
     // Validate required fields - all are needed for the contract function
-    if (homeOdds === undefined || awayOdds === undefined || 
+    if (homeOdds === undefined || awayOdds === undefined || drawOdds === undefined || 
         homeSpreadPoints === undefined || homeSpreadOdds === undefined || awaySpreadOdds === undefined ||
         totalPoints === undefined || overOdds === undefined || underOdds === undefined) {
       return res.status(400).json({ error: 'Missing one or more required odds/line parameters for updateOdds' });
@@ -329,6 +330,7 @@ app.post('/api/market/:address/update-odds', async (req, res) => {
     const params = [
         parseInt(homeOdds),
         parseInt(awayOdds),
+        parseInt(drawOdds),
         parseInt(homeSpreadPoints),
         parseInt(homeSpreadOdds),
         parseInt(awaySpreadOdds),
@@ -403,6 +405,7 @@ app.post('/api/market/:address/update-odds', async (req, res) => {
     if (marketIndex >= 0) {
       deployedContracts.markets[marketIndex].homeOdds = homeOdds;
       deployedContracts.markets[marketIndex].awayOdds = awayOdds;
+      deployedContracts.markets[marketIndex].drawOdds = drawOdds;
       deployedContracts.markets[marketIndex].homeSpreadPoints = homeSpreadPoints;
       deployedContracts.markets[marketIndex].homeSpreadOdds = homeSpreadOdds;
       deployedContracts.markets[marketIndex].awaySpreadOdds = awaySpreadOdds;
@@ -420,6 +423,7 @@ app.post('/api/market/:address/update-odds', async (req, res) => {
       address,
       homeOdds,
       awayOdds,
+      drawOdds,
       homeSpreadPoints,
       homeSpreadOdds,
       awaySpreadOdds,
@@ -560,6 +564,7 @@ app.get('/api/market/:address', async (req, res) => {
       ...(fullOdds.data ? { // Check if odds data was fetched successfully
           homeOdds: fullOdds.data._homeOdds.toNumber() / 1000,
           awayOdds: fullOdds.data._awayOdds.toNumber() / 1000,
+          drawOdds: fullOdds.data._drawOdds ? fullOdds.data._drawOdds.toNumber() / 1000 : 0,
           homeSpreadPoints: formatLine(1, fullOdds.data._homeSpreadPoints),
           homeSpreadOdds: fullOdds.data._homeSpreadOdds.toNumber() / 1000,
           awaySpreadOdds: fullOdds.data._awaySpreadOdds.toNumber() / 1000,
@@ -570,6 +575,7 @@ app.get('/api/market/:address', async (req, res) => {
           rawOdds: {
               homeOdds: fullOdds.data._homeOdds.toString(),
               awayOdds: fullOdds.data._awayOdds.toString(),
+              drawOdds: fullOdds.data._drawOdds ? fullOdds.data._drawOdds.toString() : '0',
               homeSpreadPoints: fullOdds.data._homeSpreadPoints.toString(),
               homeSpreadOdds: fullOdds.data._homeSpreadOdds.toString(),
               awaySpreadOdds: fullOdds.data._awaySpreadOdds.toString(),
@@ -729,6 +735,7 @@ app.get('/api/markets', async (req, res) => {
                   marketOddsAddress: marketOddsAddress,
                   homeOdds: fullOddsData._homeOdds.toNumber() / 1000,
                   awayOdds: fullOddsData._awayOdds.toNumber() / 1000,
+                  drawOdds: fullOddsData._drawOdds ? fullOddsData._drawOdds.toNumber() / 1000 : 0,
                   homeSpreadPoints: formatLine(1, fullOddsData._homeSpreadPoints), // Use helper
                   homeSpreadOdds: fullOddsData._homeSpreadOdds.toNumber() / 1000,
                   awaySpreadOdds: fullOddsData._awaySpreadOdds.toNumber() / 1000,
@@ -945,6 +952,7 @@ app.post('/api/market/:address/place-bet', async (req, res) => {
     if (betType.toLowerCase() === 'moneyline') betTypeEnum = 0;
     else if (betType.toLowerCase() === 'spread') betTypeEnum = 1;
     else if (betType.toLowerCase() === 'total') betTypeEnum = 2;
+    else if (betType.toLowerCase() === 'draw') betTypeEnum = 3;
     else return res.status(400).json({ error: 'Invalid betType' });
 
     // Map betSide string to boolean (isBettingOnHomeOrOver)
@@ -954,10 +962,13 @@ app.post('/api/market/:address/place-bet', async (req, res) => {
         if (sideLower === 'home') isBettingOnHomeOrOver = true;
         else if (sideLower === 'away') isBettingOnHomeOrOver = false;
         else return res.status(400).json({ error: 'Invalid betSide for moneyline/spread' });
-    } else { // Total
+    } else if (betTypeEnum === 2) { // Total
         if (sideLower === 'over') isBettingOnHomeOrOver = true;
         else if (sideLower === 'under') isBettingOnHomeOrOver = false;
         else return res.status(400).json({ error: 'Invalid betSide for total' });
+    } else if (betTypeEnum === 3) { // Draw
+        // For draw bets, the side doesn't matter, but we'll set to true for consistency
+        isBettingOnHomeOrOver = true;
     }
     
     const provider = setupProvider();
@@ -1312,21 +1323,24 @@ function mapMarketStatusEnumToString(enumIndex) {
 }
 
 function mapBetTypeEnumToString(enumIndex) {
-    // Assuming BetType { MONEYLINE, SPREAD, TOTAL }
+    // Assuming BetType { MONEYLINE, SPREAD, TOTAL, DRAW }
     switch (enumIndex) {
         case 0: return 'Moneyline';
         case 1: return 'Spread';
         case 2: return 'Total';
+        case 3: return 'Draw';
         default: return 'Unknown';
     }
 }
 
 function mapBetSideToString(betType, isHomeOrOver) {
-    // BetType: 0=ML, 1=Spread, 2=Total
+    // BetType: 0=ML, 1=Spread, 2=Total, 3=Draw
     if (betType === 0 || betType === 1) { // Moneyline or Spread
         return isHomeOrOver ? 'Home' : 'Away';
     } else if (betType === 2) { // Total
         return isHomeOrOver ? 'Over' : 'Under';
+    } else if (betType === 3) { // Draw
+        return 'Draw';
     } else {
         return 'N/A';
     }

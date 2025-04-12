@@ -23,6 +23,9 @@ export interface Market {
   /** Odds for the away team (in thousandths, e.g., 2000 = 2.00) */
   awayOdds: string;
   
+  /** Odds for a draw result (in thousandths, e.g., 2500 = 2.50). For NBA, this will be 0. */
+  drawOdds: string;
+  
   /** Whether the game has started */
   gameStarted: boolean;
   
@@ -32,7 +35,7 @@ export interface Market {
   /** Whether odds have been set for this market */
   oddsSet: boolean;
   
-  /** Game outcome (0 = not set, 1 = home win, 2 = away win) */
+  /** Game outcome (0 = not set, 1 = home win, 2 = away win, 3 = draw) */
   outcome: number;
   
   /** Whether the market is ready for betting (has odds and game hasn't started) */

@@ -22,6 +22,7 @@ from .market_creation_agent import SUPPORTED_SPORT_KEYS
 from .market_creation_agent import market_creation_agent
 from .odds_manager_agent import odds_manager_agent
 from .game_status_agent import game_status_agent
+from .risk_manager_agent import risk_manager_agent
 
 # Set up OpenAI API key from environment (optional, SDK might handle this)
 # api_key = os.getenv("OPENAI_API_KEY")
@@ -50,7 +51,9 @@ triage_agent = Agent(
         Keywords: update odds, set odds, manage odds, check prices, set lines, soccer odds, NBA odds.
     3.  If the request is about **checking game completion or setting final results** for markets in supported sports, hand off to the `Game Result Settlement Agent`.
         Keywords: check status, monitor games, settle results, game finished, final score.
-    4.  For any other requests, politely explain that you currently only support market creation, odds management, and game result settlement for NBA and the specified Soccer leagues via the specialized agents. Do not attempt to fulfill other requests yourself.
+    4.  If the request is about **managing risk and liquidity** for betting markets, hand off to the `Risk Manager Agent`.
+        Keywords: risk management, add liquidity, manage exposure, liquidity pool, market liquidity, risk assessment.
+    5.  For any other requests, politely explain that you currently only support market creation, odds management, game result settlement, and risk management for NBA and the specified Soccer leagues via the specialized agents. Do not attempt to fulfill other requests yourself.
 
     Use the provided handoff tools to transfer the task.
     """,
@@ -70,6 +73,11 @@ triage_agent = Agent(
             game_status_agent, # Use the imported agent object
             tool_name_override="transfer_to_game_status_agent",
             tool_description_override="Transfer task to the agent specializing in monitoring game start times and updating market status."
+        ),
+        handoff( # Add handoff for the risk manager agent
+            risk_manager_agent, # Use the imported agent object
+            tool_name_override="transfer_to_risk_manager_agent",
+            tool_description_override="Transfer task to the agent specializing in managing risk and liquidity for betting markets."
         )
     ],
     # DO NOT CHANGE THIS MODEL FROM THE CURRENT SETTING
@@ -96,6 +104,7 @@ if __name__ == "__main__":
         market_creation_prompt = f"Create betting markets for today's games in these leagues: {supported_sports_str}."
         odds_management_prompt = f"Set or update odds for all existing markets for these sports: {supported_sports_str}."
         game_status_prompt = f"Check for completed games and settle results for markets in these sports: {supported_sports_str}." # Updated prompt
+        risk_management_prompt = f"Analyze current markets and add liquidity where needed based on risk assessment."
 
         # --- Run Market Creation Agent ---
         print("\n--- Running Market Creation Agent ---")
@@ -112,6 +121,11 @@ if __name__ == "__main__":
         print("\n--- Running Game Status Agent ---")
         triage_result_status = await Runner.run(triage_agent, game_status_prompt)
         print("Triage Result (Game Status):", triage_result_status.final_output)
+
+        # --- Run Risk Manager Agent ---
+        print("\n--- Running Risk Manager Agent ---")
+        triage_result_risk = await Runner.run(triage_agent, risk_management_prompt)
+        print("Triage Result (Risk Management):", triage_result_risk.final_output)
 
         print("\n--- Test Sequence Complete ---")
 

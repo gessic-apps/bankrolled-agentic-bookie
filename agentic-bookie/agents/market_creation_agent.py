@@ -273,7 +273,7 @@ market_creation_agent = Agent(
     # Ensure all necessary tools are available
     tools=[get_existing_markets, fetch_games_today, check_event_exists, create_betting_market],
     # DO NOT CHANGE THIS MODEL FROM THE CURRENT SETTING
-    model="gpt-4o-2024-11-20", # Adjusted model based on previous message
+    model="gpt-4o-mini-2024-07-18", # Adjusted model based on previous message
     # No context type needed if we remove the custom context logic
 )
 

@@ -17,6 +17,7 @@ contract MarketOdds {
     // Moneyline Odds (3 decimal precision, e.g., 1910)
     uint256 public homeOdds;
     uint256 public awayOdds;
+    uint256 public drawOdds; // New draw odds for sports like soccer
 
     // Spread (Points: 1 decimal precision, e.g., -75 for -7.5; Odds: 3 decimal precision)
     int256 public homeSpreadPoints; 
@@ -34,7 +35,8 @@ contract MarketOdds {
      event OddsUpdated(
         address indexed marketAddress, // Include market address for easier off-chain tracking
         uint256 homeOdds, 
-        uint256 awayOdds, 
+        uint256 awayOdds,
+        uint256 drawOdds, // Added draw odds to event
         int256 homeSpreadPoints, 
         uint256 homeSpreadOdds, 
         uint256 awaySpreadOdds, 
@@ -56,6 +58,7 @@ contract MarketOdds {
      * @param _oddsProvider The address designated as the odds provider for this market.
      * @param _initialHomeOdds Initial moneyline home odds (0 if not set).
      * @param _initialAwayOdds Initial moneyline away odds (0 if not set).
+     * @param _initialDrawOdds Initial moneyline draw odds (0 if not set or for markets without draws like NBA).
      * @param _initialHomeSpreadPoints Initial home spread points (0 if not set).
      * @param _initialHomeSpreadOdds Initial home spread odds (0 if not set).
      * @param _initialAwaySpreadOdds Initial away spread odds (0 if not set).
@@ -68,6 +71,7 @@ contract MarketOdds {
         address _oddsProvider,
         uint256 _initialHomeOdds,
         uint256 _initialAwayOdds,
+        uint256 _initialDrawOdds, // Added initial draw odds (can be 0 for markets without draws)
         int256 _initialHomeSpreadPoints,
         uint256 _initialHomeSpreadOdds,
         uint256 _initialAwaySpreadOdds,
@@ -84,6 +88,7 @@ contract MarketOdds {
         // Set initial values if provided (validation happens in updateOdds if called later)
         homeOdds = _initialHomeOdds;
         awayOdds = _initialAwayOdds;
+        drawOdds = _initialDrawOdds; // Set initial draw odds (can be 0 for sports without draws)
         homeSpreadPoints = _initialHomeSpreadPoints;
         homeSpreadOdds = _initialHomeSpreadOdds;
         awaySpreadOdds = _initialAwaySpreadOdds;
@@ -101,7 +106,8 @@ contract MarketOdds {
              emit OddsUpdated(
                 _controllingMarket,
                 _initialHomeOdds, 
-                _initialAwayOdds, 
+                _initialAwayOdds,
+                _initialDrawOdds, // Added draw odds to event
                 _initialHomeSpreadPoints, 
                 _initialHomeSpreadOdds, 
                 _initialAwaySpreadOdds, 
@@ -120,6 +126,7 @@ contract MarketOdds {
     function updateOdds(
         uint256 _homeOdds, 
         uint256 _awayOdds,
+        uint256 _drawOdds, // Added draw odds parameter
         int256 _homeSpreadPoints, 
         uint256 _homeSpreadOdds, 
         uint256 _awaySpreadOdds, 
@@ -137,11 +144,14 @@ contract MarketOdds {
 
         // Basic validation (more can be added if needed)
         require(_homeOdds >= 1000 && _awayOdds >= 1000, "MarketOdds: ML odds must be >= 1.000");
+        // Draw odds can be 0 for markets that don't have draws (like NBA)
+        require(_drawOdds == 0 || _drawOdds >= 1000, "MarketOdds: Draw odds must be >= 1.000 if set");
         require((_homeSpreadOdds == 0 && _awaySpreadOdds == 0) || (_homeSpreadOdds >= 1000 && _awaySpreadOdds >= 1000), "MarketOdds: Spread odds must be >= 1.000 if set");
         require((_overOdds == 0 && _underOdds == 0) || (_overOdds >= 1000 && _underOdds >= 1000), "MarketOdds: Total odds must be >= 1.000 if set");
 
         homeOdds = _homeOdds;
         awayOdds = _awayOdds;
+        drawOdds = _drawOdds; // Set draw odds
         homeSpreadPoints = _homeSpreadPoints;
         homeSpreadOdds = _homeSpreadOdds;
         awaySpreadOdds = _awaySpreadOdds;
@@ -154,7 +164,8 @@ contract MarketOdds {
         emit OddsUpdated(
             controllingMarket, // Use stored market address
             _homeOdds, 
-            _awayOdds, 
+            _awayOdds,
+            _drawOdds, // Added draw odds to event
             _homeSpreadPoints, 
             _homeSpreadOdds, 
             _awaySpreadOdds, 
@@ -187,9 +198,9 @@ contract MarketOdds {
 
     // --- View Functions ---
 
-    /** @dev Returns Moneyline odds */
-    function getMoneylineOdds() external view returns (uint256, uint256) {
-        return (homeOdds, awayOdds);
+    /** @dev Returns Moneyline odds including draw if available */
+    function getMoneylineOdds() external view returns (uint256, uint256, uint256) {
+        return (homeOdds, awayOdds, drawOdds);
     }
 
     /** @dev Returns Spread line and odds */
@@ -211,6 +222,7 @@ contract MarketOdds {
         returns (
             uint256 _homeOdds,
             uint256 _awayOdds,
+            uint256 _drawOdds, // Added draw odds
             int256 _homeSpreadPoints, 
             uint256 _homeSpreadOdds, 
             uint256 _awaySpreadOdds, 
@@ -221,7 +233,8 @@ contract MarketOdds {
     {
         return (
             homeOdds, 
-            awayOdds, 
+            awayOdds,
+            drawOdds, // Added draw odds
             homeSpreadPoints, 
             homeSpreadOdds, 
             awaySpreadOdds, 

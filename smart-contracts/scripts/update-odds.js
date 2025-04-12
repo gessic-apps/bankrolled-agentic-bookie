@@ -15,9 +15,9 @@ async function main() {
     // Get command line arguments
     const args = process.argv.slice(2);
     
-    if (args.length < 7) { // Need market address + 6 values
-        console.error('Usage: node update-odds.js <marketAddress> <homeOdds> <awayOdds> <homeSpreadPoints> <homeSpreadOdds> <awaySpreadOdds> <totalPoints> <overOdds> <underOdds>');
-        console.error('Example: node update-odds.js 0x123... 1850 2000 -75 1910 1910 2105 1910 1910');
+    if (args.length < 8) { // Need market address + 7 values
+        console.error('Usage: node update-odds.js <marketAddress> <homeOdds> <awayOdds> <drawOdds> <homeSpreadPoints> <homeSpreadOdds> <awaySpreadOdds> <totalPoints> <overOdds> <underOdds>');
+        console.error('Example: node update-odds.js 0x123... 1850 2000 3000 -75 1910 1910 2105 1910 1910');
         console.error('Note: Provide all values. Use 0 for lines/odds you don\'t want to set (but ensure valid combinations)');
         process.exit(1);
     }
@@ -25,12 +25,13 @@ async function main() {
     const marketAddress = args[0];
     const homeOdds = parseInt(args[1]);
     const awayOdds = parseInt(args[2]);
-    const homeSpreadPoints = parseInt(args[3]); // e.g., -75 for -7.5
-    const homeSpreadOdds = parseInt(args[4]);
-    const awaySpreadOdds = parseInt(args[5]);
-    const totalPoints = parseInt(args[6]); // e.g., 2105 for 210.5
-    const overOdds = parseInt(args[7]);
-    const underOdds = parseInt(args[8]);
+    const drawOdds = parseInt(args[3]);
+    const homeSpreadPoints = parseInt(args[4]); // e.g., -75 for -7.5
+    const homeSpreadOdds = parseInt(args[5]);
+    const awaySpreadOdds = parseInt(args[6]);
+    const totalPoints = parseInt(args[7]); // e.g., 2105 for 210.5
+    const overOdds = parseInt(args[8]);
+    const underOdds = parseInt(args[9]);
     
     // Validate inputs
     if (!ethers.utils.isAddress(marketAddress)) {
@@ -38,7 +39,7 @@ async function main() {
         process.exit(1);
     }
     
-    if (isNaN(homeOdds) || isNaN(awayOdds) || isNaN(homeSpreadPoints) || isNaN(homeSpreadOdds) || isNaN(awaySpreadOdds) || isNaN(totalPoints) || isNaN(overOdds) || isNaN(underOdds)) {
+    if (isNaN(homeOdds) || isNaN(awayOdds) || isNaN(drawOdds) || isNaN(homeSpreadPoints) || isNaN(homeSpreadOdds) || isNaN(awaySpreadOdds) || isNaN(totalPoints) || isNaN(overOdds) || isNaN(underOdds)) {
         console.error('All odds and points values must be valid numbers');
         process.exit(1);
     }
@@ -56,7 +57,7 @@ async function main() {
         if (!oddsSigner) throw new Error("Could not get signer for oddsProvider role.");
         
         console.log(`Updating odds for market ${marketAddress}...`);
-        console.log(`ML: Home ${homeOdds} | Away ${awayOdds}`);
+        console.log(`ML: Home ${homeOdds} | Away ${awayOdds} | Draw ${drawOdds}`);
         console.log(`Spread: Home ${homeSpreadPoints/10} (${homeSpreadOdds}) | Away ${-homeSpreadPoints/10} (${awaySpreadOdds})`);
         console.log(`Total: Over ${totalPoints/10} (${overOdds}) | Under ${totalPoints/10} (${underOdds})`);
         
@@ -79,6 +80,7 @@ async function main() {
             params: [ // Ensure correct order and type
                 homeOdds,
                 awayOdds,
+                drawOdds,
                 homeSpreadPoints,
                 homeSpreadOdds,
                 awaySpreadOdds,

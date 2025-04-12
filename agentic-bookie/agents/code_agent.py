@@ -357,7 +357,7 @@ class CodeAgent:
                 delete_context
             ],
             # DO NOT CHANGE THIS MODEL FROM THE CURRENT SETTING
-            model="gpt-4o-2024-11-20",
+            model="gpt-4o-mini-2024-07-18",
         )
     
     def _set_context(self, key: str, value: Any) -> Dict[str, Any]:

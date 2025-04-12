@@ -470,7 +470,7 @@ game_status_agent = Agent(
         sleep_tool
     ],
     # DO NOT CHANGE THIS MODEL FROM THE CURRENT SETTING
-    model="gpt-4o-2024-11-20",
+    model="gpt-4o-mini-2024-07-18",
     # No context type needed
 )
 

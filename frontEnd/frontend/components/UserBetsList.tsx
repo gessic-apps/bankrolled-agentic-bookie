@@ -217,9 +217,16 @@ export default function UserBetsList({ markets }: UserBetsListProps) {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-2 text-sm">
                  <div>
                     <span className="font-medium text-gray-600 dark:text-gray-300">Bet On:</span>
-                    <span className={`ml-1 font-semibold ${bet.isBettingOnHomeOrOver ? 'text-blue-600 dark:text-blue-400' : 'text-green-600 dark:text-green-400'}`}>
-                       {bet.isBettingOnHomeOrOver ? bet.homeTeam : bet.awayTeam}
-                    </span>
+                    {/* For draw bets, betType 3 means draw regardless of isBettingOnHomeOrOver value */}
+                    {bet.betType === 3 ? (
+                      <span className="ml-1 font-semibold text-yellow-600 dark:text-yellow-400">
+                        Draw
+                      </span>
+                    ) : (
+                      <span className={`ml-1 font-semibold ${bet.isBettingOnHomeOrOver ? 'text-blue-600 dark:text-blue-400' : 'text-green-600 dark:text-green-400'}`}>
+                        {bet.isBettingOnHomeOrOver ? bet.homeTeam : bet.awayTeam}
+                      </span>
+                    )}
                  </div>
                  <div>
                     <span className="font-medium text-gray-600 dark:text-gray-300">Amount:</span>

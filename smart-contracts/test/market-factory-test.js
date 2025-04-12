@@ -75,6 +75,7 @@ describe("MarketFactory", function () {
       // Example odds/lines
       const homeOdds = 1900; // 1.900
       const awayOdds = 1900; // 1.900
+      const drawOdds = 0;    // 0 for NBA (no draws)
       const homeSpreadPoints = -75; // -7.5
       const homeSpreadOdds = 1950; // 1.950
       const awaySpreadOdds = 1850; // 1.850
@@ -89,6 +90,7 @@ describe("MarketFactory", function () {
         "NBA_GAME_123", // oddsApiId
         homeOdds,
         awayOdds,
+        drawOdds, // Added draw odds
         homeSpreadPoints,
         homeSpreadOdds,
         awaySpreadOdds,
@@ -157,6 +159,7 @@ describe("MarketFactory", function () {
         "NBA_GAME_125", // oddsApiId
         0, // homeOdds
         0, // awayOdds
+        0, // drawOdds
         0, // homeSpreadPoints
         0, // homeSpreadOdds
         0, // awaySpreadOdds
@@ -194,7 +197,7 @@ describe("MarketFactory", function () {
 
       // Now, update odds via the MarketOdds contract (using the designated oddsProvider)
       await marketOddsContract.connect(oddsProvider).updateOdds(
-          1850, 1950, -55, 1900, 1900, 2055, 1880, 1920
+          1850, 1950, 0, -55, 1900, 1900, 2055, 1880, 1920
       );
 
       // Verify odds are now set
@@ -222,9 +225,57 @@ describe("MarketFactory", function () {
       const gameTimestamp = Math.floor(Date.now() / 1000) + 86400;
       await expect(
         factory.connect(addr3).createMarket(
-          "Lakers", "Celtics", gameTimestamp, "ID", 1, 1, 1, 1, 1, 1, 1, 1, 0
+          "Lakers", "Celtics", gameTimestamp, "ID", 1, 1, 1, 1, 1, 1, 1, 1, 1, 0
         )
       ).to.be.reverted; // Should revert with default Ownable message or custom if added
+    });
+    
+    it("Should create soccer market with draw odds", async function () {
+      const gameTimestamp = Math.floor(Date.now() / 1000) + 86400;
+      const initialFunding = ethers.utils.parseUnits("8000", 6);
+      
+      // Soccer market odds
+      const homeOdds = 2500;  // 2.500
+      const awayOdds = 2800;  // 2.800
+      const drawOdds = 3000;  // 3.000 - Draw odds for soccer
+      
+      const tx = await factory.createMarket(
+        "Arsenal",
+        "Man City",
+        gameTimestamp,
+        "SOCCER_GAME_123",
+        homeOdds,
+        awayOdds,
+        drawOdds,        // Draw odds set for soccer
+        0,               // No spread for soccer
+        0,
+        0,
+        0,               // No total points for soccer
+        0,
+        0,
+        initialFunding
+      );
+      
+      const receipt = await tx.wait();
+      const marketCreatedEvent = receipt.events?.find(e => e.event === 'MarketCreated');
+      const marketAddress = marketCreatedEvent.args.marketAddress;
+      
+      // Create contract instances
+      const marketContract = await NBAMarket.attach(marketAddress);
+      const marketOddsAddress = await marketContract.getMarketOddsContract();
+      const marketOddsContract = await MarketOdds.attach(marketOddsAddress);
+      
+      // Verify the draw odds are set correctly
+      const odds = await marketOddsContract.getFullOdds();
+      expect(odds._homeOdds).to.equal(homeOdds);
+      expect(odds._awayOdds).to.equal(awayOdds);
+      expect(odds._drawOdds).to.equal(drawOdds);
+      
+      // Verify we can also access draw odds through the getMoneylineOdds function
+      const mlOdds = await marketOddsContract.getMoneylineOdds();
+      expect(mlOdds[0]).to.equal(homeOdds);
+      expect(mlOdds[1]).to.equal(awayOdds);
+      expect(mlOdds[2]).to.equal(drawOdds);
     });
   });
 

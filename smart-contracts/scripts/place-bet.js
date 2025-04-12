@@ -37,8 +37,10 @@ async function main() {
             betTypeEnum = 1; // Corresponds to BettingEngine.BetType.SPREAD
         } else if (betTypeStr === 'total') {
             betTypeEnum = 2; // Corresponds to BettingEngine.BetType.TOTAL
+        } else if (betTypeStr === 'draw') {
+            betTypeEnum = 3; // Corresponds to BettingEngine.BetType.DRAW
         } else {
-            console.error('Invalid betType. Must be \"moneyline\", \"spread\", or \"total\"');
+            console.error('Invalid betType. Must be \"moneyline\", \"spread\", \"total\", or \"draw\"');
             process.exit(1);
         }
 
@@ -53,7 +55,7 @@ async function main() {
                 console.error('Invalid betSide for moneyline/spread. Must be \"home\" or \"away\"');
                 process.exit(1);
             }
-        } else { // Total
+        } else if (betTypeEnum === 2) { // Total
             if (betSideStr === 'over') {
                 isBettingOnHomeOrOver = true;
             } else if (betSideStr === 'under') {
@@ -62,6 +64,10 @@ async function main() {
                 console.error('Invalid betSide for total. Must be \"over\" or \"under\"');
                 process.exit(1);
             }
+        } else if (betTypeEnum === 3) { // Draw
+            // For draw bets, the side parameter isn't used but we'll set it to true for consistency
+            isBettingOnHomeOrOver = true;
+            console.log('Draw bet selected - side parameter is ignored for draw bets');
         }
 
         // Setup provider and wallet

@@ -35,9 +35,9 @@ const config = getDefaultConfig({
 });
 
 // --- TODO: Replace with your ACTUAL deployed MarketFactory address ---
-const MARKET_FACTORY_ADDRESS = "0xB79F55c124C3F945F0348F1384bcB8b66DD32539"; // Replace this placeholder
+const MARKET_FACTORY_ADDRESS = "0x7019E65E2698d891C0a9633309e2D2eCaa21a3Df"; // Replace this placeholder
 
-const usdxAddress = "0x4cBb41C0dfc64A4a5E2F8d6f23D9B4dbE719E4bd";
+const usdxAddress = "0x96994C1D6df44b02AFf15A634C96989a656FC72F";
 
 // Helper function to format odds/lines (similar to backend)
 const formatContractValue = (value: bigint | number | undefined, decimals: number = 3): string => {
@@ -148,6 +148,7 @@ function MarketDisplay() {
               oddsApiId: _oddsApiId,
               homeOdds: formatContractValue(oddsData?._homeOdds),
               awayOdds: formatContractValue(oddsData?._awayOdds),
+              drawOdds: formatContractValue(oddsData?._drawOdds),
               // TODO: Add spread and total odds formatting
 
               // Use derived status flags

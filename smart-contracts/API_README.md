@@ -1,6 +1,6 @@
 # Smart Contracts API Server
 
-This API server allows you to deploy and interact with the NBA betting market smart contracts through simple HTTP endpoints.
+This API server allows you to deploy and interact with the betting market smart contracts for both NBA and Soccer markets through simple HTTP endpoints. The system supports both standard win/lose markets and markets with draw odds for soccer.
 
 ## Setup
 
@@ -98,18 +98,45 @@ Deploys a new MarketFactory contract.
 POST /api/market/create
 ```
 
-Request Body:
+#### NBA Market Example:
 ```json
 {
   "homeTeam": "Lakers",
   "awayTeam": "Celtics",
   "gameTimestamp": 1680307200,
-  "homeOdds": 1850,  // Optional, 1.850 odds (3 decimal precision)
-  "awayOdds": 2000   // Optional, 2.000 odds (3 decimal precision)
+  "homeOdds": 1850,      // Optional, 1.850 odds (3 decimal precision)
+  "awayOdds": 2000,      // Optional, 2.000 odds (3 decimal precision)
+  "drawOdds": 0,         // Set to 0 for NBA markets (no draw option)
+  "homeSpreadPoints": -75,
+  "homeSpreadOdds": 1910,
+  "awaySpreadOdds": 1910,
+  "totalPoints": 2105,
+  "overOdds": 1910,
+  "underOdds": 1910,
+  "marketFunding": 50000 // Optional funding amount in USDX
 }
 ```
 
-Creates a new NBA market. If homeOdds and awayOdds are omitted, creates a market without initial odds.
+#### Soccer Market Example (with Draw Odds):
+```json
+{
+  "homeTeam": "Arsenal",
+  "awayTeam": "Manchester City",
+  "gameTimestamp": 1680307200,
+  "homeOdds": 2500,      // 2.500 odds
+  "awayOdds": 2800,      // 2.800 odds
+  "drawOdds": 3000,      // 3.000 odds for draw outcome
+  "homeSpreadPoints": 0,  // Typically not used in soccer, set to 0 
+  "homeSpreadOdds": 0,
+  "awaySpreadOdds": 0,
+  "totalPoints": 0,      // Typically not used in soccer, set to 0
+  "overOdds": 0,
+  "underOdds": 0,
+  "marketFunding": 50000
+}
+```
+
+Creates a new market for the specified sport. If odds fields are omitted, creates a market without initial odds. Draw odds should be set for soccer markets and left as 0 for NBA markets.
 
 ### Update Odds
 
@@ -117,15 +144,37 @@ Creates a new NBA market. If homeOdds and awayOdds are omitted, creates a market
 POST /api/market/:address/update-odds
 ```
 
-Request Body:
+#### NBA Market Example:
 ```json
 {
-  "homeOdds": 1941,  // 1.941 odds (3 decimal precision)
-  "awayOdds": 1051   // 1.051 odds (3 decimal precision)
+  "homeOdds": 1800,       // 1.800 odds (3 decimal precision) 
+  "awayOdds": 2100,       // 2.100 odds (3 decimal precision)
+  "drawOdds": 0,          // Always 0 for NBA markets
+  "homeSpreadPoints": -45,
+  "homeSpreadOdds": 1910,
+  "awaySpreadOdds": 1910,
+  "totalPoints": 2155,
+  "overOdds": 1910,
+  "underOdds": 1910
 }
 ```
 
-Updates the odds for a specific market.
+#### Soccer Market Example:
+```json
+{
+  "homeOdds": 2600,       // 2.600 odds
+  "awayOdds": 2700,       // 2.700 odds
+  "drawOdds": 2950,       // 2.950 odds for draw outcome
+  "homeSpreadPoints": 0,  // Typically not used in soccer
+  "homeSpreadOdds": 0,
+  "awaySpreadOdds": 0,
+  "totalPoints": 0,
+  "overOdds": 0,
+  "underOdds": 0
+}
+```
+
+Updates the odds for a specific market. All parameters are required, but can be set to 0 for unused fields (like spread and totals in soccer).
 
 ### Update Game Status
 
@@ -144,11 +193,21 @@ Request Body (to set result):
 ```json
 {
   "action": "set-result",
-  "outcome": 1  // 1 for home win, 2 for away win
+  "homeScore": 112,
+  "awayScore": 109
 }
 ```
 
-Updates the game status (start game or set result).
+For Soccer with Draw Result:
+```json
+{
+  "action": "set-result",
+  "homeScore": 1,
+  "awayScore": 1  // Equal scores will settle as a draw
+}
+```
+
+Updates the game status (start game or set result). When setting results, provide the actual scores instead of an "outcome" value. For soccer matches, equal scores will settle draw bets as winners.
 
 ### Get Market Info
 
@@ -268,13 +327,76 @@ node scripts/create-market.js 0x1234... "Lakers" "Celtics" 1680307200 1850 2000
 node scripts/create-market.js 0x1234... "Lakers" "Celtics" 1680307200
 ```
 
+### Place Bet
+
+```
+POST /api/market/:address/place-bet
+```
+
+NBA Market Bet Examples:
+```json
+// Moneyline bet on home team
+{
+  "amount": 100,
+  "betType": "moneyline", 
+  "betSide": "home",    
+  "bettor": "0x90F79bf6EB2c4f870365E785982E1f101E93b906" 
+}
+
+// Spread bet on away team
+{
+  "amount": 100,
+  "betType": "spread", 
+  "betSide": "away",    
+  "bettor": "0x90F79bf6EB2c4f870365E785982E1f101E93b906" 
+}
+
+// Total (over/under) bet
+{
+  "amount": 100,
+  "betType": "total", 
+  "betSide": "over",    
+  "bettor": "0x90F79bf6EB2c4f870365E785982E1f101E93b906" 
+}
+```
+
+Soccer Market Draw Bet Example:
+```json
+{
+  "amount": 100,
+  "betType": "draw", 
+  "betSide": "draw",    // The betSide value is ignored for draw bets but "draw" is used for clarity
+  "bettor": "0x90F79bf6EB2c4f870365E785982E1f101E93b906" 
+}
+```
+
+Places a bet on a specific market. Valid betType values are:
+- "moneyline": Bet on team to win (betSide must be "home" or "away")
+- "spread": Bet on point spread (betSide must be "home" or "away")
+- "total": Bet on total points (betSide must be "over" or "under") 
+- "draw": Bet on a draw outcome (soccer only, betSide value is ignored)
+
 ### Update Odds Script
 
 ```bash
-node scripts/update-odds.js <marketAddress> <homeOdds> <awayOdds>
+# NBA Market
+node scripts/update-odds.js <marketAddress> <homeOdds> <awayOdds> <drawOdds> <homeSpreadPoints> <homeSpreadOdds> <awaySpreadOdds> <totalPoints> <overOdds> <underOdds>
 
 # Example:
-node scripts/update-odds.js 0x1234... 1941 1051
+node scripts/update-odds.js 0x1234... 1850 2000 0 -75 1910 1910 2105 1910 1910
+
+# Soccer Market (with draw odds)
+node scripts/update-odds.js 0x1234... 2500 2800 3000 0 0 0 0 0 0
+```
+
+### Create Market Script
+
+```bash
+# NBA Market
+node scripts/create-market.js "Lakers" "Celtics" 1680307200 "NBA_2023_LAL_BOS" 1850 2000 0 -75 1910 1910 2105 1910 1910 50000
+
+# Soccer Market (with draw odds)
+node scripts/create-market.js "Arsenal" "Manchester City" 1680307200 "SOCCER_2023_ARS_MCI" 2500 2800 3000 0 0 0 0 0 0 50000
 ```
 
 Each script uses the appropriate role signer for the operation being performed.

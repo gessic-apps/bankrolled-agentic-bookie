@@ -184,6 +184,7 @@ contract NBAMarket is ReentrancyGuard {
         returns (
             uint256 _homeOdds,
             uint256 _awayOdds,
+            uint256 _drawOdds, // Added draw odds
             int256 _homeSpreadPoints, 
             uint256 _homeSpreadOdds, 
             uint256 _awaySpreadOdds, 
@@ -267,7 +268,7 @@ contract NBAMarket is ReentrancyGuard {
     function placeBet(
         BettingEngine.BetType _betType, 
         uint256 _amount, 
-        bool _isBettingOnHomeOrOver // True for Home (ML/Spread), True for Over (Total)
+        bool _isBettingOnHomeOrOver // True for Home (ML/Spread), True for Over (Total), Not used for DRAW
     ) 
         external 
         nonReentrant
@@ -282,9 +283,14 @@ contract NBAMarket is ReentrancyGuard {
         int256 line = 0; // For spread/total points
 
         if (_betType == BettingEngine.BetType.MONEYLINE) {
-            (uint256 _homeOdds, uint256 _awayOdds) = oddsContract.getMoneylineOdds();
+            (uint256 _homeOdds, uint256 _awayOdds, ) = oddsContract.getMoneylineOdds();
             require(_homeOdds > 0 && _awayOdds > 0, "Moneyline odds not set in MarketOdds");
             odds = _isBettingOnHomeOrOver ? _homeOdds : _awayOdds;
+        } else if (_betType == BettingEngine.BetType.DRAW) {
+            (,,uint256 _drawOdds) = oddsContract.getMoneylineOdds();
+            require(_drawOdds > 0, "Draw odds not set in MarketOdds");
+            odds = _drawOdds;
+            // For DRAW bet, _isBettingOnHomeOrOver is ignored
         } else if (_betType == BettingEngine.BetType.SPREAD) {
             (int256 _homeSpreadPoints, uint256 _homeSpreadOdds, uint256 _awaySpreadOdds) = oddsContract.getSpreadDetails();
             require(_homeSpreadOdds > 0 && _awaySpreadOdds > 0, "Spread odds not set in MarketOdds");
