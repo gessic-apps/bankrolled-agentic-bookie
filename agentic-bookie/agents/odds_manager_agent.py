@@ -6,6 +6,7 @@ import datetime
 import time
 from pathlib import Path
 from typing import List, Dict, Any, Optional
+from typing_extensions import TypedDict
 from dotenv import load_dotenv
 
 # Add the project root to path if needed (adjust based on actual structure)
@@ -41,8 +42,9 @@ from agents import Agent, function_tool
 
 # Import tool functions (assuming they are defined elsewhere, e.g., in agentGroup.py or a tools module)
 # Placeholder definitions if not imported:
-@function_tool
-def get_existing_markets() -> List[Dict[str, Any]]:
+
+# Define implementation functions that can be called directly
+def get_existing_markets_impl() -> List[Dict[str, Any]]:
     """Fetches all existing betting markets from the smart contract API."""
     if not API_URL:
         print("Error: Cannot get existing markets, API_URL is not configured.", file=sys.stderr)
@@ -58,14 +60,10 @@ def get_existing_markets() -> List[Dict[str, Any]]:
         cleaned_markets = []
         if isinstance(markets_data, list):
             for market in markets_data:
-                # 1. Check for the fields actually provided by the API: address, oddsApiId, and status
                 if isinstance(market, dict) and all(k in market for k in ["address", "oddsApiId", "status"]):
-                    # 2. Derive isReadyForBetting based on the status
-                    # A market is ready for betting if its status is 'Open'
-                    market["isReadyForBetting"] = (market.get("status") == "Open")
-                    
-                    # Rename oddsApiId for consistency within this agent if needed, or use directly
-                    # market['odds_api_id'] = market.pop('oddsApiId') # Keep original name for now
+                    # A market is ready for betting if its status is 'Open' OR 'Pending'
+                    # Fix: Use logical OR instead of sequential assignment
+                    market["isReadyForBetting"] = (market.get("status") == "Open" or market.get("status") == "Pending")
                     cleaned_markets.append(market)
                 else:
                     # Updated warning message
@@ -83,9 +81,14 @@ def get_existing_markets() -> List[Dict[str, Any]]:
         print(f"An unexpected error occurred in get_existing_markets: {e}", file=sys.stderr)
         return []
 
-
+# Create function tools for the agent to use
 @function_tool
-def update_odds_for_market(
+def get_existing_markets() -> List[Dict[str, Any]]:
+    """Fetches all existing betting markets from the smart contract API."""
+    return get_existing_markets_impl()
+
+
+def update_odds_for_market_impl(
     market_address: str,
     home_odds: float,
     away_odds: float,
@@ -152,9 +155,175 @@ def update_odds_for_market(
          print(error_message, file=sys.stderr)
          return {"status": "error", "message": error_message, "market_address": market_address}
 
+@function_tool
+def update_odds_for_market(
+    market_address: str,
+    home_odds: float,
+    away_odds: float,
+    draw_odds: Optional[float],
+    home_spread_points: float,
+    home_spread_odds: float,
+    away_spread_odds: float,
+    total_points: float,
+    over_odds: float,
+    under_odds: float
+) -> Dict[str, Any]:
+    """Updates all odds types (moneyline including draw, spread, total) for a specific market. Expects decimal floats/points, converts to integer format for the API call. Draw odds should be provided for relevant markets (e.g., soccer), otherwise pass 0.0 or None."""
+    return update_odds_for_market_impl(
+        market_address, home_odds, away_odds, draw_odds, 
+        home_spread_points, home_spread_odds, away_spread_odds,
+        total_points, over_odds, under_odds
+    )
 
-@function_tool # Renamed and updated
-def fetch_games_with_odds(sport_keys: List[str]) -> List[Dict[str, Any]]:
+
+class OddsData(TypedDict, total=False):
+    market_address: str
+    home_odds: float
+    away_odds: float
+    draw_odds: Optional[float]
+    home_spread_points: float
+    home_spread_odds: float
+    away_spread_odds: float
+    total_points: float
+    over_odds: float
+    under_odds: float
+
+class BatchUpdateResult(TypedDict):
+    status: str
+    total_markets: int
+    successful_updates: int
+    failed_updates: int
+    results: List[Dict[str, Any]]
+
+def update_odds_for_multiple_markets_impl(
+    markets_data: List[OddsData]
+) -> BatchUpdateResult:
+    """Updates odds for multiple markets at once."""
+    if not API_URL:
+        print("Error: Cannot update odds, API_URL is not configured.", file=sys.stderr)
+        return {"status": "error", "message": "API_URL not configured"}
+    
+    results = []
+    print(f"Updating odds for {len(markets_data)} markets")
+    for market_data in markets_data:
+        try:
+            # Extract market info
+            market_address = market_data.get("market_address")
+            if not market_address:
+                results.append({"status": "error", "message": "Missing market_address in market data"})
+                continue
+                
+            # Extract odds data
+            home_odds = market_data.get("home_odds")
+            away_odds = market_data.get("away_odds")
+            draw_odds = market_data.get("draw_odds")
+            home_spread_points = market_data.get("home_spread_points")
+            home_spread_odds = market_data.get("home_spread_odds")
+            away_spread_odds = market_data.get("away_spread_odds")
+            total_points = market_data.get("total_points")
+            over_odds = market_data.get("over_odds")
+            under_odds = market_data.get("under_odds")
+            
+            # Validate essential data
+            if any(v is None for v in [home_odds, away_odds, home_spread_points, home_spread_odds, 
+                                      away_spread_odds, total_points, over_odds, under_odds]):
+                results.append({
+                    "status": "error", 
+                    "message": "Missing required odds data",
+                    "market_address": market_address
+                })
+                continue
+                
+            # Convert decimal floats/points to integer format
+            try:
+                payload = {
+                    "homeOdds": int(home_odds * 1000),
+                    "awayOdds": int(away_odds * 1000),
+                    "drawOdds": int(draw_odds * 1000) if draw_odds is not None and draw_odds >= 1.0 else 0,
+                    "homeSpreadPoints": int(home_spread_points * 10),
+                    "homeSpreadOdds": int(home_spread_odds * 1000),
+                    "awaySpreadOdds": int(away_spread_odds * 1000),
+                    "totalPoints": int(total_points * 10),
+                    "overOdds": int(over_odds * 1000),
+                    "underOdds": int(under_odds * 1000)
+                }
+            except (ValueError, TypeError) as e:
+                error_message = f"Error converting odds/points to integer format: {e}"
+                print(error_message, file=sys.stderr)
+                results.append({
+                    "status": "error", 
+                    "message": error_message,
+                    "market_address": market_address
+                })
+                continue
+                
+            # Make the API request
+            try:
+                url = f"{API_URL}/api/market/{market_address}/update-odds"
+                print(f"Updating odds for market {market_address}")
+                response = requests.post(url, json=payload)
+                response.raise_for_status()
+                result = response.json()
+                
+                results.append({
+                    "status": "success",
+                    "market_address": market_address,
+                    "decimal_odds_set": {
+                        "home": home_odds, "away": away_odds, "draw": draw_odds,
+                        "home_spread_points": home_spread_points, 
+                        "home_spread_odds": home_spread_odds, 
+                        "away_spread_odds": away_spread_odds,
+                        "total_points": total_points, 
+                        "over_odds": over_odds, 
+                        "under_odds": under_odds
+                    }
+                })
+            except requests.exceptions.HTTPError as e:
+                error_message = f"HTTP Error updating odds for market {market_address}: {e.response.status_code} - {e.response.text}"
+                print(error_message, file=sys.stderr)
+                results.append({
+                    "status": "error", 
+                    "message": error_message,
+                    "market_address": market_address
+                })
+            except requests.exceptions.RequestException as e:
+                error_message = f"Request Error updating odds for market {market_address}: {e}"
+                print(error_message, file=sys.stderr)
+                results.append({
+                    "status": "error", 
+                    "message": error_message,
+                    "market_address": market_address
+                })
+                
+        except Exception as e:
+            error_message = f"An unexpected error occurred processing market: {e}"
+            print(error_message, file=sys.stderr)
+            results.append({
+                "status": "error", 
+                "message": error_message,
+                "market_address": market_data.get("market_address", "unknown")
+            })
+    
+    summary = {
+        "status": "completed",
+        "total_markets": len(markets_data),
+        "successful_updates": sum(1 for r in results if r.get("status") == "success"),
+        "failed_updates": sum(1 for r in results if r.get("status") == "error"),
+        "results": results
+    }
+    
+    print(f"Completed batch update of {summary['total_markets']} markets: {summary['successful_updates']} successful, {summary['failed_updates']} failed")
+    return summary
+
+@function_tool
+def update_odds_for_multiple_markets(
+    markets_data: List[OddsData]
+) -> BatchUpdateResult:
+    """Updates odds for multiple markets at once."""
+    return update_odds_for_multiple_markets_impl(markets_data)
+
+
+def fetch_games_with_odds_impl(sport_keys: List[str]) -> List[Dict[str, Any]]:
     """Fetches today's games for the specified sports with latest H2H, Spreads, and Totals odds (decimal float/points) from The Odds API."""
     if not SPORTS_API_KEY:
         print("Error: Cannot fetch games with odds, SPORTS_API_KEY is missing.", file=sys.stderr)
@@ -395,6 +564,113 @@ def fetch_games_with_odds(sport_keys: List[str]) -> List[Dict[str, Any]]:
     print(f"Total unique games with complete odds found across all sports: {len(all_games_with_full_odds)}")
     return all_games_with_full_odds
 
+@function_tool
+def fetch_games_with_odds(sport_keys: List[str]) -> List[Dict[str, Any]]:
+    """Fetches today's games for the specified sports with latest H2H, Spreads, and Totals odds (decimal float/points) from The Odds API."""
+    return fetch_games_with_odds_impl(sport_keys)
+
+
+# Define function without decorator first so it can be called directly
+def fetch_and_update_all_markets_impl() -> Dict[str, Any]:
+    """Fetches games with odds, gets existing markets, and updates all market odds in a single operation."""
+    # Step 1: Fetch games with odds for all supported sports
+    print("Fetching games with odds for all supported sports...")
+    games_with_odds = fetch_games_with_odds_impl(SUPPORTED_SPORT_KEYS)
+    print(f"Found {len(games_with_odds)} games with complete odds data")
+    
+    if not games_with_odds:
+        return {
+            "status": "error", 
+            "message": "No games with odds found from The Odds API",
+            "total_markets_with_odds": 0,
+            "total_markets_updated": 0
+        }
+    
+    # Step 2: Create a mapping from odds_api_id to odds data for efficient lookup
+    odds_api_id_to_odds = {
+        game["odds_api_id"]: game["odds"] 
+        for game in games_with_odds
+    }
+    print(f"Created mapping for {len(odds_api_id_to_odds)} games by odds API ID")
+    
+    # Step 3: Get existing markets directly from the API
+    print("Fetching existing markets from platform API...")
+    existing_markets = get_existing_markets_impl()
+    print(f"Found {len(existing_markets)} existing markets")
+    
+    if not existing_markets:
+        return {
+            "status": "error", 
+            "message": "No existing markets found from the platform API",
+            "total_markets_with_odds": len(odds_api_id_to_odds),
+            "total_markets_updated": 0
+        }
+    
+    # Step 4: Match markets with odds and prepare update data
+    markets_for_update = []
+    for market in existing_markets:
+        odds_api_id = market.get("oddsApiId")
+        market_address = market.get("address")
+        
+        if not (odds_api_id and market_address):
+            print(f"Warning: Market missing oddsApiId or address: {market}")
+            continue
+            
+        # Check if we have odds for this market
+        if odds_api_id in odds_api_id_to_odds:
+            odds_data = odds_api_id_to_odds[odds_api_id]
+            
+            # Create a market data entry with all required fields
+            market_data = {
+                "market_address": market_address,
+                "home_odds": odds_data.get("home_odds"),
+                "away_odds": odds_data.get("away_odds"),
+                "draw_odds": odds_data.get("draw_odds"),
+                "home_spread_points": odds_data.get("home_spread_points"),
+                "home_spread_odds": odds_data.get("home_spread_odds"),
+                "away_spread_odds": odds_data.get("away_spread_odds"),
+                "total_points": odds_data.get("total_points"),
+                "over_odds": odds_data.get("over_odds"),
+                "under_odds": odds_data.get("under_odds")
+            }
+            
+            # Ensure all required odds data is present
+            if all(v is not None for k, v in market_data.items() if k != "draw_odds"):
+                markets_for_update.append(market_data)
+            else:
+                print(f"Warning: Incomplete odds data for market {market_address} (odds API ID: {odds_api_id})")
+    
+    # Step 5: Update all markets with available odds data
+    print(f"Preparing to update {len(markets_for_update)} markets with available odds data")
+    
+    if not markets_for_update:
+        return {
+            "status": "warning",
+            "message": "No markets matched with available odds data",
+            "total_markets_with_odds": len(odds_api_id_to_odds),
+            "total_markets_updated": 0
+        }
+    
+    # Perform the batch update
+    update_results = update_odds_for_multiple_markets_impl(markets_for_update)
+    
+    # Step 6: Return combined result summary
+    return {
+        "status": "success",
+        "message": f"Updated {update_results['successful_updates']} of {len(markets_for_update)} markets with odds",
+        "total_markets_with_odds": len(odds_api_id_to_odds),
+        "total_existing_markets": len(existing_markets),
+        "total_markets_matched": len(markets_for_update),
+        "total_markets_updated": update_results["successful_updates"],
+        "failed_updates": update_results["failed_updates"],
+        "detailed_results": update_results["results"]
+    }
+
+# Create a function tool version that can be used by the agent
+@function_tool
+def fetch_and_update_all_markets() -> Dict[str, Any]:
+    """Fetches games with odds, gets existing markets, and updates all market odds in a single operation."""
+    return fetch_and_update_all_markets_impl()
 
 # Define the Odds Manager Agent
 odds_manager_agent = Agent(
@@ -402,18 +678,37 @@ odds_manager_agent = Agent(
     handoff_description="Specialist agent for managing and updating odds (including draw odds for soccer) for NBA & Soccer betting markets",
     instructions="""
     You are the Odds Manager Agent. Your goal is to set or update odds (moneyline including draw, spreads, totals) for markets across supported sports (NBA & Soccer).
-    1. Call `fetch_games_with_odds` with the list of supported sport keys (`SUPPORTED_SPORT_KEYS`). This tool fetches the latest H2H (including draw odds for soccer, which will be 0.0 if not applicable/found), spreads, and totals odds in *decimal* format from The Odds API. Each result contains `odds_api_id`, `sport_key`, and an `odds` dictionary.
-    2. Create a mapping from `odds_api_id` to the fetched game/odds data (the entire dictionary including `sport_key` and `odds`) from step 1 for efficient lookup.
-    3. Call `get_existing_markets` to get all current markets from your platform's API. Note: These markets might *not* have `sportKey` and could have various statuses (e.g., "Pending", "Open").
-    4. Iterate through the existing markets obtained in step 3. For each market, regardless of its `status`:
-        a. Use the market's `oddsApiId` to look up the corresponding game/odds data in the mapping created in step 2.
-        b. If a match is found in the map and it contains a valid `odds` dictionary:
-           i. Extract all the decimal odds/points (home_odds, away_odds, draw_odds, home_spread_points, home_spread_odds, away_spread_odds, total_points, over_odds, under_odds) from the matched `odds` data. Note that `draw_odds` will be 0.0 if not applicable (e.g., for NBA).
-           ii. Call `update_odds_for_market` using the market's `address` and *all* these extracted decimal float odds/points, explicitly including `draw_odds`. The tool handles the conversion to the required integer format for the API (sending `drawOdds: 0` if the input `draw_odds` is 0.0 or invalid). The underlying API call will determine if the update is allowed based on the market's current status.
-        c. If no match is found in the map for the market's `oddsApiId`, log a warning (the game might not be happening today or odds aren't available yet) and continue to the next market.
-    5. Report back a summary of the markets you attempted to update (providing market address and the *decimal* odds set including draw) or could not find odds data for. Include any errors returned by the `update_odds_for_market` tool (e.g., if the API rejected the update due to market status).
+    
+    IMPORTANT: Use the simplified combined approach to update all markets at once:
+    
+    1. Call `fetch_and_update_all_markets()` which will:
+       - Fetch games with latest odds from The Odds API for all supported sports
+       - Get existing markets from your platform's API
+       - Match markets with their corresponding odds
+       - Update all matched markets in a single batch operation
+       - Return a comprehensive summary of the update process
+    
+    2. Report back the summary of results, including:
+       - How many markets had odds data available
+       - How many existing markets were found
+       - How many markets were matched and updated successfully
+       - Any errors that occurred
+    
+    For special cases with only a few markets, you can still use the individual update functions:
+    - `fetch_games_with_odds` to get just odds data
+    - `get_existing_markets` to get just market data
+    - `update_odds_for_market` for single market updates
+    - `update_odds_for_multiple_markets` for batch updates
+    
+    But for normal operation, prefer the combined `fetch_and_update_all_markets` function.
     """,
-    tools=[get_existing_markets, update_odds_for_market, fetch_games_with_odds],
+    tools=[
+        get_existing_markets, 
+        update_odds_for_market, 
+        update_odds_for_multiple_markets, 
+        fetch_games_with_odds,
+        fetch_and_update_all_markets
+    ],
     # DO NOT CHANGE THIS MODEL FROM THE CURRENT SETTING
     model="gpt-4o-mini-2024-07-18",
     # No context type needed
@@ -426,13 +721,21 @@ if __name__ == '__main__':
     import asyncio
 
     async def test_odds_management():
-        # Input prompt to trigger the agent's logic
-        prompt = f"Set or update odds for all markets in supported sports: {', '.join(SUPPORTED_SPORT_KEYS)}."
-        print(f"--- Running Odds Manager Agent with prompt: '{prompt}' ---")
         # Ensure environment variables are loaded if running directly
         if not SPORTS_API_KEY or not API_URL:
              print("Error: Missing SPORTS_API_KEY or API_URL in .env file. Cannot run test.", file=sys.stderr)
              return
+        
+        # Option 1: Test the combined function directly
+        print("--- Testing fetch_and_update_all_markets function directly ---")
+        result = fetch_and_update_all_markets_impl()  # Call the implementation function directly
+        print("--- Function Result ---")
+        print(result)
+        print("---------------------------------")
+        
+        # Option 2: Test through the agent
+        prompt = f"Set or update odds for all markets in supported sports: {', '.join(SUPPORTED_SPORT_KEYS)}."
+        print(f"--- Running Odds Manager Agent with prompt: '{prompt}' ---")
         result = await Runner.run(odds_manager_agent, prompt)
         print("--- Odds Manager Agent Result ---")
         print(result.final_output)
