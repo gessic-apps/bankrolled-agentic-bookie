@@ -163,6 +163,7 @@ def check_completed_games(markets_to_check: List[MarketInfo]) -> List[Dict[str, 
     days_from = 3 # Check games from the last 3 days
 
     # --- 1. Check games with known sport keys ---
+    print(f"Checking {len(games_by_known_sport)} known sport keys... {list(games_by_known_sport.keys())}") # Log only keys for brevity
     for sport_key, game_ids_for_sport in games_by_known_sport.items():
         unique_game_ids_for_sport = list(set(game_ids_for_sport)) # Remove duplicates for this sport batch
 
@@ -207,41 +208,39 @@ def check_completed_games(markets_to_check: List[MarketInfo]) -> List[Dict[str, 
         except Exception as e:
             print(f"An unexpected error occurred checking completed games for known sportKey {sport_key}: {e}", file=sys.stderr)
 
-    # --- 2. Check games with unknown sport keys (try all soccer keys) ---
+    # --- 2. Check games with unknown/unrecognized sport keys (try ALL known keys) ---
+    # Combine all known sport keys to iterate through
+    all_known_sport_keys = SOCCER_SPORT_KEYS + NON_SOCCER_SPORT_KEYS # <-- Define combined list
     # Filter out IDs that might have already been found via a known sportKey check
-    ids_to_check_against_soccer = list(ids_with_unknown_sport - processed_ids)
+    ids_to_check_fallback = list(ids_with_unknown_sport - processed_ids)
 
-    if ids_to_check_against_soccer:
-        print(f"Checking {len(ids_to_check_against_soccer)} games with unknown sportKey against all soccer leagues...")
-        event_ids_param = ",".join(ids_to_check_against_soccer)
+    if ids_to_check_fallback:
+        print(f"Checking {len(ids_to_check_fallback)} games with unknown/unrecognized sportKey against all {len(all_known_sport_keys)} known leagues...")
 
-        for soccer_key in SOCCER_SPORT_KEYS:
-            # Avoid re-checking if the ID was already processed
-            if not (ids_with_unknown_sport - processed_ids):
-                 print("All unknown sportKey games have been processed. Stopping soccer checks.")
+        for potential_sport_key in all_known_sport_keys: # <-- Iterate through the combined list
+            # Avoid re-checking if the ID was already processed by a previous iteration of this loop
+            current_ids_to_check = list(ids_with_unknown_sport - processed_ids)
+            if not current_ids_to_check:
+                 print("All unknown/unrecognized sportKey games have been processed. Stopping fallback checks.")
                  break # No more IDs left to check
 
             try:
-                # Re-filter event IDs for *this specific* soccer key iteration
-                current_ids_to_check = list(ids_with_unknown_sport - processed_ids)
-                if not current_ids_to_check: continue # Skip if none left for this key
-
                 event_ids_param_current = ",".join(current_ids_to_check)
 
-                print(f"Attempting check against soccer key: {soccer_key} for {len(current_ids_to_check)} IDs...")
+                print(f"Attempting fallback check against key: {potential_sport_key} for {len(current_ids_to_check)} IDs...") # <-- Updated print
                 response = requests.get(
-                    f"https://api.the-odds-api.com/v4/sports/{soccer_key}/scores/",
+                    f"https://api.the-odds-api.com/v4/sports/{potential_sport_key}/scores/",
                     params={
                         "apiKey": SPORTS_API_KEY,
                         "dateFormat": date_format,
                         "daysFrom": days_from,
-                        "eventIds": event_ids_param_current # Use the potentially reduced list
+                        "eventIds": event_ids_param_current
                     }
                 )
                 response.raise_for_status()
                 api_data = response.json()
 
-                completed_this_soccer_key = 0
+                completed_this_fallback_key = 0
                 for game in api_data:
                     game_id = game.get("id")
                     # Check if ID is valid, was in the unknown list, and not already processed
@@ -252,21 +251,23 @@ def check_completed_games(markets_to_check: List[MarketInfo]) -> List[Dict[str, 
                     if completed:
                         game_info = extract_valid_completed_game_info(game)
                         if game_info:
+                            # Add the sport key we found it under for potential future use/debugging
+                            game_info["found_under_sportKey"] = potential_sport_key # <-- Optional: Add found key
                             all_completed_games_info.append(game_info)
                             processed_ids.add(game_id) # Mark as processed globally
-                            completed_this_soccer_key += 1
+                            completed_this_fallback_key += 1
 
-                if completed_this_soccer_key > 0:
-                     print(f"Found {completed_this_soccer_key} completed games with scores checking against {soccer_key}.")
+                if completed_this_fallback_key > 0:
+                     print(f"Found {completed_this_fallback_key} completed games with scores checking against fallback key {potential_sport_key}.") # <-- Updated print
 
             except requests.exceptions.RequestException as e:
                 # Don't print error for 404/422 if it's just because the game ID isn't in this sport key
                 if isinstance(e, requests.exceptions.HTTPError) and e.response.status_code in [404, 422]:
-                     print(f"Info: No results found for pending IDs checking against {soccer_key} (HTTP {e.response.status_code}).")
+                     print(f"Info: No results found for pending IDs checking against {potential_sport_key} (HTTP {e.response.status_code}). This is expected if IDs belong to other sports.") # <-- Updated print
                 else:
-                    print(f"Error fetching game completion status checking against soccer key {soccer_key}: {e}", file=sys.stderr)
+                    print(f"Error fetching game completion status checking against fallback key {potential_sport_key}: {e}", file=sys.stderr) # <-- Updated print
             except Exception as e:
-                print(f"An unexpected error occurred checking completed games against soccer key {soccer_key}: {e}", file=sys.stderr)
+                print(f"An unexpected error occurred checking completed games against fallback key {potential_sport_key}: {e}", file=sys.stderr) # <-- Updated print
 
 
     total_checked_count = len(markets_to_check)
