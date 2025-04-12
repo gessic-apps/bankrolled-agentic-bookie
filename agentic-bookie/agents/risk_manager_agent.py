@@ -18,8 +18,8 @@ if not API_URL:
 # Import Agent SDK components
 from agents import Agent, function_tool
 
-# Import the Monte Carlo simulation tool
-from .monte_carlo_sim import run_market_simulation
+# Import Monte Carlo simulation tool
+from monte_carlo_sims import analyze_market_risk, bulk_analyze_markets
 
 # --- Tool Definitions ---
 
@@ -144,6 +144,158 @@ def get_liquidity_pool_info() -> Dict[str, Any]:
         print(f"An unexpected error occurred in get_liquidity_pool_info: {e}", file=sys.stderr)
         return {"status": "error", "message": str(e)}
 
+# Monte Carlo simulation tools
+@function_tool
+def run_monte_carlo_analysis(
+    market_address: str,
+    oddsApiId: str,
+    status: str,
+    currentExposure: float,
+    maxExposure: float,
+    homeOdds: float,
+    awayOdds: float,
+    homeSpreadPoints: float,
+    homeSpreadOdds: float,
+    awaySpreadOdds: float,
+    totalPoints: float,
+    overOdds: float,
+    underOdds: float,
+    num_simulations: int
+) -> str:
+    """
+    Run Monte Carlo simulation on a market to assess risk and recommend actions.
+    
+    Args:
+        market_address: The blockchain address of the market
+        oddsApiId: The odds API identifier for the market
+        status: Current market status (e.g., "Open")
+        currentExposure: Total current exposure amount
+        maxExposure: Maximum allowed exposure
+        homeOdds: Current home team odds (moneyline)
+        awayOdds: Current away team odds (moneyline)
+        homeSpreadPoints: Current home spread points
+        homeSpreadOdds: Current home spread odds
+        awaySpreadOdds: Current away spread odds
+        totalPoints: Current total points line
+        overOdds: Current over odds
+        underOdds: Current under odds
+        num_simulations: Number of simulations to run
+        
+    Returns:
+        JSON string containing risk assessment and recommendations
+    """
+    # Use a default value for num_simulations if needed
+    if num_simulations <= 0:
+        num_simulations = 10000
+    
+    market_data = {
+        "address": market_address,
+        "oddsApiId": oddsApiId,
+        "status": status,
+        "currentExposure": currentExposure,
+        "maxExposure": maxExposure,
+        "homeOdds": homeOdds,
+        "awayOdds": awayOdds,
+        "homeSpreadPoints": homeSpreadPoints,
+        "homeSpreadOdds": homeSpreadOdds,
+        "awaySpreadOdds": awaySpreadOdds,
+        "totalPoints": totalPoints,
+        "overOdds": overOdds,
+        "underOdds": underOdds
+    }
+    
+    result = analyze_market_risk(market_data, None, num_simulations)
+    
+    # Return as string for easier compatibility
+    import json
+    return json.dumps(result, indent=2)
+
+@function_tool
+def run_monte_carlo_analysis_with_exposure(
+    market_address: str,
+    oddsApiId: str,
+    status: str,
+    currentExposure: float,
+    maxExposure: float,
+    homeOdds: float,
+    awayOdds: float,
+    homeSpreadPoints: float,
+    homeSpreadOdds: float,
+    awaySpreadOdds: float,
+    totalPoints: float,
+    overOdds: float,
+    underOdds: float,
+    exposure_home: float,
+    exposure_away: float,
+    exposure_over: float,
+    exposure_under: float,
+    exposure_home_spread: float,
+    exposure_away_spread: float,
+    num_simulations: int
+) -> str:
+    """
+    Run Monte Carlo simulation with detailed exposure distribution.
+    
+    Args:
+        market_address: The blockchain address of the market
+        oddsApiId: The odds API identifier for the market
+        status: Current market status (e.g., "Open")
+        currentExposure: Total current exposure amount
+        maxExposure: Maximum allowed exposure
+        homeOdds: Current home team odds (moneyline)
+        awayOdds: Current away team odds (moneyline)
+        homeSpreadPoints: Current home spread points
+        homeSpreadOdds: Current home spread odds
+        awaySpreadOdds: Current away spread odds
+        totalPoints: Current total points line
+        overOdds: Current over odds
+        underOdds: Current under odds
+        exposure_home: Exposure amount on home team moneyline
+        exposure_away: Exposure amount on away team moneyline
+        exposure_over: Exposure amount on over total
+        exposure_under: Exposure amount on under total
+        exposure_home_spread: Exposure amount on home team spread
+        exposure_away_spread: Exposure amount on away team spread
+        num_simulations: Number of simulations to run
+        
+    Returns:
+        JSON string containing risk assessment and recommendations
+    """
+    market_data = {
+        "address": market_address,
+        "oddsApiId": oddsApiId,
+        "status": status,
+        "currentExposure": currentExposure,
+        "maxExposure": maxExposure,
+        "homeOdds": homeOdds,
+        "awayOdds": awayOdds,
+        "homeSpreadPoints": homeSpreadPoints,
+        "homeSpreadOdds": homeSpreadOdds,
+        "awaySpreadOdds": awaySpreadOdds,
+        "totalPoints": totalPoints,
+        "overOdds": overOdds,
+        "underOdds": underOdds
+    }
+    
+    # Use a default value for num_simulations if needed
+    if num_simulations <= 0:
+        num_simulations = 10000
+    
+    exposure_distribution = {
+        "home": exposure_home,
+        "away": exposure_away,
+        "over": exposure_over,
+        "under": exposure_under,
+        "home_spread": exposure_home_spread,
+        "away_spread": exposure_away_spread
+    }
+    
+    result = analyze_market_risk(market_data, exposure_distribution, num_simulations)
+    
+    # Return as string for easier compatibility
+    import json
+    return json.dumps(result, indent=2)
+
 # --- Tool Definition from odds_manager_agent ---
 @function_tool
 def update_odds_for_market(
@@ -215,64 +367,74 @@ def update_odds_for_market(
 
 risk_manager_agent = Agent(
     name="Risk Manager Agent",
-    handoff_description="Specialist agent for managing market risk, including liquidity provision, odds adjustments, and running simulations.",
+    handoff_description="Specialist agent for managing market risk, including liquidity provision and odds adjustments.",
     instructions="""
     You are the Risk Manager Agent. Your primary goals are:
-    1. Monitor betting markets to manage overall risk exposure.
-    2. Adjust market odds dynamically to balance betting action and mitigate exposure imbalances.
-    3. Add liquidity strategically to markets where needed.
-    4. Utilize Monte Carlo simulations for deeper risk assessment in complex or high-risk situations.
-
+    1. Monitor betting markets to manage overall risk exposure by adding liquidity where needed.
+    2. Adjust market odds dynamically to balance betting action and mitigate exposure imbalances on specific outcomes (e.g., H2H, spreads, totals).
+    
     Your workflow should be as follows:
-
-    1. Call `get_all_markets` to retrieve information about all current markets, including status, exposure metrics (`currentExposure`, `maxExposure`), current odds (H2H, spreads, totals), market ID (`address` or `oddsApiId` as appropriate for context), and time remaining until the event if available.
-    2. Analyze each 'Open' market:
-       a. **Exposure Imbalance:** Assess `currentExposure` distribution across outcomes. Identify heavily skewed markets (e.g., > 75% exposure on one side).
-       b. **Overall Exposure:** Check `currentExposure` vs. `maxExposure` ratio (e.g., > 80%).
-       c. **Identify High-Risk Scenarios:** Flag markets with very high exposure ratios, significant imbalances, or large potential payouts based on current odds and exposure.
-
-    3. **Advanced Risk Assessment (Monte Carlo Simulation - Optional but Recommended for High-Risk):**
-       a. For markets identified as high-risk or where simple analysis is insufficient, consider using the `run_market_simulation` tool.
-       b. **Formulate Models:** Before calling the simulation, you MUST formulate:
-          i. `bet_velocity_model`: Conceptualize a simple model or function based on current market dynamics (e.g., time to event, current odds attractiveness, recent betting trends if known) to predict future bet volume and direction. This could be a simple assumption (e.g., 'expect X amount of bets skewed towards outcome Y based on current odds') or a more dynamic estimation.
-          ii. `outcome_probability_model`: Estimate the 'true' probabilities of each outcome. This could be derived from normalizing the current odds (removing the bookmaker's margin) or potentially incorporating other factors you deem relevant.
-       c. **Call Simulation:** Execute `run_market_simulation` providing the market details, current state, and the models you formulated. Key inputs include `market_id`, `current_odds`, `current_liquidity` (or `maxExposure` if more relevant), `time_to_event`, `current_exposure`, `bet_velocity_model`, and `outcome_probability_model`.
-       d. **Interpret Results:** Analyze the simulation output, paying close attention to `value_at_risk`, `expected_profit`, `suggested_odds`, and `recommended_max_bet_size`.
-
-    4. **Odds Adjustment Strategy (Balance the Book):**
-       a. Based on exposure analysis (Step 2) AND/OR simulation results (Step 3, if performed):
-          i. Determine necessary odds adjustments to incentivize betting on the less popular side or reduce overall risk.
-          ii. If simulation was run, use its `suggested_odds` as a strong guideline, but apply your own judgment.
-          iii. Calculate the final *new* decimal odds/points.
-          iv. Call `update_odds_for_market` with the market's `address` and the full set of new decimal odds/points. Provide detailed reasoning for the changes based on your analysis/simulation.
-
-    5. **Liquidity Management Strategy:**
-       a. Check global liquidity using `get_liquidity_pool_info`.
-       b. Based on exposure analysis (Step 2) AND/OR simulation results (Step 3, `value_at_risk`, `liquidity_adjustment_recommendation`):
-          i. Identify markets needing liquidity (high exposure ratio, high VaR compared to liquidity).
-          ii. Determine an appropriate `amount` to add, considering available global funds and the simulation's recommendations.
-          iii. Call `add_liquidity_to_market`.
-
-    6. **Reporting:** Report a summary of your actions:
-       a. Markets analyzed.
-       b. Simulations run (if any): Key inputs (especially model assumptions) and outputs (VaR, recommendations).
-       c. Odds adjustments: Address, reason (imbalance, simulation result), and new decimal odds.
-       d. Liquidity additions: Address, reason (exposure, VaR), amount added.
-       e. Markets needing no action (with reasoning).
-       f. Overall risk assessment.
-       g. Give extremely detailed reasoning for odds changes (paragraph+).
-
-    Note: Prioritize actions based on risk severity. Use simulations judiciously for complex cases. Balance risk mitigation with market attractiveness. Ensure models passed to simulation reflect your best current assessment.
+    
+    1. Call `get_all_markets` to retrieve information about all current markets, including their status, exposure metrics (`currentExposure`, `maxExposure`), and crucially, their *current odds* for H2H, spreads, and totals. (Note: Assumes `get_all_markets` provides current odds data alongside exposure).
+    
+    2. Analyze each market ('Open' status only):
+       a. **Initial Assessment:** Quickly assess if a market shows concerning risk patterns that warrant detailed analysis:
+          i. **Exposure Imbalance:** Check if the distribution of `currentExposure` across different betting outcomes appears heavily skewed (e.g., > 75% of exposure on one outcome).
+          ii. **Overall Exposure:** Check the ratio of `currentExposure` to `maxExposure`. High ratios (e.g., > 80%) indicate potential need for more liquidity or more aggressive odds adjustments.
+       
+       b. **Monte Carlo Simulation (for high-risk markets):** For markets showing potential risk concerns, use the Monte Carlo simulation tools:
+          i. For individual markets of concern: Call `run_monte_carlo_analysis` with the market data.
+          ii. If you have detailed exposure breakdown by bet type, use `run_monte_carlo_analysis_with_exposure` instead, which allows you to specify exact exposure amounts for each bet type (home, away, over, under, etc.).
+          iii. The simulation will provide:
+              - A risk status assessment (normal, elevated, high, critical)
+              - Recommended odds adjustments based on sophisticated risk modeling
+              - Liquidity requirements if needed
+              - Detailed rationale for all recommendations
+              - Additional bet size limits and other risk controls if warranted
+    
+    3. **Odds Adjustment Strategy (Balance the Book):**
+       a. For markets identified with significant exposure imbalance:
+          i. If you used Monte Carlo analysis, implement the recommended odds adjustments from the simulation.
+          ii. Otherwise, determine *new* odds designed to incentivize betting on the less popular side. This involves making the odds for the *under-bet* side more attractive (e.g., increase decimal odds slightly) and the odds for the *over-bet* side less attractive (e.g., decrease decimal odds slightly).
+          iii. Calculate these new odds based on the *current* odds obtained in step 1 and the severity of the imbalance. Act like an experienced sportsbook risk operator aiming to reduce liability on the overexposed side. *Do not* use external odds feeds for this; the adjustment must be based on your internal risk assessment.
+          iv. Call `update_odds_for_market` with the market's `address` and the full set of newly calculated decimal odds/points.
+    
+    4. **Liquidity Management Strategy:**
+       a. Check the global liquidity pool status by calling `get_liquidity_pool_info` to understand available funds.
+       b. For markets with Monte Carlo analysis, use the recommended liquidity amount from the simulation if available.
+       c. Otherwise, identify markets needing liquidity based on high `currentExposure` / `maxExposure` ratio (e.g., > 80%), especially if odds adjustments alone might not suffice or if overall volume is high.
+       d. Determine an appropriate liquidity amount to add (e.g., 1000-10000 units based on exposure level and available pool funds).
+       e. Call `add_liquidity_to_market` with the market's `address` and the determined `amount`.
+    
+    5. **When to Use Monte Carlo Simulations:**
+       a. Use `run_monte_carlo_analysis` for individual markets when:
+          i. The market shows significant imbalance (> 60% exposure on one side)
+          ii. The currentExposure/maxExposure ratio is high (> 70%)
+          iii. The market has high total stakes/volume
+          iv. You need detailed, mathematically rigorous odds adjustments
+          v. You need to determine optimal liquidity requirements
+       
+       b. For markets with low current exposure or minimal imbalance, you can skip the Monte Carlo analysis to save computational resources and use your standard risk assessment.
+    
+    6. **Reporting:** Report a summary of your actions, including:
+       a. Markets where odds were adjusted: Address, the reason (exposure imbalance), and the *new* decimal odds set.
+       b. Markets where liquidity was added: Address, the reason (high overall exposure), and the amount added.
+       c. Markets considered but where no action was taken (with reasoning).
+       d. Overall assessment of the current risk status across all markets.
+       e. Give extremely detailed reasoning for why you change odds, in either direction - at least a paragraph or two. If you used Monte Carlo simulations, include key insights from the analysis in your explanation.
+    
+    Note: Prioritize actions based on risk severity. Significant imbalances might require both odds adjustments and liquidity addition. If global liquidity is limited, focus on the highest-risk markets. Maintain a balanced approach to ensure market attractiveness while controlling exposure. The Monte Carlo simulation tools provide data-driven, mathematically rigorous recommendations, but you should still apply your judgment as a risk manager.
     """,
     tools=[
         get_all_markets,
         add_liquidity_to_market,
         get_liquidity_pool_info,
         update_odds_for_market,
-        run_market_simulation
+        run_monte_carlo_analysis,
+        run_monte_carlo_analysis_with_exposure
     ],
     # DO NOT CHANGE THIS MODEL FROM THE CURRENT SETTING
-    model="gpt-4o-mini-2024-07-18",
+    model="gpt-4o-2024-11-20",
     # No context type needed
 )
 

@@ -1,0 +1,37 @@
+{
+  "market": {
+    "id": "market-12345",
+    "name": "Barcelona vs Real Madrid",
+    "currentOdds": {
+      "home": 2.5,
+      "away": 2.8,
+      "draw": 3.4
+    },
+    "currentLiquidity": 75000,
+    "betLimits": {
+      "home": 5000,
+      "away": 5000,
+      "draw": 3000
+    },
+    "exposures": {
+      "home": -1500,
+      "away": 2000,
+      "draw": 500
+    },
+    "marketType": "moneyline",
+    "sport": "Soccer",
+    "league": "La Liga"
+  },
+  "config": {
+    "numSimulations": 1000,
+    "numUsers": 300,
+    "avgBetsPerUser": 2.0,
+    "riskTolerance": 0.7,
+    "targetMargin": 0.04,
+    "maxExposurePercentage": 0.25,
+    "oddsAdjustmentFactor": 0.6,
+    "bettingPeriodHours": 3,
+    "maxOddsVariation": 0.1,
+    "maxBankroll": 1000000
+  }
+}
