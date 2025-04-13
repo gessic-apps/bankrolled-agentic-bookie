@@ -2607,7 +2607,19 @@
       "overOdds": 1910,
       "underOdds": 1910,
       "oddsSet": true,
-      "updatedAt": "2025-04-13T15:22:53.763Z"
+      "updatedAt": "2025-04-13T15:22:53.763Z",
+      "additionalFunding": [
+        {
+          "amount": 50000,
+          "timestamp": "2025-04-13T15:52:36.766Z",
+          "transaction": "0xb7b312d8866f2599adddf8efd24f8881daed44cc0db06ee53203608af1e7bf4f"
+        },
+        {
+          "amount": 5000,
+          "timestamp": "2025-04-13T15:55:45.812Z",
+          "transaction": "0x129753ac04e1dbd6becfaefa4307911ee8a464687a3b33a2fb949bf9b8cd2395"
+        }
+      ]
     },
     {
       "address": "0x63BcA99733C17254174AD2A79268dd05E923CAaD",
