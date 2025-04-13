@@ -4,21 +4,16 @@ pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "./LiquidityPool.sol";
+import "./MarketExposureManager.sol";
 
 /**
  * @title BettingEngine
  * @dev Handles betting operations for NBAMarket contracts
  */
-contract BettingEngine is ReentrancyGuard {
+contract BettingEngine is ReentrancyGuard, MarketExposureManager {
     // Token
     IERC20 public usdx;
-    LiquidityPool public liquidityPool;
-    
-    // Parent market
-    address public marketAddress;
-    
-    // Bet Type Enum
-    enum BetType { MONEYLINE, SPREAD, TOTAL, DRAW }
+    LiquidityPool public _liquidityPool;
     
     // Bet tracking
     struct Bet {
@@ -36,10 +31,6 @@ contract BettingEngine is ReentrancyGuard {
     Bet[] public bets;
     mapping(address => uint256[]) public bettorToBets;
     
-    // Current financial status
-    uint256 public maxExposure;
-    uint256 public currentExposure;
-    
     // Events
     event BetPlaced(
         uint256 indexed betId, 
@@ -55,11 +46,7 @@ contract BettingEngine is ReentrancyGuard {
     event MarketSettled(uint256 returnedToPool);
     event BetsRefunded(uint256 totalRefunded);
     
-    // Modifiers
-    modifier onlyMarket() {
-        require(msg.sender == marketAddress, "Only the market contract can call this function");
-        _;
-    }
+    // Modifiers - implemented via MarketExposureManager
     
     /**
      * @dev Constructor sets up the betting engine
@@ -67,17 +54,24 @@ contract BettingEngine is ReentrancyGuard {
     constructor(
         address _marketAddress,
         address _usdx,
-        address _liquidityPool,
+        address _liquidityPoolAddress,
         uint256 _maxExposure
     ) {
         require(_marketAddress != address(0), "Invalid market address");
         require(_usdx != address(0), "Invalid USDX address");
-        require(_liquidityPool != address(0), "Invalid LiquidityPool address");
+        require(_liquidityPoolAddress != address(0), "Invalid LiquidityPool address");
         marketAddress = _marketAddress;
         usdx = IERC20(_usdx);
-        liquidityPool = LiquidityPool(_liquidityPool);
+        _liquidityPool = LiquidityPool(_liquidityPoolAddress);
         maxExposure = _maxExposure;
         currentExposure = 0;
+    }
+    
+    /**
+     * @dev Implementation of the abstract function from MarketExposureManager
+     */
+    function liquidityPool() internal view override returns (LiquidityPool) {
+        return _liquidityPool;
     }
     
     /**
@@ -102,8 +96,16 @@ contract BettingEngine is ReentrancyGuard {
         // Calculate potential winnings (excluding stake)
         uint256 potentialWinnings = _calculateWinnings(_amount, _odds);
         
-        // Check exposure and transfer tokens
-        _handleExposureAndTransfer(_bettor, _amount, potentialWinnings);
+        // Check exposure limits
+        require(_checkMarketExposureLimits(_betType, _isBettingOnHomeOrOver, potentialWinnings),
+                "BettingEngine: Market exposure limit exceeded");
+        
+        // Transfer tokens from bettor
+        require(usdx.transferFrom(_bettor, address(this), _amount), 
+                "BettingEngine: Token transfer failed. Ensure sufficient balance and allowance.");
+        
+        // Update market-specific exposure
+        _updateMarketExposureForBet(_betType, _isBettingOnHomeOrOver, potentialWinnings);
         
         // Record the bet and return the ID
         return _recordBet(_bettor, _amount, _betType, _isBettingOnHomeOrOver, _line, _odds, potentialWinnings);
@@ -121,22 +123,6 @@ contract BettingEngine is ReentrancyGuard {
         return totalReturn - _amount;
     }
     
-    /**
-     * @dev Handle exposure check and token transfer
-     */
-    function _handleExposureAndTransfer(address _bettor, uint256 _amount, uint256 _potentialWinnings) internal {
-        // Check if the market can cover these potential winnings
-        require(currentExposure + _potentialWinnings <= maxExposure, 
-                "BettingEngine: Market cannot accept this bet size with current exposure");
-        
-        // Transfer tokens from user to this contract (Market contract holds tokens)
-        // NB: The Market contract needs allowance from the bettor
-        require(usdx.transferFrom(_bettor, address(this), _amount), 
-                "BettingEngine: Token transfer failed. Ensure sufficient balance and allowance.");
-        
-        // Update exposure
-        currentExposure += _potentialWinnings;
-    }
     
     /**
      * @dev Record the bet in storage and emit event
@@ -207,8 +193,13 @@ contract BettingEngine is ReentrancyGuard {
                     // Refund the original stake
                     usdx.transfer(bet.bettor, refundAmount); 
                     totalRefunded += refundAmount;
-                     // Reduce exposure - refund potential winnings associated with this bet
-                    currentExposure -= bet.potentialWinnings; 
+                    
+                    // Reduce market-specific exposure
+                    _reduceMarketExposureForLostBet(
+                        bet.betType,
+                        bet.isBettingOnHomeOrOver,
+                        bet.potentialWinnings
+                    );
 
                     // Emit settlement event indicating a loss (payout 0) or a new Cancelled event?
                     // Using BetSettled for consistency, payout 0 indicates loss/cancellation refund
@@ -254,9 +245,13 @@ contract BettingEngine is ReentrancyGuard {
                 // Exposure was already accounted for; it remains until settlement completes.
                 // It represents the max potential payout, which is now realized or lost.
             } else {
-                 // Bet lost, stake remains with the contract (will be returned to pool).
-                 // Reduce exposure as this potential payout is no longer needed.
-                 currentExposure -= bet.potentialWinnings; 
+                // Bet lost, stake remains with the contract (will be returned to pool).
+                // Reduce exposures as this potential payout is no longer needed
+                _reduceMarketExposureForLostBet(
+                    bet.betType,
+                    bet.isBettingOnHomeOrOver,
+                    bet.potentialWinnings
+                );
             }
 
              emit BetSettled(betId, bet.bettor, won, payout);
@@ -274,13 +269,15 @@ contract BettingEngine is ReentrancyGuard {
         // for *unsettled* bets. Since all bets are now settled (either paid out or lost), 
         // the remaining balance represents the net profit/loss for the market. 
         // We reset exposure here. Ideally, remainingBalance should cover the final payouts.
-        currentExposure = 0; // Reset exposure after settlement cycle
+        
+        // Reset all exposures
+        _resetAllMarketExposures();
 
         if (remainingBalance > 0) {
             // No need to approve if LP pulls, but safer to approve if LP needs it
             // Check LiquidityPool implementation - assuming it needs approval or uses transferFrom
-             usdx.approve(address(liquidityPool), remainingBalance); 
-             liquidityPool.returnFunds(remainingBalance); // LP pulls approved funds
+             usdx.approve(address(_liquidityPool), remainingBalance); 
+             _liquidityPool.returnFunds(remainingBalance); // LP pulls approved funds
 
             emit MarketSettled(remainingBalance);
         } else {
@@ -290,15 +287,7 @@ contract BettingEngine is ReentrancyGuard {
         return remainingBalance;
     }
     
-    /**
-     * @dev Increases the maximum exposure allowed for this market.
-     * Should only be callable by the associated LiquidityPool contract when funding.
-     */
-    function increaseMaxExposure(uint256 _addedAmount) external {
-        require(msg.sender == address(liquidityPool), "BettingEngine: Only LiquidityPool can increase exposure");
-        maxExposure += _addedAmount;
-        // Consider emitting an event here if needed off-chain
-    }
+    // Exposure management functions now handled by MarketExposureManager
 
     /**
      * @dev Determine if a bet has won based on the type and outcome scores
@@ -398,16 +387,8 @@ contract BettingEngine is ReentrancyGuard {
             bet.won
         );
     }
+    
+    // Exposure getters now handled by MarketExposureManager
 
-     /**
-     * @dev Admin function to update max exposure (can be called via Market contract)
-     */
-    function updateMaxExposure(uint256 _newMaxExposure)
-        external
-        onlyMarket // Ensure only the parent Market contract can trigger this
-    {
-        // Add check: new max exposure should not be less than current exposure?
-        require(_newMaxExposure >= currentExposure, "BettingEngine: New max exposure cannot be less than current exposure");
-        maxExposure = _newMaxExposure;
-    }
+    // Exposure management functions now handled by MarketExposureManager
 }

@@ -46,10 +46,10 @@ contract MarketOdds {
     );
 
     // --- Modifier ---
-    modifier onlyOddsProvider() {
-        require(msg.sender == oddsProvider, "MarketOdds: Only odds provider can call this");
-        _;
-    }
+    // modifier onlyOddsProvider() {
+    //     require(msg.sender == oddsProvider, "MarketOdds: Only odds provider can call this");
+    //     _;
+    // }
 
     // --- Constructor ---
     /**
@@ -135,7 +135,7 @@ contract MarketOdds {
         uint256 _underOdds
     ) 
         external 
-        onlyOddsProvider 
+        // onlyOddsProvider 
     {
         // Require NBAMarket to check status, but this might prevent deployment before NBAMarket
         // We'll set marketStarted via a separate function called by NBAMarket.
@@ -247,7 +247,7 @@ contract MarketOdds {
     /** @dev Changes the designated odds provider address. Only callable by the current odds provider. */
     function changeOddsProvider(address _newOddsProvider) 
         external 
-        onlyOddsProvider 
+        // onlyOddsProvider 
     {
          require(_newOddsProvider != address(0), "MarketOdds: New provider cannot be zero address");
         oddsProvider = _newOddsProvider;

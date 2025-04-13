@@ -41,16 +41,24 @@ async function main() {
         console.log(`Using USDX token at: ${deployedContracts.usdx}`);
         console.log(`Using Liquidity Pool at: ${deployedContracts.liquidityPool}`);
         
-        // Get contract factory
+        // Get contract factories
+        const MarketDeployer = await ethers.getContractFactory('MarketDeployer', deployer);
         const MarketFactory = await ethers.getContractFactory('MarketFactory', deployer);
         
-        // Deploy contract
+        // Deploy MarketDeployer first
+        console.log('Deploying MarketDeployer...');
+        const marketDeployer = await MarketDeployer.deploy();
+        await marketDeployer.deployed();
+        console.log(`✅ MarketDeployer deployed to: ${marketDeployer.address}`);
+        
+        // Deploy MarketFactory
         console.log('Deploying MarketFactory...');
         const marketFactory = await MarketFactory.deploy(
             oddsProvider.address,
             resultsProvider.address,
             deployedContracts.usdx,
-            deployedContracts.liquidityPool
+            deployedContracts.liquidityPool,
+            marketDeployer.address // Pass the MarketDeployer address
         );
         
         // Wait for deployment to complete
@@ -69,6 +77,7 @@ async function main() {
         console.log("LiquidityPool updated with MarketFactory address");
         
         // Update deployed contracts
+        deployedContracts.marketDeployer = marketDeployer.address;
         deployedContracts.marketFactory = marketFactory.address;
         fs.writeFileSync(deployedContractsPath, JSON.stringify(deployedContracts, null, 2));
         console.log("Updated deployed-contracts.json with MarketFactory address");

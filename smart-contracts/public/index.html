@@ -237,6 +237,140 @@
         
         <div class="card endpoint-card">
             <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Reduce Market Funding (Decrease Exposure)</h5>
+                <span class="badge bg-warning text-dark">POST /api/liquidity-pool/reduce-market-funding</span>
+            </div>
+            <div class="card-body">
+                <form id="reduceFundingForm">
+                    <div class="mb-3">
+                        <label for="reduceFundingBettingEngineAddress" class="form-label">Betting Engine Address</label>
+                        <input type="text" class="form-control" id="reduceFundingBettingEngineAddress" placeholder="0x... (Target Betting Engine)">
+                    </div>
+                    <div class="mb-3">
+                        <label for="reduceFundingAmount" class="form-label">Amount to Reduce (USDX)</label>
+                        <input type="number" class="form-control" id="reduceFundingAmount" placeholder="e.g. 5000" min="1">
+                    </div>
+                    <button type="submit" class="btn btn-warning">Reduce Funding</button>
+                </form>
+                <div class="mt-3">
+                    <h6>Response:</h6>
+                    <div class="response-area" id="reduceFundingResponse"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card endpoint-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Get Market-Specific Exposure Limits</h5>
+                <span class="badge bg-primary">GET /api/market/:address/exposure-limits</span>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label for="exposureLimitsMarketAddress" class="form-label">Market Address</label>
+                    <input type="text" class="form-control" id="exposureLimitsMarketAddress" placeholder="0x...">
+                </div>
+                <button id="getExposureLimitsBtn" class="btn btn-primary">Get Exposure Limits</button>
+                <div class="mt-3">
+                    <h6>Response:</h6>
+                    <div class="response-area" id="getExposureLimitsResponse"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card endpoint-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Set Market-Specific Exposure Limits</h5>
+                <span class="badge bg-primary">POST /api/market/:address/exposure-limits</span>
+            </div>
+            <div class="card-body">
+                <form id="setExposureLimitsForm">
+                    <div class="mb-3">
+                        <label for="setExposureLimitsMarketAddress" class="form-label">Market Address</label>
+                        <input type="text" class="form-control" id="setExposureLimitsMarketAddress" placeholder="0x...">
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="homeMoneylineLimit" class="form-label">Home Moneyline Limit</label>
+                            <input type="number" class="form-control" id="homeMoneylineLimit" placeholder="e.g. 10000">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="awayMoneylineLimit" class="form-label">Away Moneyline Limit</label>
+                            <input type="number" class="form-control" id="awayMoneylineLimit" placeholder="e.g. 10000">
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label for="drawLimit" class="form-label">Draw Limit (Soccer)</label>
+                            <input type="number" class="form-control" id="drawLimit" placeholder="e.g. 5000">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="homeSpreadLimit" class="form-label">Home Spread Limit</label>
+                            <input type="number" class="form-control" id="homeSpreadLimit" placeholder="e.g. 8000">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="awaySpreadLimit" class="form-label">Away Spread Limit</label>
+                            <input type="number" class="form-control" id="awaySpreadLimit" placeholder="e.g. 8000">
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="overLimit" class="form-label">Over Limit</label>
+                            <input type="number" class="form-control" id="overLimit" placeholder="e.g. 7000">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="underLimit" class="form-label">Under Limit</label>
+                            <input type="number" class="form-control" id="underLimit" placeholder="e.g. 7000">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Set Exposure Limits</button>
+                </form>
+                <div class="mt-3">
+                    <h6>Response:</h6>
+                    <div class="response-area" id="setExposureLimitsResponse"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card endpoint-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Set Individual Market Exposure Limit</h5>
+                <span class="badge bg-primary">POST /api/market/:address/exposure-limits</span>
+            </div>
+            <div class="card-body">
+                <form id="setIndividualExposureLimitForm">
+                    <div class="mb-3">
+                        <label for="individualExposureLimitMarketAddress" class="form-label">Market Address</label>
+                        <input type="text" class="form-control" id="individualExposureLimitMarketAddress" placeholder="0x...">
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="limitType" class="form-label">Limit Type</label>
+                            <select class="form-select" id="limitType">
+                                <option value="homeMoneylineLimit">Home Moneyline</option>
+                                <option value="awayMoneylineLimit">Away Moneyline</option>
+                                <option value="drawLimit">Draw</option>
+                                <option value="homeSpreadLimit">Home Spread</option>
+                                <option value="awaySpreadLimit">Away Spread</option>
+                                <option value="overLimit">Over</option>
+                                <option value="underLimit">Under</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="limitValue" class="form-label">Limit Value (USDX)</label>
+                            <input type="number" class="form-control" id="limitValue" placeholder="e.g. 15000" min="0">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Set Single Limit</button>
+                </form>
+                <div class="mt-3">
+                    <h6>Response:</h6>
+                    <div class="response-area" id="setIndividualExposureLimitResponse"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card endpoint-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">USDX Faucet</h5>
                 <span class="badge bg-primary">POST /api/faucet</span>
             </div>
@@ -548,6 +682,30 @@
 
         // Initial call to set options correctly on page load
         updateBetSideOptions();
+        
+        // Function to synchronize market addresses across all forms
+        const syncMarketAddresses = (address) => {
+            const marketAddressInputs = [
+                'marketAddress',
+                'liquidityMarketAddress',
+                'getMarketAddress',
+                'betMarketAddress',
+                'resultMarketAddress',
+                'startGameMarketAddress',
+                'userBetsMarketAddress',
+                'approveMarketAddress',
+                'exposureLimitsMarketAddress',
+                'setExposureLimitsMarketAddress',
+                'individualExposureLimitMarketAddress'
+            ];
+            
+            marketAddressInputs.forEach(id => {
+                const input = document.getElementById(id);
+                if (input) {
+                    input.value = address;
+                }
+            });
+        };
 
         document.getElementById('deployFactoryForm').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -634,14 +792,8 @@
                 document.getElementById('createMarketResponse').textContent = JSON.stringify(data, null, 2);
                 
                 if (data.market && data.market.address) {
-                    // Auto-fill the market address for other forms
-                    document.getElementById('marketAddress').value = data.market.address;
-                    document.getElementById('liquidityMarketAddress').value = data.market.address;
-                    document.getElementById('getMarketAddress').value = data.market.address;
-                    document.getElementById('betMarketAddress').value = data.market.address;
-                    document.getElementById('resultMarketAddress').value = data.market.address;
-                    document.getElementById('startGameMarketAddress').value = data.market.address;
-                    document.getElementById('userBetsMarketAddress').value = data.market.address;
+                    // Auto-fill the market address for all forms
+                    syncMarketAddresses(data.market.address);
                 }
                 
                 if (data.transaction) {
@@ -863,13 +1015,7 @@
                 
                 // If markets returned, auto-fill the first market address
                 if (Array.isArray(data) && data.length > 0) {
-                    document.getElementById('marketAddress').value = data[0].address;
-                    document.getElementById('liquidityMarketAddress').value = data[0].address;
-                    document.getElementById('getMarketAddress').value = data[0].address;
-                    document.getElementById('betMarketAddress').value = data[0].address;
-                    document.getElementById('resultMarketAddress').value = data[0].address;
-                    document.getElementById('startGameMarketAddress').value = data[0].address;
-                    document.getElementById('userBetsMarketAddress').value = data[0].address;
+                    syncMarketAddresses(data[0].address);
                 }
             } catch (error) {
                 document.getElementById('getMarketsResponse').textContent = `Error: ${error.message}`;
@@ -914,14 +1060,8 @@
                     formattedInfo += `  Total: Over ${data.totalPoints} (${data.overOdds}) | Under ${data.totalPoints} (${data.underOdds})\n`;
                     formattedInfo += `---\nExposure:\n`;
                     formattedInfo += `  Max: ${data.maxExposure} USDX\n`;
-                // Update other forms with this market address
-                document.getElementById('marketAddress').value = marketAddress;
-                document.getElementById('liquidityMarketAddress').value = marketAddress;
-                document.getElementById('betMarketAddress').value = marketAddress;
-                document.getElementById('resultMarketAddress').value = marketAddress;
-                document.getElementById('startGameMarketAddress').value = marketAddress;
-                document.getElementById('userBetsMarketAddress').value = marketAddress;
-                document.getElementById('approveMarketAddress').value = marketAddress;
+                // Update all forms with this market address
+                syncMarketAddresses(marketAddress);
             } }
             catch (error) {
                 document.getElementById('getMarketInfoResponse').textContent = `Error: ${error.message}`;
@@ -1044,6 +1184,176 @@
         document.getElementById('totalPoints').value = '2105'; // 210.5
         document.getElementById('overOdds').value = '1910';
         document.getElementById('underOdds').value = '1910';
+
+        // Reduce Market Funding
+        document.getElementById('reduceFundingForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const bettingEngineAddress = document.getElementById('reduceFundingBettingEngineAddress').value;
+            const amount = document.getElementById('reduceFundingAmount').value;
+
+            if (!bettingEngineAddress || !amount) {
+                document.getElementById('reduceFundingResponse').textContent = 'Error: Betting Engine Address and Amount are required.';
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/api/liquidity-pool/reduce-market-funding`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        bettingEngineAddress,
+                        amount: parseFloat(amount)
+                    }),
+                });
+
+                const data = await response.json();
+                document.getElementById('reduceFundingResponse').textContent = JSON.stringify(data, null, 2);
+
+                if (data.transaction) {
+                    updateTxHash(data.transaction);
+                }
+            } catch (error) {
+                document.getElementById('reduceFundingResponse').textContent = `Error: ${error.message}`;
+            }
+        });
+        
+        // Get Market-Specific Exposure Limits
+        document.getElementById('getExposureLimitsBtn').addEventListener('click', async () => {
+            const marketAddress = document.getElementById('exposureLimitsMarketAddress').value;
+            
+            if (!marketAddress) {
+                document.getElementById('getExposureLimitsResponse').textContent = 'Error: Market Address is required.';
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_URL}/api/market/${marketAddress}/exposure-limits`);
+                const data = await response.json();
+                document.getElementById('getExposureLimitsResponse').textContent = JSON.stringify(data, null, 2);
+                
+                // Optionally, you could format the data for better readability here
+            } catch (error) {
+                document.getElementById('getExposureLimitsResponse').textContent = `Error: ${error.message}`;
+            }
+        });
+        
+        // Set All Market-Specific Exposure Limits
+        document.getElementById('setExposureLimitsForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const marketAddress = document.getElementById('setExposureLimitsMarketAddress').value;
+            
+            if (!marketAddress) {
+                document.getElementById('setExposureLimitsResponse').textContent = 'Error: Market Address is required.';
+                return;
+            }
+            
+            const payload = {
+                homeMoneylineLimit: document.getElementById('homeMoneylineLimit').value || undefined,
+                awayMoneylineLimit: document.getElementById('awayMoneylineLimit').value || undefined,
+                drawLimit: document.getElementById('drawLimit').value || undefined,
+                homeSpreadLimit: document.getElementById('homeSpreadLimit').value || undefined,
+                awaySpreadLimit: document.getElementById('awaySpreadLimit').value || undefined,
+                overLimit: document.getElementById('overLimit').value || undefined,
+                underLimit: document.getElementById('underLimit').value || undefined
+            };
+            
+            // Filter out undefined values
+            Object.keys(payload).forEach(key => {
+                if (payload[key] === undefined) {
+                    delete payload[key];
+                }
+            });
+            
+            if (Object.keys(payload).length === 0) {
+                document.getElementById('setExposureLimitsResponse').textContent = 'Error: At least one exposure limit must be provided.';
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_URL}/api/market/${marketAddress}/exposure-limits`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(payload),
+                });
+                
+                const data = await response.json();
+                document.getElementById('setExposureLimitsResponse').textContent = JSON.stringify(data, null, 2);
+                
+                if (data.transaction) {
+                    updateTxHash(data.transaction);
+                }
+                
+                // Also update the address for the individual limit setting form
+                document.getElementById('individualExposureLimitMarketAddress').value = marketAddress;
+                
+                // Clear the form
+                document.getElementById('homeMoneylineLimit').value = '';
+                document.getElementById('awayMoneylineLimit').value = '';
+                document.getElementById('drawLimit').value = '';
+                document.getElementById('homeSpreadLimit').value = '';
+                document.getElementById('awaySpreadLimit').value = '';
+                document.getElementById('overLimit').value = '';
+                document.getElementById('underLimit').value = '';
+                
+                // Auto-refresh the exposure limits
+                document.getElementById('exposureLimitsMarketAddress').value = marketAddress;
+                document.getElementById('getExposureLimitsBtn').click();
+            } catch (error) {
+                document.getElementById('setExposureLimitsResponse').textContent = `Error: ${error.message}`;
+            }
+        });
+        
+        // Set Individual Market Exposure Limit
+        document.getElementById('setIndividualExposureLimitForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const marketAddress = document.getElementById('individualExposureLimitMarketAddress').value;
+            const limitType = document.getElementById('limitType').value;
+            const limitValue = document.getElementById('limitValue').value;
+            
+            if (!marketAddress) {
+                document.getElementById('setIndividualExposureLimitResponse').textContent = 'Error: Market Address is required.';
+                return;
+            }
+            
+            if (!limitValue) {
+                document.getElementById('setIndividualExposureLimitResponse').textContent = 'Error: Limit Value is required.';
+                return;
+            }
+            
+            const payload = {
+                [limitType]: limitValue
+            };
+            
+            try {
+                const response = await fetch(`${API_URL}/api/market/${marketAddress}/exposure-limits`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(payload),
+                });
+                
+                const data = await response.json();
+                document.getElementById('setIndividualExposureLimitResponse').textContent = JSON.stringify(data, null, 2);
+                
+                if (data.transaction) {
+                    updateTxHash(data.transaction);
+                }
+                
+                // Clear the form
+                document.getElementById('limitValue').value = '';
+                
+                // Auto-refresh the exposure limits
+                document.getElementById('exposureLimitsMarketAddress').value = marketAddress;
+                document.getElementById('getExposureLimitsBtn').click();
+            } catch (error) {
+                document.getElementById('setIndividualExposureLimitResponse').textContent = `Error: ${error.message}`;
+            }
+        });
     </script>
     
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>

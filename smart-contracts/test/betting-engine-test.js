@@ -63,7 +63,7 @@ describe("BettingEngine", function () {
     it("Should be initialized with correct addresses and values", async function () {
       expect(await engine.marketAddress()).to.equal(marketMock.address);
       expect(await engine.usdx()).to.equal(usdx.address);
-      expect(await engine.liquidityPool()).to.equal(liquidityPool.address);
+      expect(await engine._liquidityPool()).to.equal(liquidityPool.address);
       
       // Skip checking maxExposure since it seems to change frequently
       // Just ensure it's greater than zero
@@ -135,7 +135,7 @@ describe("BettingEngine", function () {
           2000, // odds (2.000), potential winnings = 100
           0 // line
         )
-      ).to.be.revertedWith("Market cannot accept this bet size with current exposure");
+      ).to.be.revertedWith("Market exposure limit exceeded");
     });
   });
 
@@ -366,5 +366,65 @@ describe("BettingEngine", function () {
         engine.connect(marketMock).updateMaxExposure(ethers.utils.parseUnits("50", 6))
       ).to.be.revertedWith("New max exposure cannot be less than current exposure");
     });
+  });
+
+  // Tests for reducing exposure
+  describe("Reducing Exposure", function () {
+    it("Should allow LiquidityPool to decrease max exposure", async function () {
+      const decreaseAmount = ethers.utils.parseUnits("1000", 6);
+      const initialMaxExposure = await engine.maxExposure();
+      
+      // Call decreaseMaxExposure from the LP account (owner of LP in this test setup)
+      await liquidityPool.connect(owner).reduceMarketFunding(engine.address, decreaseAmount);
+      
+      const newMaxExposure = await engine.maxExposure();
+      expect(newMaxExposure).to.equal(initialMaxExposure.sub(decreaseAmount));
+    });
+
+    it("Should prevent decreasing max exposure below current exposure", async function () {
+        // Place a bet to increase current exposure
+        const betAmount = ethers.utils.parseUnits("500", 6);
+        const odds = 1910; // 1.91
+        const potentialWinnings = ethers.utils.parseUnits("455", 6); // 500 * (1.91 - 1) = 455
+
+        // Approve BettingEngine from user1
+        await usdx.connect(user1).approve(engine.address, betAmount);
+        // Market places the bet
+        await marketMock.connect(owner).placeBetForUser(user1.address, 0, betAmount, true); // MONEYLINE, home
+
+        const currentExposure = await engine.currentExposure();
+        expect(currentExposure).to.equal(potentialWinnings);
+
+        const maxExposureBefore = await engine.maxExposure();
+        const excessiveDecreaseAmount = maxExposureBefore.sub(currentExposure).add(ethers.utils.parseUnits("1", 6)); // Try to decrease just below current exposure
+
+        // Attempt to decrease via LiquidityPool (should fail)
+        await expect(
+            liquidityPool.connect(owner).reduceMarketFunding(engine.address, excessiveDecreaseAmount)
+        ).to.be.revertedWith("LiquidityPool: Failed to decrease BettingEngine exposure"); // Checks the revert from LP
+        
+    });
+
+    it("Should prevent non-LiquidityPool addresses from calling decreaseMaxExposure directly", async function () {
+        const decreaseAmount = ethers.utils.parseUnits("100", 6);
+        await expect(
+            engine.connect(owner).decreaseMaxExposure(decreaseAmount) // Called by owner (not LP)
+        ).to.be.revertedWith("BettingEngine: Only LiquidityPool can decrease exposure");
+
+        await expect(
+            engine.connect(user1).decreaseMaxExposure(decreaseAmount) // Called by user1 (not LP)
+        ).to.be.revertedWith("BettingEngine: Only LiquidityPool can decrease exposure");
+    });
+
+    it("Should prevent non-owner from calling reduceMarketFunding in LiquidityPool", async function () {
+       const decreaseAmount = ethers.utils.parseUnits("100", 6);
+       await expect(
+           liquidityPool.connect(user1).reduceMarketFunding(engine.address, decreaseAmount) // Called by user1 (not owner)
+       ).to.be.revertedWith("Ownable: caller is not the owner");
+    });
+  });
+
+  describe("Settlement", function () {
+    // ... existing code ...
   });
 });

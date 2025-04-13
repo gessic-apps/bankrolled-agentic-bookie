@@ -15,6 +15,7 @@ import { readContract } from 'wagmi/actions';
 import { type Address, BaseError } from 'viem';
 import {
   baseSepolia,
+  localhost
 } from 'wagmi/chains';
 import {
   QueryClientProvider,
@@ -26,18 +27,18 @@ import { ConnectButton } from '@rainbow-me/rainbowkit';
 import MarketFactoryAbi from "../abis/contracts/MarketFactory.sol/MarketFactory.json";
 import NBAMarketAbi from "../abis/contracts/NBAMarket.sol/NBAMarket.json";
 import MarketOddsAbi from "../abis/contracts/MarketOdds.sol/MarketOdds.json";
-
+console.log("MarketOddsAbi", baseSepolia);
 const config = getDefaultConfig({
   appName: 'Bankrolled',
   projectId: 'YOUR_PROJECT_ID', // TODO: Replace with your actual RainbowKit Project ID
-  chains: [baseSepolia],
+  chains: [localhost],
   ssr: false,
 });
 
 // --- TODO: Replace with your ACTUAL deployed MarketFactory address ---
-const MARKET_FACTORY_ADDRESS = "0x7019E65E2698d891C0a9633309e2D2eCaa21a3Df"; // Replace this placeholder
+const MARKET_FACTORY_ADDRESS = "0x678e3aCD586D98bb5De8bCdC45625dBE3B3ca4b0"; // Replace this placeholder
 
-const usdxAddress = "0x96994C1D6df44b02AFf15A634C96989a656FC72F";
+const usdxAddress = "0x3b827220209E553a54b16b329fb3501061512F8C";
 
 // Helper function to format odds/lines (similar to backend)
 const formatContractValue = (value: bigint | number | undefined, decimals: number = 3): string => {

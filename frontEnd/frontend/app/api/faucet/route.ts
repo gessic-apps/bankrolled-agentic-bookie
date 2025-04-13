@@ -12,7 +12,7 @@ export async function POST(request: Request) {
     }
     console.log('continue!', address);
     // Amount to mint (can be fixed or passed from frontend if needed)
-    const amount = 1000;
+    const amount = 10;
 
     const backendResponse = await fetch(`${BACKEND_API_URL}/api/faucet`, {
       method: 'POST',

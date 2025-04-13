@@ -83,6 +83,31 @@ contract LiquidityPool is Ownable, ReentrancyGuard {
     }
     
     /**
+     * @dev Reduces the maximum exposure limit for a market in its BettingEngine.
+     * This only adjusts the accounting limit within the BettingEngine; it does not
+     * directly withdraw funds from the BettingEngine back to the pool.
+     * Can only be called by the owner.
+     * @param _bettingEngineAddress The address of the BettingEngine contract for the market.
+     * @param _amount The amount by which to decrease the maximum exposure.
+     */
+    function reduceMarketFunding(address _bettingEngineAddress, uint256 _amount) external onlyOwner nonReentrant {
+        require(authorizedMarkets[_bettingEngineAddress], "LiquidityPool: Market (BettingEngine) not authorized");
+        
+        try BettingEngine(_bettingEngineAddress).decreaseMaxExposure(_amount) {
+            // Success - emit event maybe? Event MarketExposureReduced?
+        } catch (bytes memory reason) {
+            // Log or revert based on requirements if the call fails 
+            // (e.g., tried to reduce below current exposure)
+            console.log("Failed to call decreaseMaxExposure on BettingEngine:");
+            // Reverting might be safer to signal the operation failed clearly.
+            revert("LiquidityPool: Failed to decrease BettingEngine exposure");
+        }
+        
+        // Emit an event if needed
+        // emit MarketExposureReduced(_bettingEngineAddress, _amount);
+    }
+    
+    /**
      * @dev Returns funds from a market to the liquidity pool
      * Can only be called by the market itself (when settling)
      */

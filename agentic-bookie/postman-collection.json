@@ -1,8 +1,8 @@
 {
   "info": {
     "_postman_id": "94b5df3e-8e53-4f40-b3bd-1dcacf0e7712",
-    "name": "NBA Betting Smart Contracts API",
-    "description": "API endpoints for deploying and interacting with NBA betting market smart contracts",
+    "name": "NBA & Soccer Betting Smart Contracts API",
+    "description": "API endpoints for deploying and interacting with betting market smart contracts for both NBA and Soccer markets, including support for draw odds.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -40,7 +40,7 @@
       }
     },
     {
-      "name": "Create Market With Odds",
+      "name": "Create Market With Odds (NBA)",
       "request": {
         "method": "POST",
         "url": {
@@ -50,15 +50,37 @@
         },
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"homeTeam\": \"Lakers\",\n  \"awayTeam\": \"Celtics\",\n  \"gameTimestamp\": \"{{$timestamp + 86400}}\",\n  \"oddsApiId\": \"NBA_2023_LAL_BOS\",\n  \"homeOdds\": 1850,\n  \"awayOdds\": 2000,\n  \"marketFunding\": 50000\n}",
+          "raw": "{\n  \"homeTeam\": \"Lakers\",\n  \"awayTeam\": \"Celtics\",\n  \"gameTimestamp\": \"{{$timestamp + 86400}}\",\n  \"oddsApiId\": \"NBA_2023_LAL_BOS\",\n  \"homeOdds\": 1850,\n  \"awayOdds\": 2000,\n  \"drawOdds\": 0,\n  \"homeSpreadPoints\": -75,\n  \"homeSpreadOdds\": 1910,\n  \"awaySpreadOdds\": 1910,\n  \"totalPoints\": 2105,\n  \"overOdds\": 1910,\n  \"underOdds\": 1910,\n  \"marketFunding\": 50000\n}",
           "options": {
             "raw": {
               "language": "json"
             }
           }
         },
-        "description": "Create a new market with initial odds and funding"
+        "description": "Create a new NBA market with initial odds and funding"
       }
+    },
+    {
+      "name": "Create Soccer Market (With Draw Odds)",
+      "request": {
+        "method": "POST",
+        "url": {
+          "raw": "{{API_URL}}/api/market/create",
+          "host": ["{{API_URL}}"],
+          "path": ["api", "market", "create"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"homeTeam\": \"Arsenal\",\n  \"awayTeam\": \"Manchester City\",\n  \"gameTimestamp\": \"{{$timestamp + 86400}}\",\n  \"oddsApiId\": \"SOCCER_2023_ARS_MCI\",\n  \"homeOdds\": 2500,\n  \"awayOdds\": 2800,\n  \"drawOdds\": 3000,\n  \"homeSpreadPoints\": 0,\n  \"homeSpreadOdds\": 0,\n  \"awaySpreadOdds\": 0,\n  \"totalPoints\": 0,\n  \"overOdds\": 0,\n  \"underOdds\": 0,\n  \"marketFunding\": 50000\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "description": "Create a new soccer market with draw odds"
+      },
+      "response": []
     },
     {
       "name": "Create Market Without Odds",
@@ -82,7 +104,7 @@
       }
     },
     {
-      "name": "Update Odds",
+      "name": "Update Odds (NBA)",
       "request": {
         "method": "POST",
         "header": [
@@ -92,16 +114,50 @@
             "type": "text"
           }
         ],
+        "url": {
+          "raw": "{{API_URL}}/api/market/{{MARKET_ADDRESS}}/update-odds",
+          "host": ["{{API_URL}}"],
+          "path": ["api", "market", "{{MARKET_ADDRESS}}", "update-odds"]
+        },
         "body": {
           "mode": "raw",
-          "raw": "{\n    \"homeOdds\": 1800,\n    \"awayOdds\": 2100,\n    \"homeSpreadPoints\": -45, \n    \"homeSpreadOdds\": 1910,\n    \"awaySpreadOdds\": 1910,\n    \"totalPoints\": 2155,\n    \"overOdds\": 1910,\n    \"underOdds\": 1910\n}",
+          "raw": "{\n    \"homeOdds\": 1800,\n    \"awayOdds\": 2100,\n    \"drawOdds\": 0,\n    \"homeSpreadPoints\": -45, \n    \"homeSpreadOdds\": 1910,\n    \"awaySpreadOdds\": 1910,\n    \"totalPoints\": 2155,\n    \"overOdds\": 1910,\n    \"underOdds\": 1910\n}",
           "options": {
             "raw": {
               "language": "json"
             }
           }
         },
-        "description": "Update odds for a specific market"
+        "description": "Update odds for a specific NBA market"
+      },
+      "response": []
+    },
+    {
+      "name": "Update Odds (Soccer with Draw)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{API_URL}}/api/market/{{MARKET_ADDRESS}}/update-odds",
+          "host": ["{{API_URL}}"],
+          "path": ["api", "market", "{{MARKET_ADDRESS}}", "update-odds"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"homeOdds\": 2600,\n    \"awayOdds\": 2700,\n    \"drawOdds\": 2950,\n    \"homeSpreadPoints\": 0, \n    \"homeSpreadOdds\": 0,\n    \"awaySpreadOdds\": 0,\n    \"totalPoints\": 0,\n    \"overOdds\": 0,\n    \"underOdds\": 0\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "description": "Update odds for a soccer market including draw odds"
       }
     },
     {
@@ -123,6 +179,33 @@
           }
         },
         "description": "Add liquidity to a specific market"
+      }
+    },
+    {
+      "name": "Reduce Market Funding (Decrease Exposure)",
+      "request": {
+        "method": "POST",
+        "url": {
+          "raw": "{{API_URL}}/api/liquidity-pool/reduce-market-funding",
+          "host": [
+            "{{API_URL}}"
+          ],
+          "path": [
+            "api",
+            "liquidity-pool",
+            "reduce-market-funding"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"bettingEngineAddress\": \"{{BETTING_ENGINE_ADDRESS}}\",\n  \"amount\": 5000 \n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "description": "Decrease the max exposure for a specific Betting Engine via the Liquidity Pool (requires admin)"
       }
     },
     {
@@ -195,7 +278,7 @@
       }
     },
     {
-      "name": "Set Game Result",
+      "name": "Set Game Result (Home Win)",
       "request": {
         "method": "POST",
         "header": [
@@ -205,6 +288,11 @@
             "type": "text"
           }
         ],
+        "url": {
+          "raw": "{{API_URL}}/api/market/{{MARKET_ADDRESS}}/game-status",
+          "host": ["{{API_URL}}"],
+          "path": ["api", "market", "{{MARKET_ADDRESS}}", "game-status"]
+        },
         "body": {
           "mode": "raw",
           "raw": "{\n    \"action\": \"set-result\",\n    \"homeScore\": 112,\n    \"awayScore\": 109\n}",
@@ -214,7 +302,36 @@
             }
           }
         },
-        "description": "Set the result for a game (1 for home win, 2 for away win)"
+        "description": "Set the result for a game with home team winning"
+      },
+      "response": []
+    },
+    {
+      "name": "Set Game Result (Draw - Soccer)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{API_URL}}/api/market/{{MARKET_ADDRESS}}/game-status",
+          "host": ["{{API_URL}}"],
+          "path": ["api", "market", "{{MARKET_ADDRESS}}", "game-status"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"action\": \"set-result\",\n    \"homeScore\": 1,\n    \"awayScore\": 1\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "description": "Set the result for a soccer game as a draw (equal scores). This will settle draw bets as winners."
       }
     },
     {
@@ -230,7 +347,7 @@
       }
     },
     {
-      "name": "Place Bet",
+      "name": "Place Bet (NBA)",
       "request": {
         "method": "POST",
         "header": [
@@ -240,16 +357,50 @@
             "type": "text"
           }
         ],
+        "url": {
+          "raw": "{{API_URL}}/api/market/{{MARKET_ADDRESS}}/place-bet",
+          "host": ["{{API_URL}}"],
+          "path": ["api", "market", "{{MARKET_ADDRESS}}", "place-bet"]
+        },
         "body": {
           "mode": "raw",
-          "raw": "{\n    \"amount\": 100,\n    \"betType\": \"spread\", \n    \"betSide\": \"away\",    \n    \"bettor\": \"{{user1_address}}\" \n}",
+          "raw": "{\n    \"amount\": 100,\n    \"betType\": \"spread\", \n    \"betSide\": \"away\",    \n    \"bettor\": \"{{USER_ADDRESS}}\" \n}",
           "options": {
             "raw": {
               "language": "json"
             }
           }
         },
-        "description": "Place a bet on a specific market (User 1 default)"
+        "description": "Place a spread bet on an NBA market"
+      },
+      "response": []
+    },
+    {
+      "name": "Place Draw Bet (Soccer)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{API_URL}}/api/market/{{MARKET_ADDRESS}}/place-bet",
+          "host": ["{{API_URL}}"],
+          "path": ["api", "market", "{{MARKET_ADDRESS}}", "place-bet"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"amount\": 100,\n    \"betType\": \"draw\", \n    \"betSide\": \"draw\",    \n    \"bettor\": \"{{USER_ADDRESS}}\" \n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "description": "Place a draw bet on a soccer market. For draw bets, the betSide value is ignored internally, but 'draw' is used for clarity."
       }
     },
     {
@@ -284,6 +435,60 @@
           }
         },
         "description": "Mint USDX tokens to a specified address (uses admin wallet)"
+      }
+    },
+    {
+      "name": "Get Market Exposure Limits",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{API_URL}}/api/market/{{MARKET_ADDRESS}}/exposure-limits",
+          "host": ["{{API_URL}}"],
+          "path": ["api", "market", "{{MARKET_ADDRESS}}", "exposure-limits"]
+        },
+        "description": "Get all market-specific exposure limits and current exposures"
+      }
+    },
+    {
+      "name": "Set All Market Exposure Limits",
+      "request": {
+        "method": "POST",
+        "url": {
+          "raw": "{{API_URL}}/api/market/{{MARKET_ADDRESS}}/exposure-limits",
+          "host": ["{{API_URL}}"],
+          "path": ["api", "market", "{{MARKET_ADDRESS}}", "exposure-limits"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"homeMoneylineLimit\": 10000,\n  \"awayMoneylineLimit\": 10000,\n  \"drawLimit\": 5000,\n  \"homeSpreadLimit\": 8000,\n  \"awaySpreadLimit\": 8000,\n  \"overLimit\": 7000,\n  \"underLimit\": 7000\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "description": "Set all market-specific exposure limits at once"
+      }
+    },
+    {
+      "name": "Set Individual Market Exposure Limit",
+      "request": {
+        "method": "POST",
+        "url": {
+          "raw": "{{API_URL}}/api/market/{{MARKET_ADDRESS}}/exposure-limits",
+          "host": ["{{API_URL}}"],
+          "path": ["api", "market", "{{MARKET_ADDRESS}}", "exposure-limits"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"homeMoneylineLimit\": 15000\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "description": "Set a specific market exposure limit. Can specify any one or more of: homeMoneylineLimit, awayMoneylineLimit, drawLimit, homeSpreadLimit, awaySpreadLimit, overLimit, underLimit"
       }
     }
   ],

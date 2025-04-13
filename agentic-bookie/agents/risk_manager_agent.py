@@ -19,7 +19,7 @@ if not API_URL:
 from agents import Agent, function_tool
 
 # Import Monte Carlo simulation tool
-from monte_carlo_sims import analyze_market_risk, bulk_analyze_markets
+from .monte_carlo_sims import analyze_market_risk, bulk_analyze_markets
 
 # --- Tool Definitions ---
 
@@ -363,67 +363,153 @@ def update_odds_for_market(
          print(error_message, file=sys.stderr)
          return {"status": "error", "message": error_message, "market_address": market_address}
 
+# --- NEW TOOL: Set Market Exposure Limits ---
+@function_tool
+def set_market_exposure_limits(
+    market_address: str,
+    home_moneyline_limit: Optional[int] = None,
+    away_moneyline_limit: Optional[int] = None,
+    draw_limit: Optional[int] = None,
+    home_spread_limit: Optional[int] = None,
+    away_spread_limit: Optional[int] = None,
+    over_limit: Optional[int] = None,
+    under_limit: Optional[int] = None
+) -> Dict[str, Any]:
+    """Sets specific exposure limits for various bet types within a market. Only provided limits will be updated."""
+    if not API_URL:
+        print("Error: Cannot set exposure limits, API_URL is not configured.", file=sys.stderr)
+        return {"status": "error", "message": "API_URL not configured"}
+
+    payload = {}
+    if home_moneyline_limit is not None: payload["homeMoneylineLimit"] = home_moneyline_limit
+    if away_moneyline_limit is not None: payload["awayMoneylineLimit"] = away_moneyline_limit
+    if draw_limit is not None: payload["drawLimit"] = draw_limit
+    if home_spread_limit is not None: payload["homeSpreadLimit"] = home_spread_limit
+    if away_spread_limit is not None: payload["awaySpreadLimit"] = away_spread_limit
+    if over_limit is not None: payload["overLimit"] = over_limit
+    if under_limit is not None: payload["underLimit"] = under_limit
+
+    if not payload:
+        return {"status": "warning", "message": "No limits provided to set.", "market_address": market_address}
+
+    try:
+        url = f"{API_URL}/api/market/{market_address}/exposure-limits"
+        print(f"Attempting to set exposure limits: POST {url} with payload: {payload}")
+        response = requests.post(url, json=payload)
+        response.raise_for_status()
+        result = response.json()
+        print(f"Successfully set exposure limits for market {market_address}. Response: {result}")
+        return {
+            "status": "success",
+            "market_address": market_address,
+            "limits_set": payload,
+            "result": result
+        }
+    except requests.exceptions.HTTPError as e:
+        error_message = f"HTTP Error setting exposure limits for market {market_address}: {e.response.status_code} - {e.response.text}"
+        print(error_message, file=sys.stderr)
+        return {"status": "error", "message": error_message, "market_address": market_address}
+    except requests.exceptions.RequestException as e:
+        error_message = f"Request Error setting exposure limits for market {market_address}: {e}"
+        print(error_message, file=sys.stderr)
+        return {"status": "error", "message": error_message, "market_address": market_address}
+    except Exception as e:
+         error_message = f"An unexpected error occurred in set_market_exposure_limits: {e}"
+         print(error_message, file=sys.stderr)
+         return {"status": "error", "message": error_message, "market_address": market_address}
+
+
+# --- NEW TOOL: Reduce Market Funding ---
+@function_tool
+def reduce_market_funding(
+    market_address: str,
+    amount: int
+) -> Dict[str, Any]:
+    """Reduces the total funding (and thus max exposure) allocated to a specific market from the central liquidity pool."""
+    if not API_URL:
+        print("Error: Cannot reduce market funding, API_URL is not configured.", file=sys.stderr)
+        return {"status": "error", "message": "API_URL not configured"}
+
+    if amount <= 0:
+        return {"status": "warning", "message": "Reduction amount must be positive.", "market_address": market_address}
+
+    payload = {
+        "bettingEngineAddress": market_address, # API expects bettingEngineAddress
+        "amount": amount
+    }
+
+    try:
+        url = f"{API_URL}/api/liquidity-pool/reduce-market-funding"
+        print(f"Attempting to reduce market funding: POST {url} with payload: {payload}")
+        response = requests.post(url, json=payload)
+        response.raise_for_status()
+        result = response.json()
+        print(f"Successfully reduced funding for market {market_address} by {amount}. Response: {result}")
+        return {
+            "status": "success",
+            "market_address": market_address,
+            "amount_reduced": amount,
+            "result": result
+        }
+    except requests.exceptions.HTTPError as e:
+        error_message = f"HTTP Error reducing funding for market {market_address}: {e.response.status_code} - {e.response.text}"
+        print(error_message, file=sys.stderr)
+        return {"status": "error", "message": error_message, "market_address": market_address}
+    except requests.exceptions.RequestException as e:
+        error_message = f"Request Error reducing funding for market {market_address}: {e}"
+        print(error_message, file=sys.stderr)
+        return {"status": "error", "message": error_message, "market_address": market_address}
+    except Exception as e:
+         error_message = f"An unexpected error occurred in reduce_market_funding: {e}"
+         print(error_message, file=sys.stderr)
+         return {"status": "error", "message": error_message, "market_address": market_address}
+
+
 # --- Agent Definition ---
 
 risk_manager_agent = Agent(
     name="Risk Manager Agent",
-    handoff_description="Specialist agent for managing market risk, including liquidity provision and odds adjustments.",
+    handoff_description="Specialist agent for managing market risk, including liquidity provision, odds adjustments, and exposure limit setting.",
     instructions="""
     You are the Risk Manager Agent. Your primary goals are:
-    1. Monitor betting markets to manage overall risk exposure by adding liquidity where needed.
+    1. Monitor betting markets to manage overall risk exposure by adding/reducing liquidity and setting exposure limits.
     2. Adjust market odds dynamically to balance betting action and mitigate exposure imbalances on specific outcomes (e.g., H2H, spreads, totals).
-    
+    3. Set fine-grained exposure limits on specific bet types within a market if needed.
+
     Your workflow should be as follows:
-    
-    1. Call `get_all_markets` to retrieve information about all current markets, including their status, exposure metrics (`currentExposure`, `maxExposure`), and crucially, their *current odds* for H2H, spreads, and totals. (Note: Assumes `get_all_markets` provides current odds data alongside exposure).
-    
+
+    1. Call `get_all_markets` to retrieve information about all current markets, including their status, exposure metrics (`currentExposure`, `maxExposure`), and current odds.
+
     2. Analyze each market ('Open' status only):
-       a. **Initial Assessment:** Quickly assess if a market shows concerning risk patterns that warrant detailed analysis:
+       a. **Initial Assessment:** Quickly assess if a market shows concerning risk patterns:
           i. **Exposure Imbalance:** Check if the distribution of `currentExposure` across different betting outcomes appears heavily skewed (e.g., > 75% of exposure on one outcome).
-          ii. **Overall Exposure:** Check the ratio of `currentExposure` to `maxExposure`. High ratios (e.g., > 80%) indicate potential need for more liquidity or more aggressive odds adjustments.
-       
-       b. **Monte Carlo Simulation (for high-risk markets):** For markets showing potential risk concerns, use the Monte Carlo simulation tools:
-          i. For individual markets of concern: Call `run_monte_carlo_analysis` with the market data.
-          ii. If you have detailed exposure breakdown by bet type, use `run_monte_carlo_analysis_with_exposure` instead, which allows you to specify exact exposure amounts for each bet type (home, away, over, under, etc.).
-          iii. The simulation will provide:
-              - A risk status assessment (normal, elevated, high, critical)
-              - Recommended odds adjustments based on sophisticated risk modeling
-              - Liquidity requirements if needed
-              - Detailed rationale for all recommendations
-              - Additional bet size limits and other risk controls if warranted
-    
-    3. **Odds Adjustment Strategy (Balance the Book):**
-       a. For markets identified with significant exposure imbalance:
-          i. If you used Monte Carlo analysis, implement the recommended odds adjustments from the simulation.
-          ii. Otherwise, determine *new* odds designed to incentivize betting on the less popular side. This involves making the odds for the *under-bet* side more attractive (e.g., increase decimal odds slightly) and the odds for the *over-bet* side less attractive (e.g., decrease decimal odds slightly).
-          iii. Calculate these new odds based on the *current* odds obtained in step 1 and the severity of the imbalance. Act like an experienced sportsbook risk operator aiming to reduce liability on the overexposed side. *Do not* use external odds feeds for this; the adjustment must be based on your internal risk assessment.
-          iv. Call `update_odds_for_market` with the market's `address` and the full set of newly calculated decimal odds/points.
-    
-    4. **Liquidity Management Strategy:**
-       a. Check the global liquidity pool status by calling `get_liquidity_pool_info` to understand available funds.
-       b. For markets with Monte Carlo analysis, use the recommended liquidity amount from the simulation if available.
-       c. Otherwise, identify markets needing liquidity based on high `currentExposure` / `maxExposure` ratio (e.g., > 80%), especially if odds adjustments alone might not suffice or if overall volume is high.
-       d. Determine an appropriate liquidity amount to add (e.g., 1000-10000 units based on exposure level and available pool funds).
-       e. Call `add_liquidity_to_market` with the market's `address` and the determined `amount`.
-    
-    5. **When to Use Monte Carlo Simulations:**
-       a. Use `run_monte_carlo_analysis` for individual markets when:
-          i. The market shows significant imbalance (> 60% exposure on one side)
-          ii. The currentExposure/maxExposure ratio is high (> 70%)
-          iii. The market has high total stakes/volume
-          iv. You need detailed, mathematically rigorous odds adjustments
-          v. You need to determine optimal liquidity requirements
-       
-       b. For markets with low current exposure or minimal imbalance, you can skip the Monte Carlo analysis to save computational resources and use your standard risk assessment.
-    
-    6. **Reporting:** Report a summary of your actions, including:
-       a. Markets where odds were adjusted: Address, the reason (exposure imbalance), and the *new* decimal odds set.
-       b. Markets where liquidity was added: Address, the reason (high overall exposure), and the amount added.
-       c. Markets considered but where no action was taken (with reasoning).
-       d. Overall assessment of the current risk status across all markets.
-       e. Give extremely detailed reasoning for why you change odds, in either direction - at least a paragraph or two. If you used Monte Carlo simulations, include key insights from the analysis in your explanation.
-    
-    Note: Prioritize actions based on risk severity. Significant imbalances might require both odds adjustments and liquidity addition. If global liquidity is limited, focus on the highest-risk markets. Maintain a balanced approach to ensure market attractiveness while controlling exposure. The Monte Carlo simulation tools provide data-driven, mathematically rigorous recommendations, but you should still apply your judgment as a risk manager.
+          ii. **Overall Exposure:** Check the ratio of `currentExposure` to `maxExposure`. High ratios (e.g., > 80%) indicate potential need for more liquidity, odds adjustments, or stricter limits.
+
+       b. **Monte Carlo Simulation (for high-risk markets):** For markets showing potential risk concerns, use the Monte Carlo simulation tools (`run_monte_carlo_analysis` or `run_monte_carlo_analysis_with_exposure`). This can provide recommendations for odds, liquidity, and potentially bet size limits (though the simulation tools might need updates to explicitly recommend specific exposure limits using the new tools).
+
+    3. **Risk Mitigation Strategy:** Based on the analysis and simulation results:
+       a. **Odds Adjustment:** If significant imbalance exists, use `update_odds_for_market` to adjust odds (either based on Monte Carlo recommendations or your own calculation) to incentivize betting on the less popular side.
+       b. **Liquidity Management:**
+          i. If `currentExposure` is approaching `maxExposure` (e.g., > 80%), or if Monte Carlo suggests needing more capacity, use `add_liquidity_to_market` after checking available funds with `get_liquidity_pool_info`.
+          ii. If a market is deemed too risky, has low activity, or needs capital reallocated, consider using `reduce_market_funding` to decrease its `maxExposure` and return funds to the pool. Use this cautiously.
+       c. **Exposure Limit Management:** If specific bet types (e.g., home moneyline, over total) show disproportionate risk even after odds adjustments, use `set_market_exposure_limits` to lower the maximum allowable exposure for those specific outcomes (e.g., set `homeMoneylineLimit` lower than the default or `maxExposure`). You can set one or multiple limits in a single call.
+
+    4. **When to Use Which Tool:**
+       a. **Monte Carlo:** For complex risk assessment, mathematically derived odds/liquidity needs, especially on high-volume or highly imbalanced markets.
+       b. **`update_odds_for_market`:** Primary tool for balancing the book by influencing bettor behavior.
+       c. **`add_liquidity_to_market`:** Increase capacity for healthy markets or as recommended by simulation.
+       d. **`reduce_market_funding`:** Decrease overall risk capacity for a specific market, freeing up capital.
+       e. **`set_market_exposure_limits`:** Apply surgical risk control on specific outcomes within a market when odds/overall liquidity adjustments aren't sufficient or appropriate.
+
+    5. **Reporting:** Report a summary of your actions, including:
+       a. Markets where odds were adjusted: Address, reason, and new decimal odds.
+       b. Markets where liquidity was added/reduced: Address, reason, and amount.
+       c. Markets where exposure limits were set: Address, reason, and the specific limits applied.
+       d. Markets considered but where no action was taken (with reasoning).
+       e. Overall assessment of the current risk status.
+       f. Give detailed reasoning for your decisions, especially for odds changes, funding reductions, or limit setting. Reference Monte Carlo results if used.
+
+    Note: Prioritize actions based on risk severity. Significant imbalances might require multiple actions (e.g., odds adjustment + setting specific limits). If global liquidity is limited, focus on the highest-risk markets. Use the new exposure limit tools judiciously to control specific risks without stifling overall market activity unnecessarily.
     """,
     tools=[
         get_all_markets,
@@ -431,7 +517,9 @@ risk_manager_agent = Agent(
         get_liquidity_pool_info,
         update_odds_for_market,
         run_monte_carlo_analysis,
-        run_monte_carlo_analysis_with_exposure
+        run_monte_carlo_analysis_with_exposure,
+        set_market_exposure_limits,
+        reduce_market_funding
     ],
     # DO NOT CHANGE THIS MODEL FROM THE CURRENT SETTING
     model="gpt-4o-2024-11-20",

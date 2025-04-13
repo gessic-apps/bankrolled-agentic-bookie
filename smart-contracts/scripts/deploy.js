@@ -6,6 +6,24 @@ async function main() {
   console.log("Deploying contracts with the account:", deployer.address);
   console.log("Account balance:", (await deployer.getBalance()).toString());
 
+  // Deploy USDX first if needed
+  const USDX = await ethers.getContractFactory("USDX");
+  const usdx = await USDX.deploy();
+  await usdx.deployed();
+  console.log("USDX deployed to:", usdx.address);
+  
+  // Deploy LiquidityPool
+  const LiquidityPool = await ethers.getContractFactory("LiquidityPool");
+  const liquidityPool = await LiquidityPool.deploy(usdx.address);
+  await liquidityPool.deployed();
+  console.log("LiquidityPool deployed to:", liquidityPool.address);
+  
+  // Deploy MarketDeployer first
+  const MarketDeployer = await ethers.getContractFactory("MarketDeployer");
+  const marketDeployer = await MarketDeployer.deploy();
+  await marketDeployer.deployed();
+  console.log("MarketDeployer deployed to:", marketDeployer.address);
+  
   // Deploy MarketFactory contract
   const MarketFactory = await ethers.getContractFactory("MarketFactory");
   
@@ -13,12 +31,19 @@ async function main() {
   // In production, you would use dedicated addresses for these roles
   const factory = await MarketFactory.deploy(
     deployer.address, // odds provider
-    deployer.address  // results provider
+    deployer.address, // results provider
+    usdx.address,
+    liquidityPool.address,
+    marketDeployer.address
   );
   
   await factory.deployed();
   
   console.log("MarketFactory deployed to:", factory.address);
+  
+  // Set up the liquidity pool with the market factory
+  await liquidityPool.setMarketFactory(factory.address);
+  console.log("LiquidityPool configured with MarketFactory address");
   
   // Optional: Deploy a sample market for testing
   // if (process.env.DEPLOY_SAMPLE_MARKET === "true") {

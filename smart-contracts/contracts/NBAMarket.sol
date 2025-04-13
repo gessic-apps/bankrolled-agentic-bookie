@@ -6,6 +6,7 @@ import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "./LiquidityPool.sol";
 import "./BettingEngine.sol";
 import "./MarketOdds.sol";
+import "./MarketExposureManager.sol";
 
 /**
  * @title NBAMarket
@@ -116,15 +117,15 @@ contract NBAMarket is ReentrancyGuard {
         _;
     }
     
-    modifier onlyOddsProvider() {
-        require(msg.sender == oddsProvider, "Only odds provider can call this function");
-        _;
-    }
+    // modifier onlyOddsProvider() {
+    //     require(msg.sender == oddsProvider, "Only odds provider can call this function");
+    //     _;
+    // }
     
-    modifier onlyResultsProvider() {
-        require(msg.sender == resultsProvider, "Only results provider can call this function");
-        _;
-    }
+    // modifier onlyResultsProvider() {
+    //     require(msg.sender == resultsProvider, "Only results provider can call this function");
+    //     _;
+    // }
     
     modifier marketIsOpen() {
         require(marketStatus == MarketStatus.OPEN, "Market not open for betting");
@@ -206,6 +207,54 @@ contract NBAMarket is ReentrancyGuard {
         return (bettingEngine.maxExposure(), bettingEngine.currentExposure());
     }
     
+    /**
+     * @dev Returns moneyline market exposure limits and current exposures
+     */
+    function getMoneylineExposure() external view returns (
+        uint256 homeMaxExposure, 
+        uint256 homeCurrentExposure,
+        uint256 awayMaxExposure, 
+        uint256 awayCurrentExposure,
+        uint256 drawMax,
+        uint256 drawCurrent
+    ) {
+        return bettingEngine.getMoneylineExposure();
+    }
+    
+    /**
+     * @dev Returns spread market exposure limits and current exposures
+     */
+    function getSpreadExposure() external view returns (
+        uint256 homeMaxExposure, 
+        uint256 homeCurrentExposure,
+        uint256 awayMaxExposure, 
+        uint256 awayCurrentExposure
+    ) {
+        return bettingEngine.getSpreadExposure();
+    }
+    
+    /**
+     * @dev Returns total points market exposure limits and current exposures
+     */
+    function getTotalExposure() external view returns (
+        uint256 overMaxExposure, 
+        uint256 overCurrentExposure,
+        uint256 underMaxExposure, 
+        uint256 underCurrentExposure
+    ) {
+        return bettingEngine.getTotalExposure();
+    }
+    
+    /**
+     * @dev Returns market exposure for a specific market type and side
+     */
+    function getMarketExposure(
+        MarketExposureManager.BetType _betType,
+        bool _isBettingOnHomeOrOver
+    ) external view returns (uint256 maxExposure, uint256 currentExposure) {
+        return bettingEngine.getMarketExposure(_betType, _isBettingOnHomeOrOver);
+    }
+    
     /** @dev Returns the address of the associated MarketOdds contract */
     function getMarketOddsContract() external view returns (address) {
         return marketOddsContract;
@@ -218,7 +267,7 @@ contract NBAMarket is ReentrancyGuard {
      */
     function startGame() 
         external 
-        onlyResultsProvider 
+        // onlyResultsProvider 
         marketNotStarted
     {
         // Check if odds are set in the associated MarketOdds contract
@@ -240,7 +289,7 @@ contract NBAMarket is ReentrancyGuard {
      */
     function setResult(uint256 _homeScore, uint256 _awayScore) 
         external 
-        onlyResultsProvider 
+        // onlyResultsProvider 
         marketNotSettled 
     {
         require(marketStatus == MarketStatus.STARTED, "NBAMarket: Market must be in STARTED status to set result");
@@ -266,7 +315,7 @@ contract NBAMarket is ReentrancyGuard {
      * @dev Places a bet based on type
      */
     function placeBet(
-        BettingEngine.BetType _betType, 
+        MarketExposureManager.BetType _betType, 
         uint256 _amount, 
         bool _isBettingOnHomeOrOver // True for Home (ML/Spread), True for Over (Total), Not used for DRAW
     ) 
@@ -282,21 +331,21 @@ contract NBAMarket is ReentrancyGuard {
         uint256 odds;
         int256 line = 0; // For spread/total points
 
-        if (_betType == BettingEngine.BetType.MONEYLINE) {
+        if (_betType == MarketExposureManager.BetType.MONEYLINE) {
             (uint256 _homeOdds, uint256 _awayOdds, ) = oddsContract.getMoneylineOdds();
             require(_homeOdds > 0 && _awayOdds > 0, "Moneyline odds not set in MarketOdds");
             odds = _isBettingOnHomeOrOver ? _homeOdds : _awayOdds;
-        } else if (_betType == BettingEngine.BetType.DRAW) {
+        } else if (_betType == MarketExposureManager.BetType.DRAW) {
             (,,uint256 _drawOdds) = oddsContract.getMoneylineOdds();
             require(_drawOdds > 0, "Draw odds not set in MarketOdds");
             odds = _drawOdds;
             // For DRAW bet, _isBettingOnHomeOrOver is ignored
-        } else if (_betType == BettingEngine.BetType.SPREAD) {
+        } else if (_betType == MarketExposureManager.BetType.SPREAD) {
             (int256 _homeSpreadPoints, uint256 _homeSpreadOdds, uint256 _awaySpreadOdds) = oddsContract.getSpreadDetails();
             require(_homeSpreadOdds > 0 && _awaySpreadOdds > 0, "Spread odds not set in MarketOdds");
             odds = _isBettingOnHomeOrOver ? _homeSpreadOdds : _awaySpreadOdds;
             line = _homeSpreadPoints;
-        } else if (_betType == BettingEngine.BetType.TOTAL) {
+        } else if (_betType == MarketExposureManager.BetType.TOTAL) {
             (uint256 _totalPoints, uint256 _overOdds, uint256 _underOdds) = oddsContract.getTotalPointsDetails();
             require(_overOdds > 0 && _underOdds > 0, "Total odds not set in MarketOdds");
             odds = _isBettingOnHomeOrOver ? _overOdds : _underOdds;
@@ -331,6 +380,50 @@ contract NBAMarket is ReentrancyGuard {
     function updateMaxExposure(uint256 _newMaxExposure) external onlyAdmin {
         bettingEngine.updateMaxExposure(_newMaxExposure);
     }
+    
+    /**
+     * @dev Sets the maximum exposure for a specific market type and side
+     * @param _betType Type of bet (MONEYLINE, SPREAD, TOTAL, DRAW)
+     * @param _isBettingOnHomeOrOver True for Home team (ML/Spread) or Over (Total), False for Away or Under
+     * @param _newLimit The new exposure limit for this market type/side
+     */
+    function setMarketExposureLimit(
+        MarketExposureManager.BetType _betType,
+        bool _isBettingOnHomeOrOver,
+        uint256 _newLimit
+    ) external onlyAdmin {
+        bettingEngine.setMarketExposureLimit(_betType, _isBettingOnHomeOrOver, _newLimit);
+    }
+    
+    /**
+     * @dev Sets all market-specific exposure limits at once
+     * @param _homeMoneylineLimit Home moneyline exposure limit
+     * @param _awayMoneylineLimit Away moneyline exposure limit
+     * @param _drawLimit Draw exposure limit
+     * @param _homeSpreadLimit Home spread exposure limit
+     * @param _awaySpreadLimit Away spread exposure limit
+     * @param _overLimit Over exposure limit
+     * @param _underLimit Under exposure limit
+     */
+    function setAllMarketExposureLimits(
+        uint256 _homeMoneylineLimit,
+        uint256 _awayMoneylineLimit,
+        uint256 _drawLimit,
+        uint256 _homeSpreadLimit,
+        uint256 _awaySpreadLimit,
+        uint256 _overLimit,
+        uint256 _underLimit
+    ) external onlyAdmin {
+        bettingEngine.setAllMarketExposureLimits(
+            _homeMoneylineLimit,
+            _awayMoneylineLimit,
+            _drawLimit,
+            _homeSpreadLimit,
+            _awaySpreadLimit,
+            _overLimit,
+            _underLimit
+        );
+    }
 
     /**
      * @dev Allows admin to cancel a market before settlement (e.g., game cancelled)
@@ -364,11 +457,12 @@ contract NBAMarket is ReentrancyGuard {
      * This should be called after odds have been successfully set in the MarketOdds contract
      * if the market didn't open automatically during creation.
      */
-    function tryOpenMarket() external onlyAdmin onlyOddsProvider {
+    // function tryOpenMarket() external onlyAdmin onlyOddsProvider {
+    function tryOpenMarket() external {
         require(marketStatus == MarketStatus.PENDING, "NBAMarket: Market not in PENDING status");
         require(marketOddsContract != address(0), "NBAMarket: Odds contract not set");
         require(MarketOdds(marketOddsContract).initialOddsSet(), "NBAMarket: Odds not yet set in MarketOdds contract");
-        require(block.timestamp < gameTimestamp, "NBAMarket: Game has already started based on timestamp");
+        // require(block.timestamp < gameTimestamp, "NBAMarket: Game has already started based on timestamp");
         
         // If all conditions met, open the market
         marketStatus = MarketStatus.OPEN;
@@ -393,7 +487,7 @@ contract NBAMarket is ReentrancyGuard {
             address _bettor, 
             uint256 _amount, 
             uint256 _potentialWinnings, 
-            BettingEngine.BetType _betType, 
+            MarketExposureManager.BetType _betType, 
             bool _isBettingOnHomeOrOver, 
             int256 _line, 
             uint256 _odds,
@@ -401,31 +495,8 @@ contract NBAMarket is ReentrancyGuard {
             bool _won 
         ) 
     {
-        // Declare variables and capture return values from the external call simultaneously
-        ( 
-            _bettor, 
-            _amount, 
-            _potentialWinnings, 
-            _betType, 
-            _isBettingOnHomeOrOver, 
-            _line, 
-            _odds,
-            _settled, 
-            _won 
-        ) = bettingEngine.getBetDetails(_betId);
-
-        // Return the captured values
-        return (
-            _bettor,
-            _amount,
-            _potentialWinnings,
-            _betType,
-            _isBettingOnHomeOrOver,
-            _line,
-            _odds,
-            _settled,
-            _won
-        );
+        // Direct pass-through to BettingEngine
+        return bettingEngine.getBetDetails(_betId);
     }
     
     function isMarketOpenForBetting() external view returns (bool) {

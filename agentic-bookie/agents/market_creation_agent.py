@@ -63,13 +63,13 @@ SUPPORTED_SPORT_KEYS = [
 
 # Placeholder definitions if not imported:
 @function_tool
-def fetch_games_today(sport_keys: List[str]) -> List[str]:
-    """Fetches today's games for the specified sports from The Odds API."""
+def fetch_upcoming_games(sport_keys: List[str]) -> List[str]:
+    """Fetches upcoming games (today and tomorrow) for the specified sports from The Odds API."""
     if not SPORTS_API_KEY:
         print("Error: Cannot fetch games, SPORTS_API_KEY is missing.", file=sys.stderr)
         return []
     if not sport_keys:
-        print("Warning: No sport_keys provided to fetch_games_today.", file=sys.stderr)
+        print("Warning: No sport_keys provided to fetch_upcoming_games.", file=sys.stderr)
         return []
 
     all_games = []
@@ -81,15 +81,17 @@ def fetch_games_today(sport_keys: List[str]) -> List[str]:
     odds_format = "decimal"
     date_format = "iso"
 
-    # Calculate 'today' in UTC for commenceTime filtering
+    # Calculate time filtering range to include both today and tomorrow
     today_utc = datetime.datetime.now(datetime.timezone.utc).date()
-    start_of_day_utc = datetime.datetime.combine(today_utc, datetime.time.min, tzinfo=datetime.timezone.utc)
-    # Explicitly set end time to avoid microseconds from time.max
-    end_of_day_utc = datetime.datetime.combine(today_utc, datetime.time(23, 59, 59), tzinfo=datetime.timezone.utc)
+    # Start from current time to get today's games
+    start_of_period_utc = datetime.datetime.now(datetime.timezone.utc)
+    # End at the end of tomorrow
+    tomorrow_utc = today_utc + datetime.timedelta(days=1)
+    end_of_period_utc = datetime.datetime.combine(tomorrow_utc, datetime.time(23, 59, 59), tzinfo=datetime.timezone.utc)
 
     # Format using strftime to ensure YYYY-MM-DDTHH:MM:SSZ format
-    commence_time_from = start_of_day_utc.strftime('%Y-%m-%dT%H:%M:%SZ')
-    commence_time_to = end_of_day_utc.strftime('%Y-%m-%dT%H:%M:%SZ')
+    commence_time_from = start_of_period_utc.strftime('%Y-%m-%dT%H:%M:%SZ')
+    commence_time_to = end_of_period_utc.strftime('%Y-%m-%dT%H:%M:%SZ')
 
     for sport_key in sport_keys:
         print(f"Fetching games for sport: {sport_key}...")
@@ -305,9 +307,9 @@ market_creation_agent = Agent(
     # handoff_description is used if this agent itself is part of a handoff list in another agent
     handoff_description="Specialist agent for creating betting markets for NBA games",
     instructions="""
-    You are the Market Creation Agent. Your goal is to create betting markets for today's games across supported sports (NBA and major Soccer leagues) that do not already exist.
+    You are the Market Creation Agent. Your goal is to create betting markets for upcoming games (today and tomorrow) across supported sports (NBA and major Soccer leagues) that do not already exist.
     1. First, call `get_existing_markets` to retrieve a list of all markets already created.
-    2. Second, call `fetch_games_today` with the list of supported sport keys to find today's games. Each game is returned as a JSON string.
+    2. Second, call `fetch_upcoming_games` with the list of supported sport keys to find upcoming games for today and tomorrow. Each game is returned as a JSON string.
     3. For each game obtained in step 2:
        a. First parse the JSON string to get the game data.
        b. Call `check_event_exists`, passing the game's `id` field (Odds API ID) and the list of existing markets obtained in step 1.
@@ -317,7 +319,7 @@ market_creation_agent = Agent(
     4. Report a summary of the markets you attempted to create (list their `game_id` and teams) and the results (success or error). If no new markets needed creation, state that clearly.
     """,
     # Ensure all necessary tools are available
-    tools=[get_existing_markets, fetch_games_today, check_event_exists, create_betting_market],
+    tools=[get_existing_markets, fetch_upcoming_games, check_event_exists, create_betting_market],
     # DO NOT CHANGE THIS MODEL FROM THE CURRENT SETTING
     model="gpt-4o-mini-2024-07-18", # Adjusted model based on previous message
     # No context type needed if we remove the custom context logic
@@ -331,7 +333,7 @@ if __name__ == '__main__':
 
     async def test_market_creation():
         # Input prompt to trigger the agent's logic
-        prompt = f"Create markets for today's games in supported sports: {', '.join(SUPPORTED_SPORT_KEYS)}."
+        prompt = f"Create markets for upcoming games in supported sports: {', '.join(SUPPORTED_SPORT_KEYS)}."
         print(f"--- Running Market Creation Agent with prompt: '{prompt}' ---")
         # Ensure environment variables are loaded if running directly
         if not SPORTS_API_KEY or not API_URL:

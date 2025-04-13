@@ -38,12 +38,18 @@ describe("MarketFactory", function () {
     // Fund liquidity pool
     await usdx.transfer(liquidityPool.address, ethers.utils.parseUnits("500000", 6));
 
+    // Deploy MarketDeployer first
+    const MarketDeployer = await ethers.getContractFactory("MarketDeployer");
+    const marketDeployer = await MarketDeployer.deploy();
+    await marketDeployer.deployed();
+    
     // Deploy market factory
     factory = await MarketFactory.deploy(
       oddsProvider.address,
       resultsProvider.address,
       usdx.address,
-      liquidityPool.address
+      liquidityPool.address,
+      marketDeployer.address
     );
     await factory.deployed();
 

@@ -182,6 +182,33 @@
       }
     },
     {
+      "name": "Reduce Market Funding (Decrease Exposure)",
+      "request": {
+        "method": "POST",
+        "url": {
+          "raw": "{{API_URL}}/api/liquidity-pool/reduce-market-funding",
+          "host": [
+            "{{API_URL}}"
+          ],
+          "path": [
+            "api",
+            "liquidity-pool",
+            "reduce-market-funding"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"bettingEngineAddress\": \"{{BETTING_ENGINE_ADDRESS}}\",\n  \"amount\": 5000 \n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "description": "Decrease the max exposure for a specific Betting Engine via the Liquidity Pool (requires admin)"
+      }
+    },
+    {
       "name": "Get Liquidity Pool Info",
       "request": {
         "method": "GET",
@@ -408,6 +435,60 @@
           }
         },
         "description": "Mint USDX tokens to a specified address (uses admin wallet)"
+      }
+    },
+    {
+      "name": "Get Market Exposure Limits",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{API_URL}}/api/market/{{MARKET_ADDRESS}}/exposure-limits",
+          "host": ["{{API_URL}}"],
+          "path": ["api", "market", "{{MARKET_ADDRESS}}", "exposure-limits"]
+        },
+        "description": "Get all market-specific exposure limits and current exposures"
+      }
+    },
+    {
+      "name": "Set All Market Exposure Limits",
+      "request": {
+        "method": "POST",
+        "url": {
+          "raw": "{{API_URL}}/api/market/{{MARKET_ADDRESS}}/exposure-limits",
+          "host": ["{{API_URL}}"],
+          "path": ["api", "market", "{{MARKET_ADDRESS}}", "exposure-limits"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"homeMoneylineLimit\": 10000,\n  \"awayMoneylineLimit\": 10000,\n  \"drawLimit\": 5000,\n  \"homeSpreadLimit\": 8000,\n  \"awaySpreadLimit\": 8000,\n  \"overLimit\": 7000,\n  \"underLimit\": 7000\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "description": "Set all market-specific exposure limits at once"
+      }
+    },
+    {
+      "name": "Set Individual Market Exposure Limit",
+      "request": {
+        "method": "POST",
+        "url": {
+          "raw": "{{API_URL}}/api/market/{{MARKET_ADDRESS}}/exposure-limits",
+          "host": ["{{API_URL}}"],
+          "path": ["api", "market", "{{MARKET_ADDRESS}}", "exposure-limits"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"homeMoneylineLimit\": 15000\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "description": "Set a specific market exposure limit. Can specify any one or more of: homeMoneylineLimit, awayMoneylineLimit, drawLimit, homeSpreadLimit, awaySpreadLimit, overLimit, underLimit"
       }
     }
   ],

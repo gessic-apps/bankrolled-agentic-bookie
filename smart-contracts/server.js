@@ -405,7 +405,6 @@ app.post('/api/market/:address/update-odds', async (req, res) => {
     if (marketIndex >= 0) {
       deployedContracts.markets[marketIndex].homeOdds = homeOdds;
       deployedContracts.markets[marketIndex].awayOdds = awayOdds;
-      deployedContracts.markets[marketIndex].drawOdds = drawOdds;
       deployedContracts.markets[marketIndex].homeSpreadPoints = homeSpreadPoints;
       deployedContracts.markets[marketIndex].homeSpreadOdds = homeSpreadOdds;
       deployedContracts.markets[marketIndex].awaySpreadOdds = awaySpreadOdds;
@@ -423,7 +422,6 @@ app.post('/api/market/:address/update-odds', async (req, res) => {
       address,
       homeOdds,
       awayOdds,
-      drawOdds,
       homeSpreadPoints,
       homeSpreadOdds,
       awaySpreadOdds,
@@ -517,6 +515,65 @@ app.post('/api/market/:address/add-liquidity', async (req, res) => {
     });
   } catch (error) {
     console.error('Error adding liquidity:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Reduce market funding (decrease max exposure via Liquidity Pool)
+app.post('/api/liquidity-pool/reduce-market-funding', async (req, res) => {
+  try {
+    const { bettingEngineAddress, amount } = req.body;
+
+    if (!bettingEngineAddress || !ethers.utils.isAddress(bettingEngineAddress)) {
+      return res.status(400).json({ error: 'Valid bettingEngineAddress is required' });
+    }
+    if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
+      return res.status(400).json({ error: 'Valid positive amount is required' });
+    }
+    if (!deployedContracts.liquidityPool) {
+      return res.status(400).json({ error: 'Liquidity Pool not deployed yet' });
+    }
+
+    const provider = setupProvider();
+    const liquidityPoolAddress = deployedContracts.liquidityPool;
+
+    console.log(`Reducing max exposure for Betting Engine ${bettingEngineAddress} by ${amount} USDX...`);
+
+    // Convert amount to token units (assuming 6 decimals)
+    const amountInTokens = ethers.utils.parseUnits(amount.toString(), 6);
+
+    // Call reduceMarketFunding using the admin signer
+    const result = await signAndSendTransaction({
+      contractAddress: liquidityPoolAddress,
+      contractAbi: LiquidityPoolJson.abi,
+      method: 'reduceMarketFunding',
+      params: [bettingEngineAddress, amountInTokens],
+      role: 'admin' // Uses the owner/admin wallet
+    }, provider);
+
+    if (!result.success) {
+        // Attempt to provide a more specific error message if possible
+        const errorDetails = result.error || 'Unknown error during transaction execution.';
+        console.error('Reduce funding transaction failed:', errorDetails);
+        if (typeof errorDetails === 'string' && errorDetails.includes('reverted with reason string')) {
+            const match = errorDetails.match(/reverted with reason string '([^']+)'/);
+            if (match && match[1]) {
+                throw new Error(`Reducing funding failed: ${match[1]}`);
+            }
+        }
+        throw new Error(`Reducing funding transaction failed: ${errorDetails}`);
+    }
+
+    console.log(`Max exposure reduced for Betting Engine ${bettingEngineAddress}. Tx: ${result.transaction}`);
+    res.json({
+      success: true,
+      bettingEngineAddress,
+      amountReduced: amount,
+      transaction: result.transaction
+    });
+
+  } catch (error) {
+    console.error('Error reducing market funding:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -723,6 +780,7 @@ app.get('/api/markets', async (req, res) => {
         const marketContract = new ethers.Contract(address, NBAMarketJson.abi, provider);
         const details = await marketContract.getMarketDetails(); // Using new getter
         const exposure = await marketContract.getExposureInfo();
+        const bettingEngineAddress = await marketContract.bettingEngine(); // Fetch betting engine address
         
         // Fetch odds from associated MarketOdds contract
         let oddsDetails = {};
@@ -735,7 +793,7 @@ app.get('/api/markets', async (req, res) => {
                   marketOddsAddress: marketOddsAddress,
                   homeOdds: fullOddsData._homeOdds.toNumber() / 1000,
                   awayOdds: fullOddsData._awayOdds.toNumber() / 1000,
-                  drawOdds: fullOddsData._drawOdds ? fullOddsData._drawOdds.toNumber() / 1000 : 0,
+                  drawOdds: fullOddsData._drawOdds.toNumber() / 1000,
                   homeSpreadPoints: formatLine(1, fullOddsData._homeSpreadPoints), // Use helper
                   homeSpreadOdds: fullOddsData._homeSpreadOdds.toNumber() / 1000,
                   awaySpreadOdds: fullOddsData._awaySpreadOdds.toNumber() / 1000,
@@ -761,6 +819,7 @@ app.get('/api/markets', async (req, res) => {
           resultSettled: details._resultSettled,
           homeScore: details._homeScore.toNumber(),
           awayScore: details._awayScore.toNumber(),
+          bettingEngineAddress: bettingEngineAddress, // Include betting engine address
           // Include odds for quick view
           ...oddsDetails, // Spread odds details into the market object
           maxExposure: ethers.utils.formatUnits(exposure[0], 6), // Assuming 6 decimals for USDX
@@ -1369,3 +1428,243 @@ function formatLine(betType, lineBigNumber) {
 }
 
 // --- End Helper Functions ---
+
+// Set market-specific exposure limits
+app.post('/api/market/:address/exposure-limits', async (req, res) => {
+  try {
+    const { address } = req.params;
+    const {
+      homeMoneylineLimit,
+      awayMoneylineLimit,
+      drawLimit,
+      homeSpreadLimit,
+      awaySpreadLimit,
+      overLimit,
+      underLimit
+    } = req.body;
+
+    if (!address || !ethers.utils.isAddress(address)) {
+      return res.status(400).json({ error: 'Valid market address is required' });
+    }
+
+    const provider = setupProvider();
+    const market = new ethers.Contract(address, NBAMarketJson.abi, provider);
+    
+    // Use batch function if all limits are provided
+    if (homeMoneylineLimit !== undefined && 
+        awayMoneylineLimit !== undefined && 
+        drawLimit !== undefined && 
+        homeSpreadLimit !== undefined && 
+        awaySpreadLimit !== undefined && 
+        overLimit !== undefined && 
+        underLimit !== undefined) {
+      
+      console.log(`Setting all exposure limits for market ${address}...`);
+      
+      const result = await signAndSendTransaction({
+        contractAddress: address,
+        contractAbi: NBAMarketJson.abi,
+        method: 'setAllMarketExposureLimits',
+        params: [
+          parseTokenAmount(homeMoneylineLimit),
+          parseTokenAmount(awayMoneylineLimit),
+          parseTokenAmount(drawLimit),
+          parseTokenAmount(homeSpreadLimit),
+          parseTokenAmount(awaySpreadLimit),
+          parseTokenAmount(overLimit),
+          parseTokenAmount(underLimit)
+        ],
+        role: 'admin'
+      }, provider);
+      
+      if (!result.success) {
+        throw new Error(result.error);
+      }
+      
+      return res.json({
+        success: true,
+        address,
+        limits: {
+          homeMoneyline: homeMoneylineLimit,
+          awayMoneyline: awayMoneylineLimit,
+          draw: drawLimit,
+          homeSpread: homeSpreadLimit,
+          awaySpread: awaySpreadLimit,
+          over: overLimit,
+          under: underLimit
+        },
+        transaction: result.transaction
+      });
+    } 
+    // Handle individual limit settings
+    else {
+      // Validate that at least one limit is provided
+      if (homeMoneylineLimit === undefined && 
+          awayMoneylineLimit === undefined && 
+          drawLimit === undefined && 
+          homeSpreadLimit === undefined && 
+          awaySpreadLimit === undefined && 
+          overLimit === undefined && 
+          underLimit === undefined) {
+        return res.status(400).json({ error: 'At least one exposure limit must be provided' });
+      }
+      
+      // Process each limit individually
+      const results = [];
+      
+      // Helper function to set a single limit
+      const setLimit = async (betType, isHomeOrOver, limitValue, limitName) => {
+        if (limitValue !== undefined) {
+          console.log(`Setting ${limitName} exposure limit for market ${address} to ${limitValue}...`);
+          
+          const result = await signAndSendTransaction({
+            contractAddress: address,
+            contractAbi: NBAMarketJson.abi,
+            method: 'setMarketExposureLimit',
+            params: [
+              betType, // 0=ML, 1=Spread, 2=Total, 3=Draw
+              isHomeOrOver,
+              parseTokenAmount(limitValue)
+            ],
+            role: 'admin'
+          }, provider);
+          
+          if (!result.success) {
+            throw new Error(`Failed to set ${limitName} limit: ${result.error}`);
+          }
+          
+          results.push({
+            limit: limitName,
+            value: limitValue,
+            transaction: result.transaction
+          });
+        }
+      };
+      
+      // Set limits individually (only for those provided)
+      try {
+        const promises = [];
+        
+        if (homeMoneylineLimit !== undefined) {
+          promises.push(setLimit(0, true, homeMoneylineLimit, 'homeMoneyline'));
+        }
+        
+        if (awayMoneylineLimit !== undefined) {
+          promises.push(setLimit(0, false, awayMoneylineLimit, 'awayMoneyline'));
+        }
+        
+        if (drawLimit !== undefined) {
+          promises.push(setLimit(3, true, drawLimit, 'draw'));
+        }
+        
+        if (homeSpreadLimit !== undefined) {
+          promises.push(setLimit(1, true, homeSpreadLimit, 'homeSpread'));
+        }
+        
+        if (awaySpreadLimit !== undefined) {
+          promises.push(setLimit(1, false, awaySpreadLimit, 'awaySpread'));
+        }
+        
+        if (overLimit !== undefined) {
+          promises.push(setLimit(2, true, overLimit, 'over'));
+        }
+        
+        if (underLimit !== undefined) {
+          promises.push(setLimit(2, false, underLimit, 'under'));
+        }
+        
+        // Wait for all promises to resolve
+        await Promise.all(promises);
+        
+        return res.json({
+          success: true,
+          address,
+          results
+        });
+      } catch (error) {
+        console.error('Error setting individual exposure limits:', error);
+        return res.status(500).json({ 
+          error: 'Failed to set all exposure limits', 
+          details: error.message,
+          successfulLimits: results // Return any successful limits
+        });
+      }
+    }
+  } catch (error) {
+    console.error('Error setting market exposure limits:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get market-specific exposure limits
+app.get('/api/market/:address/exposure-limits', async (req, res) => {
+  try {
+    const { address } = req.params;
+
+    if (!address || !ethers.utils.isAddress(address)) {
+      return res.status(400).json({ error: 'Valid market address is required' });
+    }
+
+    const provider = setupProvider();
+    const market = new ethers.Contract(address, NBAMarketJson.abi, provider);
+    
+    console.log(`Getting exposure limits for market ${address}...`);
+    
+    // Get all exposure limits in parallel
+    const [moneylineExposure, spreadExposure, totalExposure] = await Promise.all([
+      market.getMoneylineExposure(),
+      market.getSpreadExposure(),
+      market.getTotalExposure()
+    ]);
+    
+    // Format the response
+    const exposureLimits = {
+      moneyline: {
+        home: {
+          maxExposure: ethers.utils.formatUnits(moneylineExposure[0], 6),
+          currentExposure: ethers.utils.formatUnits(moneylineExposure[1], 6)
+        },
+        away: {
+          maxExposure: ethers.utils.formatUnits(moneylineExposure[2], 6),
+          currentExposure: ethers.utils.formatUnits(moneylineExposure[3], 6)
+        },
+        draw: {
+          maxExposure: ethers.utils.formatUnits(moneylineExposure[4], 6),
+          currentExposure: ethers.utils.formatUnits(moneylineExposure[5], 6)
+        }
+      },
+      spread: {
+        home: {
+          maxExposure: ethers.utils.formatUnits(spreadExposure[0], 6),
+          currentExposure: ethers.utils.formatUnits(spreadExposure[1], 6)
+        },
+        away: {
+          maxExposure: ethers.utils.formatUnits(spreadExposure[2], 6),
+          currentExposure: ethers.utils.formatUnits(spreadExposure[3], 6)
+        }
+      },
+      total: {
+        over: {
+          maxExposure: ethers.utils.formatUnits(totalExposure[0], 6),
+          currentExposure: ethers.utils.formatUnits(totalExposure[1], 6)
+        },
+        under: {
+          maxExposure: ethers.utils.formatUnits(totalExposure[2], 6),
+          currentExposure: ethers.utils.formatUnits(totalExposure[3], 6)
+        }
+      }
+    };
+    
+    res.json(exposureLimits);
+  } catch (error) {
+    console.error('Error getting market exposure limits:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Helper function to parse token amount with proper decimals
+function parseTokenAmount(amount) {
+  if (amount === 0 || amount === '0') return 0; // Allow explicit zero
+  if (!amount) return 0; // Default to 0 for undefined/null
+  return ethers.utils.parseUnits(amount.toString(), 6); // Assuming 6 decimals for USDX
+}
