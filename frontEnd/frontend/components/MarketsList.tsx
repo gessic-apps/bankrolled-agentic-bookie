@@ -24,7 +24,7 @@ const MarketsList: React.FC<MarketsListProps> = ({ markets, usdxAddress }) => {
           key={market.address} 
           market={market} 
           usdxAddress={usdxAddress} 
-          // expectedChainId={CONTRACT_ADDRESSES.EXPECTED_CHAIN_ID}
+          expectedChainId={CONTRACT_ADDRESSES.EXPECTED_CHAIN_ID}
         />
       ))}
     </div>

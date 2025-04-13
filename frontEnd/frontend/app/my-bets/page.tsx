@@ -6,7 +6,7 @@ import { WagmiProvider, useAccount, useConfig } from 'wagmi';
 import { readContract } from 'wagmi/actions';
 import { type Address, BaseError } from 'viem';
 import { getDefaultConfig, RainbowKitProvider } from '@rainbow-me/rainbowkit';
-import { localhost, baseSepolia } from 'wagmi/chains';
+import { baseSepolia } from 'wagmi/chains';
 import '@rainbow-me/rainbowkit/styles.css';
 import { HeroUIProvider } from "@heroui/react";
 import UserBetsList from "../../components/UserBetsList";
@@ -23,7 +23,7 @@ import { WAGMI_CONFIG, CONTRACT_ADDRESSES } from '../../config/contracts';
 const config = getDefaultConfig({
   appName: WAGMI_CONFIG.APP_NAME,
   projectId: WAGMI_CONFIG.PROJECT_ID,
-  chains: [localhost],
+  chains: [baseSepolia],
   ssr: false,
 });
 

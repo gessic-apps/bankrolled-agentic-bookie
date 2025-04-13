@@ -39,7 +39,7 @@ async function getEthersSigner(walletClient: WalletClient): Promise<ethers.Signe
 }
 
 // Import contract addresses from central config
-import { CONTRACT_ADDRESSES } from '../config/contracts';
+// import { CONTRACT_ADDRESSES } from '../config/contracts';
 
 interface MarketCardProps {
   market: Market;
@@ -87,7 +87,7 @@ const MarketCard: React.FC<MarketCardProps> = ({ market, usdxAddress, expectedCh
   // State for selected bet type and betting on draw option
   const [selectedBetType, setSelectedBetType] = useState<number>(MONEYLINE_BET_TYPE);
   const [isBettingOnDraw, setIsBettingOnDraw] = useState<boolean>(false);
-
+console.log(isBettingOnDraw)
   // --- Wallet Hooks ---
   const { address: userAddress, isConnected, chainId } = useAccount();
   const currentChainId = useChainId(); // Get current chain ID
