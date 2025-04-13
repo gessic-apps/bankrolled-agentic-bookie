@@ -1,7 +1,7 @@
 {
-  "usdx": "0x0aC1360DC4A164BedAbc321a96D208ce7ce0c817",
-  "liquidityPool": "0x557DB1bF007d082041c57cbbfa1F37505fc6ed48",
-  "marketFactory": "0x901C93b664bb5a77085134a14c1EEC5573B5E6a8",
+  "usdx": "0x2C7631FF93332ee5c67C20C4D5338E8F9f25DA83",
+  "liquidityPool": "0xFf800bf63838877b64dB88A45efeadd90642565f",
+  "marketFactory": "0xA1DDCc4059700a65146E48751E3E075F4889AdC9",
   "markets": [
     {
       "address": "0x79cCC6cd2169726800f1503A083FF2f9eF716A68",
@@ -2562,7 +2562,27 @@
       "underOdds": 1910,
       "oddsSet": true,
       "updatedAt": "2025-04-13T10:53:55.430Z"
+    },
+    {
+      "address": "0x504e1Cfb3f3a46Bd0c86ca74d62f5AbC5C0d4FEc",
+      "homeTeam": "Test",
+      "awayTeam": "testtt",
+      "gameTimestamp": 1744640927,
+      "oddsApiId": "NBA_2023_LAL_BOS",
+      "funding": "1000.0",
+      "transaction": "0x3edcc2b26eb713d216635aa5a1062955a012ffeaf2d93201f2c22c3e7f437edf",
+      "createdAt": "2025-04-13T14:29:02.886Z"
+    },
+    {
+      "address": "0x30a6be70Ff2A1263A19e7bed71A85E814DC3C86d",
+      "homeTeam": "Soccer",
+      "awayTeam": "Socc",
+      "gameTimestamp": 1744640927,
+      "oddsApiId": "NBA_2023_LAL_BOS",
+      "funding": "1000.0",
+      "transaction": "0x3e9bf08bc0e2c8303f166e7f4ed843cd0d3972ea2ebfad3fb4097a7fd7845274",
+      "createdAt": "2025-04-13T14:29:57.578Z"
     }
   ],
-  "marketDeployer": "0xcfFFD2B28F1E29934389977E1347D1C849205582"
+  "marketDeployer": "0x0913eFBb13a5550A46C2714EfB9bE988fdC12F9C"
 }
