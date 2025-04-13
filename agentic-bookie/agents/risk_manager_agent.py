@@ -5,7 +5,7 @@ import os
 import datetime
 import time
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -16,7 +16,7 @@ if not API_URL:
     print(f"Warning: API_URL not found, defaulting to {API_URL}", file=sys.stderr)
 
 # Import Agent SDK components
-from agents import Agent, function_tool
+from agents import Agent, function_tool,  AsyncOpenAI, OpenAIChatCompletionsModel
 
 # Import Monte Carlo simulation tool
 from .monte_carlo_sims import analyze_market_risk, bulk_analyze_markets
@@ -37,6 +37,10 @@ from ..tools.odds_tools import (
     BatchUpdateResult
 )
 
+# Import the fetch_games_with_odds function from odds_manager_agent
+# to get the latest odds from the API
+from .odds_manager_agent import fetch_games_with_odds_impl, SUPPORTED_SPORT_KEYS
+
 # Import prediction tools
 from ..tools.prediction_tools import (
     get_bankrolled_predictions,
@@ -45,7 +49,7 @@ from ..tools.prediction_tools import (
 )
 
 # --- Tool Definitions ---
-
+deepseek_client = AsyncOpenAI(base_url="https://api.deepseek.com", api_key="sk-524207d333a049f5b02cbc0c36bc860f")
 @function_tool
 def get_all_markets() -> List[Dict[str, Any]]:
     """Fetches all existing betting markets from the smart contract API."""
@@ -557,6 +561,161 @@ def update_odds_for_multiple_markets(
 # --- Bankrolled Prediction Tools ---
 
 @function_tool
+def fetch_latest_odds(sport_keys: Optional[List[str]] = None) -> Dict[str, Any]:
+    """
+    Fetches the latest odds from the API for the specified sports.
+    
+    Args:
+        sport_keys: List of sport keys to fetch odds for. If not provided, all supported sports will be used.
+        
+    Returns:
+        dict: A structure containing the latest odds mapped by oddsApiId
+    """
+    # If no sport keys provided, use all supported sports
+    if sport_keys is None:
+        sport_keys = SUPPORTED_SPORT_KEYS
+    try:
+        games_with_odds = fetch_games_with_odds_impl(sport_keys)
+        
+        # Create a mapping from oddsApiId to odds data for efficient lookup
+        odds_api_id_to_odds = {}
+        for game in games_with_odds:
+            odds_api_id = game.get("odds_api_id")
+            odds_data = game.get("odds")
+            if odds_api_id and odds_data:
+                odds_api_id_to_odds[odds_api_id] = odds_data
+        
+        return {
+            "status": "success",
+            "message": f"Successfully fetched odds for {len(odds_api_id_to_odds)} games",
+            "odds_data": odds_api_id_to_odds,
+            "sport_keys": sport_keys
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Error fetching latest odds: {str(e)}",
+            "odds_data": {},
+            "sport_keys": sport_keys
+        }
+
+@function_tool
+def fetch_and_update_markets() -> Dict[str, Any]:
+    """
+    Fetches latest odds from the API and updates all markets that need updating.
+    Updates include moneyline, spread points, spread odds and totals.
+    Unlike the odds_manager, this function updates ALL markets, even those that already have odds.
+    
+    Returns:
+        dict: Results of the batch update operation with details on which markets were updated
+    """
+    # Step 1: Fetch games with odds for all supported sports
+    print("Fetching games with latest odds for all supported sports...")
+    sport_keys = SUPPORTED_SPORT_KEYS
+    games_with_odds = fetch_games_with_odds_impl(sport_keys)
+    print(f"Found {len(games_with_odds)} games with complete odds data")
+    
+    if not games_with_odds:
+        return {
+            "status": "error",
+            "message": "No games with odds found from The Odds API",
+            "total_markets": 0,
+            "markets_updated": 0
+        }
+    
+    # Step 2: Create a mapping from odds_api_id to odds data for efficient lookup
+    odds_api_id_to_odds = {
+        game["odds_api_id"]: game["odds"] 
+        for game in games_with_odds
+    }
+    print(f"Created mapping for {len(odds_api_id_to_odds)} games by odds API ID")
+    
+    # Step 3: Get existing markets
+    print("Fetching existing markets...")
+    existing_markets = get_all_markets()
+    open_markets = [m for m in existing_markets if m.get("status") == "Open"]
+    print(f"Found {len(open_markets)} open markets out of {len(existing_markets)} total markets")
+    
+    if not open_markets:
+        return {
+            "status": "info",
+            "message": "No open markets found to update",
+            "total_markets": len(existing_markets),
+            "open_markets": 0,
+            "markets_updated": 0
+        }
+    
+    # Step 4: Match markets with odds and prepare update data
+    markets_for_update = []
+    markets_without_odds_data = []
+    
+    for market in open_markets:
+        odds_api_id = market.get("oddsApiId")
+        market_address = market.get("address")
+        
+        if not (odds_api_id and market_address):
+            print(f"Warning: Market missing oddsApiId or address: {market}")
+            continue
+        
+        # Check if we have latest odds for this market
+        if odds_api_id in odds_api_id_to_odds:
+            odds_data = odds_api_id_to_odds[odds_api_id]
+            
+            # Create a market data entry with all required fields
+            market_data = {
+                "market_address": market_address,
+                "home_odds": odds_data.get("home_odds"),
+                "away_odds": odds_data.get("away_odds"),
+                "draw_odds": odds_data.get("draw_odds", 0.0),
+                "home_spread_points": odds_data.get("home_spread_points"),
+                "home_spread_odds": odds_data.get("home_spread_odds"),
+                "away_spread_odds": odds_data.get("away_spread_odds"),
+                "total_points": odds_data.get("total_points"),
+                "over_odds": odds_data.get("over_odds"),
+                "under_odds": odds_data.get("under_odds")
+            }
+            
+            # Ensure all required odds data is present
+            if all(v is not None for k, v in market_data.items() if k != "draw_odds"):
+                markets_for_update.append(market_data)
+            else:
+                print(f"Warning: Incomplete odds data for market {market_address} (odds API ID: {odds_api_id})")
+                missing_fields = [k for k, v in market_data.items() if v is None and k != "draw_odds"]
+                print(f"Missing fields: {missing_fields}")
+        else:
+            markets_without_odds_data.append({
+                "market_address": market_address,
+                "odds_api_id": odds_api_id
+            })
+    
+    # Step 5: Update all markets with available odds data
+    print(f"Preparing to update {len(markets_for_update)} markets with latest odds data")
+    
+    if not markets_for_update:
+        return {
+            "status": "warning",
+            "message": "No markets had matching updated odds data from the API",
+            "total_markets": len(existing_markets),
+            "open_markets": len(open_markets),
+            "markets_without_data": len(markets_without_odds_data),
+            "markets_updated": 0
+        }
+    
+    # Perform the batch update
+    update_results = update_odds_for_multiple_markets(markets_for_update)
+    
+    # Step 6: Return combined result summary
+    return {
+        "status": "success",
+        "message": f"Updated odds (moneyline, spreads, totals) for {update_results['successful_updates']} markets with latest data",
+        "total_markets": len(existing_markets),
+        "open_markets": len(open_markets),
+        "markets_updated": update_results.get("successful_updates", 0),
+        "markets_failed": update_results.get("failed_updates", 0),
+        "markets_without_data": len(markets_without_odds_data)
+    }
+
+@function_tool
 def get_prediction_data() -> Dict[str, Any]:
     """
     Retrieves Bankrolled prediction data from the last two days.
@@ -612,87 +771,140 @@ risk_manager_agent = Agent(
 # Risk Manager Agent Instructions
 
 ## Objective
-The Risk Manager Agent's primary mission is to maximize sportsbook profit while minimizing insolvency risk. It does this by dynamically adjusting odds, bet size limits, and liquidity across betting markets, informed by both internal exposure data and Bankrolled prediction data (stored in predictions_last_two_days.json).
+The Risk Manager Agent's primary mission is to maximize sportsbook profit while minimizing insolvency risk. It does this by dynamically adjusting ALL betting-related values (odds, spreads, and totals), managing bet size limits, and optimizing liquidity across betting markets.
+
+## Key Responsibilities
+1. COMPREHENSIVE ODDS & LINES UPDATES: You **must** update ALL betting values (not just moneyline odds) for EVERY open market in EVERY run:
+   - Update moneyline odds (home, away, draw for soccer)
+   - Update spread points and spread odds
+   - Update total points line and over/under odds
+   - ALWAYS ensure ALL values are current with either risk-adjusted values or latest API values
+
+2. DYNAMIC RISK MANAGEMENT: Actively monitor and respond to betting patterns:
+   - Set bet size limits for specific bet types/sides when imbalances occur
+   - Adjust odds to discourage betting on overexposed outcomes
+   - Add liquidity to markets with high potential liability
 
 ## Workflow Overview
 
-### 1. Retrieve Market Data
-- Call `get_all_markets()` to access:
-  - Status of the market
-  - currentExposure, maxExposure
-  - Decimal odds for all outcomes
-  - Market address for identification
-- Filter for markets with status = "Open"
+### 1. First Priority: Update All Markets with Latest Data
+- Start by calling `fetch_and_update_markets()` to update ALL open markets with the latest odds and lines
+- This ensures spreads and totals are synchronized with the actual game state
+- This function will:
+  - Fetch latest odds from the API for all supported sports
+  - Update ALL open markets with the latest data (moneyline, spreads, totals)
 
-### 2. Evaluate Market Risk
+### 2. Retrieve Market Data for Risk Analysis
+- Call `get_all_markets()` to access all markets
+- For each market with status = "Open":
+  - Note current exposure levels
+  - Identify markets needing risk assessment
+
+### 3. Evaluate Market Risk
 - For each open market:
-  - Get detailed exposure using `get_detailed_market_exposure(market_address)` to identify:
-    - Exposure imbalances: if one bet type/side has more than 75% of exposure
-    - Saturated markets: if currentExposure exceeds 80% of maxExposure
+  - Get detailed exposure using `get_detailed_market_exposure(market_address)` 
+  - Identify exposure imbalances across all bet types:
+    - Moneyline: home vs away (vs draw for soccer)
+    - Spread: home spread vs away spread
+    - Totals: over vs under
+  - Calculate ratio between sides for each bet type
+  - Flag markets with significant imbalances (>2:1 ratio between sides)
 
-### 3. Run Monte Carlo Simulations
-- For each flagged market, use:
-  - For basic simulation: `run_monte_carlo_analysis(market_address, oddsApiId, status, currentExposure, maxExposure, homeOdds, awayOdds, homeSpreadPoints, homeSpreadOdds, awaySpreadOdds, totalPoints, overOdds, underOdds, num_simulations)`
-  - For detailed simulation with exposure distribution: `run_monte_carlo_analysis_with_exposure(market_address, [all other params], exposure_home, exposure_away, exposure_over, exposure_under, exposure_home_spread, exposure_away_spread, num_simulations)`
-- Use at least 1000 simulations (num_simulations=1000)
-- Consider Bankrolled prediction data in your risk assessment
-- Use simulations to forecast worst-case drawdown and insolvency scenarios
+### 4. Run Simulations for Risky Markets
+- For markets with significant imbalances or high exposure (>50% of max):
+  - Run Monte Carlo simulation with the exposure distribution:
+    ```
+    run_monte_carlo_analysis_with_exposure(
+        market_address, 
+        oddsApiId, 
+        status, 
+        currentExposure, 
+        maxExposure,
+        homeOdds, 
+        awayOdds, 
+        homeSpreadPoints, 
+        homeSpreadOdds, 
+        awaySpreadOdds, 
+        totalPoints, 
+        overOdds, 
+        underOdds,
+        exposure_home,
+        exposure_away,
+        exposure_over,
+        exposure_under,
+        exposure_home_spread,
+        exposure_away_spread,
+        num_simulations=1000
+    )
+    ```
+  - Analyze simulation results for potential profit/loss scenarios
 
-### 4. Odds Adjustment
-- If simulations or exposure data show imbalance or risk:
-  - Use `update_odds_for_market(market_address, home_odds, away_odds, home_spread_points, home_spread_odds, away_spread_odds, total_points, over_odds, under_odds, draw_odds)` to:
-    - Decrease odds on overexposed side
-    - Increase odds on underexposed side
-  - For soccer markets, include draw_odds parameter
-  - Adjustment magnitude based on risk severity:
-    - Low risk: 2–3% adjustment
-    - Moderate risk: 5–8%
-    - High risk: up to 10%
-  - For batch updates of multiple markets, use `update_odds_for_multiple_markets(markets_data)`
+### 5. Apply Risk-Based Adjustments
+For markets with imbalanced exposure, implement these strategies:
 
-### 5. Exposure Limit Management
-- If simulation risk is high or Bankrolled prediction data suggests sharp user activity:
-  - Set market-wide bet type limits using:
-    - For multiple limits: `set_market_exposure_limits(market_address, home_moneyline_limit, away_moneyline_limit, draw_limit, home_spread_limit, away_spread_limit, over_limit, under_limit)`
-    - For individual bet type/side: `set_specific_bet_type_limit(market_address, bet_type, side, limit)`
-      - Valid bet_types: 'moneyline', 'spread', 'total', 'draw'
-      - Valid sides: 'home', 'away', 'over', 'under', 'draw'
-  - For new or unknown users in Bankrolled data:
-    - Compare their betting behavior to known user segments
-    - Use look-alike modeling to determine synthetic sharpness
-    - Apply appropriate exposure limits based on this analysis
+#### a) Odds & Lines Adjustment 
+- Apply risk-based adjustments based on exposure imbalances:
+  - Low risk (1.5:1 ratio): 2-3% adjustment to odds
+  - Moderate risk (2:1 ratio): 5-8% adjustment to odds
+  - High risk (3:1+ ratio): 8-10% adjustment to odds
+- For moneyline imbalances:
+  - Decrease odds on overexposed side (less attractive)
+  - Increase odds on underexposed side (more attractive)
+- For spread imbalances:
+  - Adjust spread odds (not the points) to balance action
+  - In extreme cases, consider small adjustments to spread points (0.5-1 point)
+- For totals imbalances:
+  - Adjust over/under odds to balance action
+  - In extreme cases, consider small adjustments to the total points line (0.5-1 point)
+- Call `update_odds_for_market(market_address, home_odds, away_odds, home_spread_points, home_spread_odds, away_spread_odds, total_points, over_odds, under_odds, draw_odds)` with adjusted values
 
-### 6. Liquidity Management
-- Call `get_liquidity_pool_info()` to view available reserves
-- For high-risk markets:
-  - Use `add_liquidity_to_market(market_address, amount)` to:
-    - Add between 1,000 and 10,000 units depending on exposure and simulated outcomes
-    - Prioritize markets with worst simulated drawdown
-  - For markets with excessive risk, consider `reduce_market_funding(market_address, amount)` to:
-    - Decrease the total funding allocated to a risky market
-    - Return funds to the central liquidity pool
+#### b) Exposure Limits
+- For significant imbalances (especially 2:1 or greater):
+  - Set specific bet type limits using `set_specific_bet_type_limit(market_address, bet_type, side, limit)`
+  - Examples:
+    - If home moneyline has 3x more exposure than away: `set_specific_bet_type_limit(market_address, "moneyline", "home", reduced_limit)`
+    - If over total has 2x more exposure than under: `set_specific_bet_type_limit(market_address, "total", "over", reduced_limit)`
+  - Calculate limits based on current exposure (typically 50-70% of current exposure)
 
-### 7. Verification
-- After making changes:
-  - Use `check_market_odds(market_address)` to verify odds updates were applied
+#### c) Liquidity Management
+- When exposure exceeds 80% of max_exposure:
+  - Add liquidity using `add_liquidity_to_market(market_address, amount)`
+  - Use simulation results to determine needed amount (typically 20-30% buffer)
+- For extreme cases (>90% utilization or VaR > 50% of max exposure):
+  - Consider reducing market funding with `reduce_market_funding(market_address, amount)`
+
+### 6. Verification
+- After making risk-based adjustments:
+  - Use `check_market_odds(market_address)` to verify odds were applied correctly
   - Confirm exposure limits with `get_detailed_market_exposure(market_address)`
 
-### 8. Reporting
-- Provide a report with:
-  - Markets with odds adjusted (address, reason, new odds)
-  - Markets with exposure limits applied (global or specific bet types)
-  - Markets where liquidity was added/reduced (amount, reason)
-  - Markets reviewed but not acted on (with justification)
-  - Summary of Monte Carlo simulation outcomes and insights from Bankrolled prediction data
-  - If you decide not to run similations or change odds, explain why. 
+### 7. Generate Report
+- Provide a comprehensive report including:
+  - Markets with odds/spreads/totals adjusted (with adjustment percentages and reasons)
+  - Markets with exposure limits set (limit values and justification)
+  - Liquidity adjustments (added/reduced)
+  - Monte Carlo simulation insights
+  - Markets updated with current API odds only (no risk adjustment)
 
-### Prioritization
-- Prioritize solvency over yield:
-  1. Adjust odds first to balance exposure
-  2. Impose bet type exposure limits where needed
-  3. Add liquidity only if exposure cannot be mitigated through odds and limits
-  4. For critical cases, reduce market funding to limit overall exposure
-- Use Bankrolled predictions to anticipate risk early, but prioritize live exposure data
+## Guidance for Special Cases
+
+### Essential Line Movement Updates
+- CRITICAL: Always keep both odds AND lines (spreads and totals) updated with the latest values
+- Discrepancies between your lines and actual game circumstances can lead to severe liabilities
+- First step in every run should be updating ALL markets with the latest information using `fetch_and_update_markets()`
+
+### Soccer Markets
+- For soccer markets, ensure draw_odds parameter is included in odds adjustments
+- Monitor all three outcomes (home, away, draw) for imbalances
+
+### Live Game Management
+- Pay special attention to in-play markets
+- Increase update frequency and risk sensitivity as events approach conclusion
+- Consider stricter bet limits during critical game moments (last quarter, final minutes)
+
+### Sharp Betting Detection
+- Use `get_market_predictions(home_team, away_team)` to identify trends from sharp bettors
+- When sharp bettors show strong preference for one side, consider odds adjustment even without current exposure imbalance
     """,
     tools=[
         get_all_markets,
@@ -701,6 +913,8 @@ The Risk Manager Agent's primary mission is to maximize sportsbook profit while 
         update_odds_for_market,
         update_odds_for_multiple_markets,
         check_market_odds,
+        fetch_latest_odds,
+        fetch_and_update_markets,
         run_monte_carlo_analysis,
         run_monte_carlo_analysis_with_exposure,
         set_market_exposure_limits,
@@ -711,7 +925,7 @@ The Risk Manager Agent's primary mission is to maximize sportsbook profit while 
         get_market_predictions
     ],
     # DO NOT CHANGE THIS MODEL FROM THE CURRENT SETTING
-    model="o1-mini",
+    model="o3-mini-2025-01-31",
     # No context type needed
 )
 
@@ -729,7 +943,7 @@ if __name__ == '__main__':
         if not API_URL:
              print("Error: Missing API_URL in .env file. Cannot run test.", file=sys.stderr)
              return
-        result = await Runner.run(risk_manager_agent, prompt)
+        result = await Runner.run(risk_manager_agent, prompt, max_turns=20)
         print("--- Risk Manager Agent Result ---")
         print(result.final_output)
         print("--------------------------------")
