@@ -6,6 +6,7 @@ import { useAccount, useWalletClient, useChainId } from 'wagmi'; // Use useChain
 import { type WalletClient } from 'viem';
 import NBAMarketABI from '../abis/contracts/NBAMarket.sol/NBAMarket.json';
 import USDXABI from '../abis/contracts/USDX.sol/USDX.json';
+import { WAGMI_CONFIG } from '@/config/contracts';
 // Consider using a toast library for better UX than alerts
 // import { toast } from 'react-toastify';
 
@@ -73,7 +74,8 @@ const getProviderOrSigner = (signer?: ethers.Signer | null): ethers.Provider | e
   // Fallback to a default provider (replace with your preferred setup)
   // Make sure this provider is connected to the correct network (e.g., Base Sepolia)
   // return new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org');
-  return new ethers.JsonRpcProvider('https://base-sepolia.g.alchemy.com/v2/eU1jQGAZyansfxyaBRIHQrBQh1Y0bIQi');
+  return new ethers.JsonRpcProvider(WAGMI_CONFIG.RPC_URL);
+  // return new ethers.JsonRpcProvider('https://base-sepolia.g.alchemy.com/v2/eU1jQGAZyansfxyaBRIHQrBQh1Y0bIQi');
   // return new ethers.JsonRpcProvider('http://127.0.0.1:8545');
 };
 

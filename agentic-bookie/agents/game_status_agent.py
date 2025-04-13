@@ -281,10 +281,23 @@ def extract_valid_completed_game_info(game: Dict[str, Any]) -> Optional[Dict[str
     game_id = game.get("id")
     home_team = game.get("home_team")
     away_team = game.get("away_team")
+    completed = game.get("completed", False)
+    
+    # Double-check completion status
+    if not completed:
+        print(f"Warning: Game {game_id or 'N/A'} is not marked as completed. Skipping.", file=sys.stderr)
+        return None
 
     if not all([game_id, home_team, away_team]):
         print(f"Warning: Game {game_id or 'N/A'} marked completed but missing ID or team names. Skipping.", file=sys.stderr)
         return None
+        
+    # Additional validation for completion status
+    # Check if game has "completed_at" field or comparable field if available
+    completed_at = game.get("completed_at")
+    if not completed_at:
+        # If no timestamp is available but API says complete, we'll still proceed but log a warning
+        print(f"Warning: Game {game_id} marked completed but missing completion timestamp. Proceeding with caution.", file=sys.stderr)
 
     game_info = {
         "odds_api_id": game_id,
@@ -459,6 +472,7 @@ game_status_agent = Agent(
         a. Find the corresponding market(s) from the list originally obtained in step 1 using the `odds_api_id`. (Note: Multiple markets might exist for the same game ID if created separately, handle each).
         b. Extract the `home_score` and `away_score` from the completed game data.
         c. For each corresponding market address found in step 5a, call `set_game_result` with the market's `address`, `home_score`, and `away_score`. **If the call to `set_game_result` indicates an error for a specific market (e.g., returns a status other than 'success'), log the error details including the market address and the reason for failure, but continue processing the next completed game or market. Do not stop the entire process due to a single market failure.**
+        d. IMPORTANT: Only call `set_game_result` for markets that correspond to COMPLETED games (those returned by `check_completed_games`). Do NOT set results for ALL markets from step 1, only those with completed games.
     6. Report a summary of the markets for which you attempted to set the result (mentioning success or failure for each attempt, based on the outcome of step 5c). If no markets were processed or no games were found completed, state that.
     7. Call `sleep_tool` with `duration_seconds` set to 60 to wait for 1 minute.
     8. Go back to step 1 to repeat the cycle.
@@ -470,7 +484,7 @@ game_status_agent = Agent(
         sleep_tool
     ],
     # DO NOT CHANGE THIS MODEL FROM THE CURRENT SETTING
-    model="gpt-4o-mini-2024-07-18",
+    model="gpt-4o-mini-2024-07-18", 
     # No context type needed
 )
 
@@ -499,4 +513,4 @@ if __name__ == '__main__':
     # To run the test:
     asyncio.run(test_game_result_settlement())
     # Remember that this only runs *one* cycle. The agent's instructions describe a continuous loop.
-    print("Game Result Settlement Agent defined. Run agentGroup.py or similar orchestrator to manage its lifecycle.") 
+    print("Game Result Settlement Agent defined. Run agentGroup.py or similar orchestrator to manage its lifecycle.")

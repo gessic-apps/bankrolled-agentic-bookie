@@ -16,7 +16,7 @@ if not API_URL:
     print(f"Warning: API_URL not found, defaulting to {API_URL}", file=sys.stderr)
 
 # Import Agent SDK components
-from agents import Agent, function_tool,  AsyncOpenAI, OpenAIChatCompletionsModel
+from agents import Agent, function_tool, AsyncOpenAI, OpenAIChatCompletionsModel
 
 # Import Monte Carlo simulation tool
 from .monte_carlo_sims import analyze_market_risk, bulk_analyze_markets
@@ -38,62 +38,10 @@ from ..tools.odds_tools import (
 )
 
 # Import the fetch_games_with_odds function from odds_manager_agent
-# to get the latest odds from the API
 from .odds_manager_agent import fetch_games_with_odds_impl, SUPPORTED_SPORT_KEYS
-
-# Import prediction tools
-from ..tools.prediction_tools import (
-    get_bankrolled_predictions,
-    find_predictions_for_market,
-    analyze_user_prediction_accuracy
-)
 
 # --- Tool Definitions ---
 deepseek_client = AsyncOpenAI(base_url="https://api.deepseek.com", api_key="sk-524207d333a049f5b02cbc0c36bc860f")
-@function_tool
-def get_all_markets() -> List[Dict[str, Any]]:
-    """Fetches all existing betting markets from the smart contract API."""
-    if not API_URL:
-        print("Error: Cannot get existing markets, API_URL is not configured.", file=sys.stderr)
-        return []
-
-    try:
-        url = f"{API_URL}/api/markets"
-        response = requests.get(url)
-        response.raise_for_status()
-        markets_data = response.json()
-
-        # Ensure the response is a list and contains required fields
-        cleaned_markets = []
-        if isinstance(markets_data, list):
-            for market in markets_data:
-                # Check for all required fields including exposure fields
-                if isinstance(market, dict) and all(k in market for k in ["address", "oddsApiId", "status", "maxExposure", "currentExposure"]):
-                    # Convert exposure values to float for easier comparison
-                    try:
-                        market["maxExposure"] = float(market["maxExposure"])
-                        market["currentExposure"] = float(market["currentExposure"])
-                    except (ValueError, TypeError):
-                        print(f"Warning: Could not convert exposure values to float for market {market.get('address')}", file=sys.stderr)
-                        # Use default values if conversion fails
-                        market["maxExposure"] = 2000.0
-                        market["currentExposure"] = 0.0
-                    
-                    cleaned_markets.append(market)
-                else:
-                    print(f"Warning: Skipping market entry due to missing required fields: {market}", file=sys.stderr)
-        else:
-            print(f"Warning: Expected a list from /api/markets, but got {type(markets_data)}", file=sys.stderr)
-            return []
-
-        print(f"Successfully fetched {len(cleaned_markets)} existing markets with exposure data.")
-        return cleaned_markets
-    except requests.exceptions.RequestException as e:
-        print(f"Error fetching existing markets: {e}", file=sys.stderr)
-        return []
-    except Exception as e:
-        print(f"An unexpected error occurred in get_all_markets: {e}", file=sys.stderr)
-        return []
 
 @function_tool
 def add_liquidity_to_market(market_address: str, amount: int) -> Dict[str, Any]:
@@ -410,54 +358,75 @@ def set_market_exposure_limits(
          print(error_message, file=sys.stderr)
          return {"status": "error", "message": error_message, "market_address": market_address}
 
-
-# --- NEW TOOL: Reduce Market Funding ---
 @function_tool
-def reduce_market_funding(
+def set_specific_bet_type_limit(
     market_address: str,
-    amount: int
+    bet_type: str,
+    side: str,
+    limit: int
 ) -> Dict[str, Any]:
-    """Reduces the total funding (and thus max exposure) allocated to a specific market from the central liquidity pool."""
+    """
+    Sets an exposure limit for a specific bet type and side within a market.
+    
+    Args:
+        market_address (str): The blockchain address of the market
+        bet_type (str): The type of bet ('moneyline', 'spread', 'total', 'draw')
+        side (str): The side of the bet ('home', 'away', 'over', 'under', 'draw')
+        limit (int): The exposure limit to set
+        
+    Returns:
+        dict: Result of the operation
+    """
     if not API_URL:
-        print("Error: Cannot reduce market funding, API_URL is not configured.", file=sys.stderr)
+        print("Error: Cannot set bet type limit, API_URL is not configured.", file=sys.stderr)
         return {"status": "error", "message": "API_URL not configured"}
+    
+    print(f"Setting limit for {bet_type}/{side} to {limit} on market {market_address}")
+    result = set_bet_type_exposure_limit(market_address, bet_type, side, limit, API_URL)
+    
+    return result
 
-    if amount <= 0:
-        return {"status": "warning", "message": "Reduction amount must be positive.", "market_address": market_address}
-
-    payload = {
-        "bettingEngineAddress": market_address, # API expects bettingEngineAddress
-        "amount": amount
-    }
-
+@function_tool
+def fetch_latest_odds_for_market(odds_api_id: str) -> Dict[str, Any]:
+    """
+    Fetches the latest odds from the API for a specific market by oddsApiId.
+    
+    Args:
+        odds_api_id: The odds API identifier for the market
+        
+    Returns:
+        dict: The latest odds data for the specific market
+    """
     try:
-        url = f"{API_URL}/api/liquidity-pool/reduce-market-funding"
-        print(f"Attempting to reduce market funding: POST {url} with payload: {payload}")
-        response = requests.post(url, json=payload)
-        response.raise_for_status()
-        result = response.json()
-        print(f"Successfully reduced funding for market {market_address} by {amount}. Response: {result}")
-        return {
-            "status": "success",
-            "market_address": market_address,
-            "amount_reduced": amount,
-            "result": result
-        }
-    except requests.exceptions.HTTPError as e:
-        error_message = f"HTTP Error reducing funding for market {market_address}: {e.response.status_code} - {e.response.text}"
-        print(error_message, file=sys.stderr)
-        return {"status": "error", "message": error_message, "market_address": market_address}
-    except requests.exceptions.RequestException as e:
-        error_message = f"Request Error reducing funding for market {market_address}: {e}"
-        print(error_message, file=sys.stderr)
-        return {"status": "error", "message": error_message, "market_address": market_address}
+        # Fetch all odds (we'll filter for the specific market)
+        sport_keys = SUPPORTED_SPORT_KEYS
+        games_with_odds = fetch_games_with_odds_impl(sport_keys)
+        
+        # Find the specific market
+        market_odds = None
+        for game in games_with_odds:
+            if game.get("odds_api_id") == odds_api_id:
+                market_odds = game.get("odds", {})
+                break
+        
+        if market_odds:
+            return {
+                "status": "success",
+                "odds_api_id": odds_api_id,
+                "odds_data": market_odds
+            }
+        else:
+            return {
+                "status": "error",
+                "message": f"No odds data found for market with odds_api_id: {odds_api_id}",
+                "odds_api_id": odds_api_id
+            }
     except Exception as e:
-         error_message = f"An unexpected error occurred in reduce_market_funding: {e}"
-         print(error_message, file=sys.stderr)
-         return {"status": "error", "message": error_message, "market_address": market_address}
-
-
-# --- New Granular Exposure Management Tools ---
+        return {
+            "status": "error",
+            "message": f"Error fetching latest odds for market: {str(e)}",
+            "odds_api_id": odds_api_id
+        }
 
 @function_tool
 def get_detailed_market_exposure(market_address: str) -> Dict[str, Any]:
@@ -519,336 +488,119 @@ def get_detailed_market_exposure(market_address: str) -> Dict[str, Any]:
         return {"status": "error", "message": error_message, "market_address": market_address}
 
 @function_tool
-def set_specific_bet_type_limit(
-    market_address: str,
-    bet_type: str,
-    side: str,
-    limit: int
-) -> Dict[str, Any]:
-    """
-    Sets an exposure limit for a specific bet type and side within a market.
-    
-    Args:
-        market_address (str): The blockchain address of the market
-        bet_type (str): The type of bet ('moneyline', 'spread', 'total', 'draw')
-        side (str): The side of the bet ('home', 'away', 'over', 'under', 'draw')
-        limit (int): The exposure limit to set
-        
-    Returns:
-        dict: Result of the operation
-    """
-    if not API_URL:
-        print("Error: Cannot set bet type limit, API_URL is not configured.", file=sys.stderr)
-        return {"status": "error", "message": "API_URL not configured"}
-    
-    print(f"Setting limit for {bet_type}/{side} to {limit} on market {market_address}")
-    result = set_bet_type_exposure_limit(market_address, bet_type, side, limit, API_URL)
-    
-    return result
-
-@function_tool
 def check_market_odds(market_address: str) -> Dict[str, Any]:
     """Checks if a specific betting market (identified by its address) already has odds set."""
     return check_market_odds_impl(market_address, API_URL)
 
-@function_tool
-def update_odds_for_multiple_markets(
-    markets_data: List[OddsData]
-) -> BatchUpdateResult:
-    """Updates odds for multiple markets at once."""
-    return update_odds_for_multiple_markets_impl(markets_data, API_URL)
-
-# --- Bankrolled Prediction Tools ---
-
-@function_tool
-def fetch_latest_odds(sport_keys: Optional[List[str]] = None) -> Dict[str, Any]:
-    """
-    Fetches the latest odds from the API for the specified sports.
-    
-    Args:
-        sport_keys: List of sport keys to fetch odds for. If not provided, all supported sports will be used.
-        
-    Returns:
-        dict: A structure containing the latest odds mapped by oddsApiId
-    """
-    # If no sport keys provided, use all supported sports
-    if sport_keys is None:
-        sport_keys = SUPPORTED_SPORT_KEYS
-    try:
-        games_with_odds = fetch_games_with_odds_impl(sport_keys)
-        
-        # Create a mapping from oddsApiId to odds data for efficient lookup
-        odds_api_id_to_odds = {}
-        for game in games_with_odds:
-            odds_api_id = game.get("odds_api_id")
-            odds_data = game.get("odds")
-            if odds_api_id and odds_data:
-                odds_api_id_to_odds[odds_api_id] = odds_data
-        
-        return {
-            "status": "success",
-            "message": f"Successfully fetched odds for {len(odds_api_id_to_odds)} games",
-            "odds_data": odds_api_id_to_odds,
-            "sport_keys": sport_keys
-        }
-    except Exception as e:
-        return {
-            "status": "error",
-            "message": f"Error fetching latest odds: {str(e)}",
-            "odds_data": {},
-            "sport_keys": sport_keys
-        }
-
-@function_tool
-def fetch_and_update_markets() -> Dict[str, Any]:
-    """
-    Fetches latest odds from the API and updates all markets that need updating.
-    Updates include moneyline, spread points, spread odds and totals.
-    Unlike the odds_manager, this function updates ALL markets, even those that already have odds.
-    
-    Returns:
-        dict: Results of the batch update operation with details on which markets were updated
-    """
-    # Step 1: Fetch games with odds for all supported sports
-    print("Fetching games with latest odds for all supported sports...")
-    sport_keys = SUPPORTED_SPORT_KEYS
-    games_with_odds = fetch_games_with_odds_impl(sport_keys)
-    print(f"Found {len(games_with_odds)} games with complete odds data")
-    
-    if not games_with_odds:
-        return {
-            "status": "error",
-            "message": "No games with odds found from The Odds API",
-            "total_markets": 0,
-            "markets_updated": 0
-        }
-    
-    # Step 2: Create a mapping from odds_api_id to odds data for efficient lookup
-    odds_api_id_to_odds = {
-        game["odds_api_id"]: game["odds"] 
-        for game in games_with_odds
-    }
-    print(f"Created mapping for {len(odds_api_id_to_odds)} games by odds API ID")
-    
-    # Step 3: Get existing markets
-    print("Fetching existing markets...")
-    existing_markets = get_all_markets()
-    open_markets = [m for m in existing_markets if m.get("status") == "Open"]
-    print(f"Found {len(open_markets)} open markets out of {len(existing_markets)} total markets")
-    
-    if not open_markets:
-        return {
-            "status": "info",
-            "message": "No open markets found to update",
-            "total_markets": len(existing_markets),
-            "open_markets": 0,
-            "markets_updated": 0
-        }
-    
-    # Step 4: Match markets with odds and prepare update data
-    markets_for_update = []
-    markets_without_odds_data = []
-    
-    for market in open_markets:
-        odds_api_id = market.get("oddsApiId")
-        market_address = market.get("address")
-        
-        if not (odds_api_id and market_address):
-            print(f"Warning: Market missing oddsApiId or address: {market}")
-            continue
-        
-        # Check if we have latest odds for this market
-        if odds_api_id in odds_api_id_to_odds:
-            odds_data = odds_api_id_to_odds[odds_api_id]
-            
-            # Create a market data entry with all required fields
-            market_data = {
-                "market_address": market_address,
-                "home_odds": odds_data.get("home_odds"),
-                "away_odds": odds_data.get("away_odds"),
-                "draw_odds": odds_data.get("draw_odds", 0.0),
-                "home_spread_points": odds_data.get("home_spread_points"),
-                "home_spread_odds": odds_data.get("home_spread_odds"),
-                "away_spread_odds": odds_data.get("away_spread_odds"),
-                "total_points": odds_data.get("total_points"),
-                "over_odds": odds_data.get("over_odds"),
-                "under_odds": odds_data.get("under_odds")
-            }
-            
-            # Ensure all required odds data is present
-            if all(v is not None for k, v in market_data.items() if k != "draw_odds"):
-                markets_for_update.append(market_data)
-            else:
-                print(f"Warning: Incomplete odds data for market {market_address} (odds API ID: {odds_api_id})")
-                missing_fields = [k for k, v in market_data.items() if v is None and k != "draw_odds"]
-                print(f"Missing fields: {missing_fields}")
-        else:
-            markets_without_odds_data.append({
-                "market_address": market_address,
-                "odds_api_id": odds_api_id
-            })
-    
-    # Step 5: Update all markets with available odds data
-    print(f"Preparing to update {len(markets_for_update)} markets with latest odds data")
-    
-    if not markets_for_update:
-        return {
-            "status": "warning",
-            "message": "No markets had matching updated odds data from the API",
-            "total_markets": len(existing_markets),
-            "open_markets": len(open_markets),
-            "markets_without_data": len(markets_without_odds_data),
-            "markets_updated": 0
-        }
-    
-    # Perform the batch update
-    update_results = update_odds_for_multiple_markets(markets_for_update)
-    
-    # Step 6: Return combined result summary
-    return {
-        "status": "success",
-        "message": f"Updated odds (moneyline, spreads, totals) for {update_results['successful_updates']} markets with latest data",
-        "total_markets": len(existing_markets),
-        "open_markets": len(open_markets),
-        "markets_updated": update_results.get("successful_updates", 0),
-        "markets_failed": update_results.get("failed_updates", 0),
-        "markets_without_data": len(markets_without_odds_data)
-    }
-
-@function_tool
-def get_prediction_data() -> Dict[str, Any]:
-    """
-    Retrieves Bankrolled prediction data from the last two days.
-    This includes historical prediction records, user performance metrics, and market sentiment.
-    
-    Returns:
-        dict: A structure containing prediction data and user performance metrics
-    """
-    return get_bankrolled_predictions()
-
-@function_tool
-def get_market_predictions(
-    home_team: str,
-    away_team: str,
-    event_date: Optional[str] = None
-) -> Dict[str, Any]:
-    """
-    Retrieves and analyzes predictions for a specific market based on team names and optional date.
-    
-    Args:
-        home_team: The name of the home team
-        away_team: The name of the away team
-        event_date: Optional ISO date string for the event
-        
-    Returns:
-        dict: Analysis of predictions including sharp users and betting trends
-    """
-    market_data = {
-        "homeTeam": home_team,
-        "awayTeam": away_team,
-        "eventDate": event_date
-    }
-    
-    # Find matching predictions
-    matching_predictions = find_predictions_for_market(market_data)
-    
-    # Analyze the predictions
-    analysis = analyze_user_prediction_accuracy(matching_predictions)
-    
-    return {
-        "market": market_data,
-        "matchingPredictions": len(matching_predictions),
-        "analysis": analysis,
-        "predictions": matching_predictions[:10]  # Return just the first 10 predictions to avoid large responses
-    }
-
-# --- Agent Definition ---
-
-risk_manager_agent = Agent(
-    name="Risk Manager Agent",
-    handoff_description="Specialist agent for managing market risk, including liquidity provision, odds adjustments, and granular exposure limit setting for specific bet types and sides.",
+# --- Define the High Risk Handler Agent ---
+high_risk_handler_agent = Agent(
+    name="High Risk Handler Agent",
+    handoff_description="Specialist agent for handling individual high-risk markets with detailed analysis and targeted risk management strategies",
     instructions="""
-# Batch Risk Manager Instructions
+# High Risk Handler Agent Instructions
 
 ## Objective
-You are the Batch Risk Manager, responsible for efficiently updating regular (non-high-risk) markets with the latest odds and lines. Your primary focus is on keeping the markets synchronized with the latest API data and performing basic risk checks.
-
-## Key Responsibilities
-1. BATCH UPDATES: Efficiently update multiple markets at once with the latest odds and lines:
-   - Focus on regular markets that don't need specialized individual attention
-   - Ensure ALL betting values are updated (moneyline, spreads, totals)
-   - Synchronize market data with the latest API data
-
-2. BASIC RISK MANAGEMENT: Apply standard risk management policies:
-   - Update ALL betting values to the latest API values
-   - Apply small standard adjustments for minor imbalances
-   - Flag any markets that develop high-risk characteristics for individual handling
+You are the High Risk Handler Agent, a specialist in managing individual high-risk betting markets. Your mission is to analyze markets with significant risk factors, run simulations to quantify the risks, and implement targeted strategies to protect the platform's financial health while maintaining market viability.
 
 ## Workflow Overview
 
-### 1. Update Regular Markets in Batch
-- You'll receive a list of regular markets from the Risk Triage Agent
-- Call `fetch_and_update_markets()` to update ALL these markets with the latest odds and lines
-- This function will:
-  - Fetch latest odds from the API for all supported sports
-  - Map the odds data to the corresponding markets
-  - Update moneyline odds, spread points, spread odds, and totals
+### 1. Gather Market Information
+- You will receive high-risk market details including:
+  - Market address and oddsApiId
+  - Current odds and exposure data
+  - Specific risk factors that triggered the high-risk designation
+  - Latest odds data from the API
 
-### 2. Verify Updates
-- After the batch update, check that markets were successfully updated by:
-  - Reviewing the number of markets updated successfully
-  - Noting any markets that failed to update
-  - Confirming major line movements were applied correctly
+### 2. Run Detailed Risk Analysis
+- Use Monte Carlo simulation to quantify risks and guide decision-making:
+  - For markets with detailed exposure data, use `run_monte_carlo_analysis_with_exposure()`
+  - For markets without detailed exposure, use basic `run_monte_carlo_analysis()`
+  - Use at least 1000 simulations to ensure statistical validity
+  - Pay special attention to Value at Risk (VaR) and Expected Shortfall metrics
 
-### 3. Report Results
-- Provide a concise summary of the batch update operation:
-  - Total number of markets processed
-  - Number of markets successfully updated
-  - Any notable line movements detected
-  - Any markets that now show risk factors (to be handled individually next time)
+### 3. Compare Current Odds with Latest API Odds
+- Fetch latest odds using `fetch_latest_odds_for_market(odds_api_id)`
+- Identify discrepancies in:
+  - Moneyline odds (home/away/draw)
+  - Spread points and odds 
+  - Total points line and over/under odds
 
-## Important Guidelines
+### 4. Implement Risk Mitigation Strategies
+For each identified risk factor, apply the appropriate mitigation strategy:
 
-### Focus on Efficiency
-- As the Batch Risk Manager, your primary value is efficiently handling multiple regular markets
-- Prioritize completing the batch update of ALL markets over deep analysis of any single market
-- Let the High Risk Handler Agent handle markets with significant risk factors
+#### a) Update Odds and Lines
+- Always update to latest odds from API as baseline
+- Then apply risk-based adjustments based on risk severity:
+  - Moneyline imbalance:
+    - Decrease odds on overexposed side by 5-10%
+    - Increase odds on underexposed side by 5-10%
+  - Spread imbalance:
+    - Adjust spread odds (not points) to balance action
+    - In severe cases only, adjust spread points by 0.5-1 point
+  - Totals imbalance:
+    - Adjust over/under odds to balance action
+    - In severe cases only, adjust total points line by 0.5-1 point
+  - Call `update_odds_for_market()` with these adjustments
 
-### Latest Data Priority
-- ALWAYS update to the latest odds and lines from the API
-- If a market suddenly shows high-risk factors during your process, complete the update but flag it in your report
-- Ensure both odds AND lines (spreads, totals) are updated to prevent liability from line movement
+#### b) Set Bet Size Limits
+- For severe imbalances (>3:1 ratio):
+  - Use `set_specific_bet_type_limit()` to restrict betting on overexposed sides
+  - Calculate limit based on current exposure (typically 50-70% of current)
+  - Example: If home moneyline exposure is $10,000 and away is $2,000, set home limit to $5,000-$7,000
 
-### Market Coverage
-- Ensure ALL regular markets get updated, even if they seem inactive
-- Never skip a market in the batch update process
-- For markets without matching API data, report this issue but don't modify their odds
+#### c) Add Liquidity
+- When exposure exceeds 80% of max_exposure:
+  - Calculate additional liquidity needed (typically 20-30% buffer)
+  - Use `add_liquidity_to_market()` to increase market capacity
+  - Verify with `get_liquidity_pool_info()` that sufficient global liquidity exists
+
+### 5. Verify Changes
+- After implementing changes:
+  - Use `check_market_odds()` to verify odds updates
+  - Confirm exposure limits with `get_detailed_market_exposure()`
+  - Ensure all points (spread, total) are updated, not just odds
+
+### 6. Generate Detailed Report
+- Provide a comprehensive report of actions taken:
+  - Risk factors identified and quantified via simulation
+  - Odds and points adjusted (with before/after values)
+  - Bet limits applied and reasoning
+  - Liquidity added (if applicable)
+  - Verification of changes
+  - Estimated risk reduction from actions taken
+
+## Important Considerations
 
 ### Soccer Markets
 - For soccer markets, ensure draw_odds parameter is included in odds adjustments
-- Soccer markets have three outcomes that must all be updated (home, away, draw)
-    """,
+- Soccer markets have three outcomes to balance (home, away, draw)
+
+### Line Movement Priority
+- When a market shows significant line movement, updating to the latest values is top priority
+- For spread and total adjustments, use the latest API values as baseline, then apply risk adjustments
+
+### Balance When Updating Odds
+- When decreasing one side's odds, consider increasing the other side proportionally
+- Maintain a reasonable margin between sides to ensure platform profitability
+- For severe imbalances, bet limits are often more effective than extreme odds adjustments
+""",
     tools=[
-        get_all_markets,
         add_liquidity_to_market,
         get_liquidity_pool_info,
         update_odds_for_market,
-        update_odds_for_multiple_markets,
-        check_market_odds,
-        fetch_latest_odds,
-        fetch_and_update_markets,
+        set_market_exposure_limits,
+        set_specific_bet_type_limit,
         run_monte_carlo_analysis,
         run_monte_carlo_analysis_with_exposure,
-        set_market_exposure_limits,
-        reduce_market_funding,
+        fetch_latest_odds_for_market,
         get_detailed_market_exposure,
-        set_specific_bet_type_limit,
-        get_prediction_data,
-        get_market_predictions
+        check_market_odds
     ],
     # DO NOT CHANGE THIS MODEL FROM THE CURRENT SETTING
-    model="o3-mini-2025-01-31",
-    # No context type needed
+    model=OpenAIChatCompletionsModel(
+        model="deepseek-chat",
+        openai_client=deepseek_client,
+    ),
 )
 
 # Example of how this agent might be run
@@ -857,19 +609,35 @@ if __name__ == '__main__':
     from agents import Runner
     import asyncio
 
-    async def test_risk_management():
+    async def test_high_risk_handler():
         # Input prompt to trigger the agent's logic
-        prompt = "Analyze current markets and add liquidity where needed based on risk assessment."
-        print(f"--- Running Risk Manager Agent with prompt: '{prompt}' ---")
+        prompt = """Analyze and manage this high-risk market:
+        {
+          "market_address": "0x1234567890abcdef1234567890abcdef12345678",
+          "odds_api_id": "basketball_nba_123456",
+          "risk_factors": ["moneyline_imbalance", "high_exposure_utilization"],
+          "risk_details": {
+            "utilization_percentage": 75.5,
+            "moneyline_ratio": 2.8,
+            "home_exposure": 15000,
+            "away_exposure": 5400
+          },
+          "max_exposure": 30000,
+          "current_exposure": 20400,
+          "homeTeam": "Los Angeles Lakers",
+          "awayTeam": "Boston Celtics"
+        }"""
+        
+        print(f"--- Running High Risk Handler Agent with prompt: '{prompt}' ---")
         # Ensure environment variables are loaded if running directly
         if not API_URL:
              print("Error: Missing API_URL in .env file. Cannot run test.", file=sys.stderr)
              return
-        result = await Runner.run(risk_manager_agent, prompt, max_turns=20)
-        print("--- Risk Manager Agent Result ---")
+        result = await Runner.run(high_risk_handler_agent, prompt)
+        print("--- High Risk Handler Agent Result ---")
         print(result.final_output)
         print("--------------------------------")
 
     # Run the test
-    asyncio.run(test_risk_management())
-    print("Risk Manager Agent defined. Run agentGroup.py to test via Triage.")
+    asyncio.run(test_high_risk_handler())
+    print("High Risk Handler Agent defined. Run agentGroup.py to test via Triage.")

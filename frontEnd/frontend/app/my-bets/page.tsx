@@ -6,7 +6,7 @@ import { WagmiProvider, useAccount, useConfig } from 'wagmi';
 import { readContract } from 'wagmi/actions';
 import { type Address, BaseError } from 'viem';
 import { getDefaultConfig, RainbowKitProvider } from '@rainbow-me/rainbowkit';
-import { baseSepolia } from 'wagmi/chains';
+// import { baseSepolia } from 'wagmi/chains';
 import '@rainbow-me/rainbowkit/styles.css';
 import { HeroUIProvider } from "@heroui/react";
 import UserBetsList from "../../components/UserBetsList";
@@ -18,12 +18,14 @@ import { Market } from '../../types/market';
 import MarketFactoryABI from '../../abis/contracts/MarketFactory.sol/MarketFactory.json';
 import NBAMarketABI from '../../abis/contracts/NBAMarket.sol/NBAMarket.json';
 
-import { WAGMI_CONFIG, CONTRACT_ADDRESSES } from '../../config/contracts';
+import { WAGMI_CONFIG, CONTRACT_ADDRESSES, SELECTED_NETWORK } from '../../config/contracts';
 
 const config = getDefaultConfig({
   appName: WAGMI_CONFIG.APP_NAME,
   projectId: WAGMI_CONFIG.PROJECT_ID,
-  chains: [baseSepolia],
+  chains: [
+    SELECTED_NETWORK
+  ],
   ssr: false,
 });
 

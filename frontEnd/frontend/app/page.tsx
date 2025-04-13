@@ -5,7 +5,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { WagmiProvider, useReadContract } from 'wagmi';
 import { readContract } from 'wagmi/actions';
 import { getDefaultConfig, RainbowKitProvider } from '@rainbow-me/rainbowkit';
-import { baseSepolia } from 'wagmi/chains';
 import { type Address, BaseError } from 'viem';
 import '@rainbow-me/rainbowkit/styles.css';
 import { HeroUIProvider } from "@heroui/react";
@@ -23,13 +22,13 @@ import NBAMarketAbi from "../abis/contracts/NBAMarket.sol/NBAMarket.json";
 import MarketOddsAbi from "../abis/contracts/MarketOdds.sol/MarketOdds.json";
 
 // Import contract addresses from central config
-import { CONTRACT_ADDRESSES, WAGMI_CONFIG } from '../config/contracts';
+import { CONTRACT_ADDRESSES, SELECTED_NETWORK, WAGMI_CONFIG } from '../config/contracts';
 
 // Configure Wagmi client
 const config = getDefaultConfig({
   appName: WAGMI_CONFIG.APP_NAME,
   projectId: WAGMI_CONFIG.PROJECT_ID,
-  chains: [baseSepolia],
+  chains: [SELECTED_NETWORK],
   ssr: false,
 });
 
