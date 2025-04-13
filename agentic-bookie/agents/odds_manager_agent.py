@@ -19,6 +19,15 @@ load_dotenv()
 SPORTS_API_KEY = os.getenv("SPORTS_API_KEY")
 API_URL = os.getenv("API_URL", "http://localhost:3000") # Default matching market_creation_agent
 
+# Import shared odds tools
+from ..tools.odds_tools import (
+    update_odds_for_market_impl,
+    update_odds_for_multiple_markets_impl,
+    check_market_odds_impl,
+    OddsData,
+    BatchUpdateResult
+)
+
 # Define the list of target sports (consistent with market_creation_agent)
 SUPPORTED_SPORT_KEYS = [
     "basketball_nba",
@@ -88,7 +97,9 @@ def get_existing_markets() -> List[Dict[str, Any]]:
     return get_existing_markets_impl()
 
 
-def update_odds_for_market_impl(
+# Use the shared implementation instead by changing the local function name
+# to avoid name conflict
+def local_update_odds_for_market(
     market_address: str,
     home_odds: float,
     away_odds: float,
@@ -101,59 +112,20 @@ def update_odds_for_market_impl(
     under_odds: float
 ) -> Dict[str, Any]:
     """Updates all odds types (moneyline including draw, spread, total) for a specific market. Expects decimal floats/points, converts to integer format for the API call. Draw odds should be provided for relevant markets (e.g., soccer), otherwise pass 0.0 or None."""
-    if not API_URL:
-        print("Error: Cannot update odds, API_URL is not configured.", file=sys.stderr)
-        return {"status": "error", "message": "API_URL not configured"}
-
-    # Convert decimal floats/points to integer format
-    # Odds: decimal * 1000
-    # Points: decimal * 10 (for spreads and totals line)
-    try:
-        payload = {
-            "homeOdds": int(home_odds * 1000),
-            "awayOdds": int(away_odds * 1000),
-            "drawOdds": int(draw_odds * 1000) if draw_odds is not None and draw_odds >= 1.0 else 0,
-            "homeSpreadPoints": int(home_spread_points * 10),
-            "homeSpreadOdds": int(home_spread_odds * 1000),
-            "awaySpreadOdds": int(away_spread_odds * 1000),
-            "totalPoints": int(total_points * 10),
-            "overOdds": int(over_odds * 1000),
-            "underOdds": int(under_odds * 1000)
-        }
-    except (ValueError, TypeError) as e:
-        error_message = f"Error converting odds/points to integer format: {e}. Input: home_odds={home_odds}, away_odds={away_odds}, draw_odds={draw_odds}, home_spread_points={home_spread_points}, home_spread_odds={home_spread_odds}, away_spread_odds={away_spread_odds}, total_points={total_points}, over_odds={over_odds}, under_odds={under_odds}"
-        print(error_message, file=sys.stderr)
-        return {"status": "error", "message": error_message, "market_address": market_address}
-
-    try:
-        url = f"{API_URL}/api/market/{market_address}/update-odds"
-        print(f"Attempting to update full odds (inc. draw): POST {url} with payload: {payload}")
-        response = requests.post(url, json=payload)
-        response.raise_for_status()
-        result = response.json()
-        print(f"Successfully updated full odds (inc. draw) for market {market_address}. Response: {result}")
-        # Report success with the original decimal odds/points for clarity
-        return {
-            "status": "success",
-            "market_address": market_address,
-            "decimal_odds_set": {
-                "home": home_odds, "away": away_odds, "draw": draw_odds,
-                "home_spread_points": home_spread_points, "home_spread_odds": home_spread_odds, "away_spread_odds": away_spread_odds,
-                "total_points": total_points, "over_odds": over_odds, "under_odds": under_odds
-            }
-        }
-    except requests.exceptions.HTTPError as e:
-        error_message = f"HTTP Error updating full odds (inc. draw) for market {market_address}: {e.response.status_code} - {e.response.text}"
-        print(error_message, file=sys.stderr)
-        return {"status": "error", "message": error_message, "market_address": market_address}
-    except requests.exceptions.RequestException as e:
-        error_message = f"Request Error updating full odds (inc. draw) for market {market_address}: {e}"
-        print(error_message, file=sys.stderr)
-        return {"status": "error", "message": error_message, "market_address": market_address}
-    except Exception as e:
-         error_message = f"An unexpected error occurred in update_odds_for_market: {e}"
-         print(error_message, file=sys.stderr)
-         return {"status": "error", "message": error_message, "market_address": market_address}
+    # Call the shared implementation from odds_tools.py
+    return update_odds_for_market_impl(
+        market_address=market_address,
+        home_odds=home_odds,
+        away_odds=away_odds,
+        draw_odds=draw_odds,
+        home_spread_points=home_spread_points,
+        home_spread_odds=home_spread_odds,
+        away_spread_odds=away_spread_odds,
+        total_points=total_points,
+        over_odds=over_odds,
+        under_odds=under_odds,
+        api_url=API_URL
+    )
 
 @function_tool
 def update_odds_for_market(
@@ -169,158 +141,28 @@ def update_odds_for_market(
     under_odds: float
 ) -> Dict[str, Any]:
     """Updates all odds types (moneyline including draw, spread, total) for a specific market. Expects decimal floats/points, converts to integer format for the API call. Draw odds should be provided for relevant markets (e.g., soccer), otherwise pass 0.0 or None."""
-    return update_odds_for_market_impl(
+    return local_update_odds_for_market(
         market_address, home_odds, away_odds, draw_odds, 
         home_spread_points, home_spread_odds, away_spread_odds,
         total_points, over_odds, under_odds
     )
 
 
-class OddsData(TypedDict, total=False):
-    market_address: str
-    home_odds: float
-    away_odds: float
-    draw_odds: Optional[float]
-    home_spread_points: float
-    home_spread_odds: float
-    away_spread_odds: float
-    total_points: float
-    over_odds: float
-    under_odds: float
+# Using shared OddsData and BatchUpdateResult types from the imported file
 
-class BatchUpdateResult(TypedDict):
-    status: str
-    total_markets: int
-    successful_updates: int
-    failed_updates: int
-    results: List[Dict[str, Any]]
-
-def update_odds_for_multiple_markets_impl(
+# Use the shared implementation with local function name
+def local_update_odds_for_multiple_markets(
     markets_data: List[OddsData]
 ) -> BatchUpdateResult:
     """Updates odds for multiple markets at once."""
-    if not API_URL:
-        print("Error: Cannot update odds, API_URL is not configured.", file=sys.stderr)
-        return {"status": "error", "message": "API_URL not configured"}
-    
-    results = []
-    print(f"Updating odds for {len(markets_data)} markets")
-    for market_data in markets_data:
-        try:
-            # Extract market info
-            market_address = market_data.get("market_address")
-            if not market_address:
-                results.append({"status": "error", "message": "Missing market_address in market data"})
-                continue
-                
-            # Extract odds data
-            home_odds = market_data.get("home_odds")
-            away_odds = market_data.get("away_odds")
-            draw_odds = market_data.get("draw_odds")
-            home_spread_points = market_data.get("home_spread_points")
-            home_spread_odds = market_data.get("home_spread_odds")
-            away_spread_odds = market_data.get("away_spread_odds")
-            total_points = market_data.get("total_points")
-            over_odds = market_data.get("over_odds")
-            under_odds = market_data.get("under_odds")
-            
-            # Validate essential data
-            if any(v is None for v in [home_odds, away_odds, home_spread_points, home_spread_odds, 
-                                      away_spread_odds, total_points, over_odds, under_odds]):
-                results.append({
-                    "status": "error", 
-                    "message": "Missing required odds data",
-                    "market_address": market_address
-                })
-                continue
-                
-            # Convert decimal floats/points to integer format
-            try:
-                payload = {
-                    "homeOdds": int(home_odds * 1000),
-                    "awayOdds": int(away_odds * 1000),
-                    "drawOdds": int(draw_odds * 1000) if draw_odds is not None and draw_odds >= 1.0 else 0,
-                    "homeSpreadPoints": int(home_spread_points * 10),
-                    "homeSpreadOdds": int(home_spread_odds * 1000),
-                    "awaySpreadOdds": int(away_spread_odds * 1000),
-                    "totalPoints": int(total_points * 10),
-                    "overOdds": int(over_odds * 1000),
-                    "underOdds": int(under_odds * 1000)
-                }
-            except (ValueError, TypeError) as e:
-                error_message = f"Error converting odds/points to integer format: {e}"
-                print(error_message, file=sys.stderr)
-                results.append({
-                    "status": "error", 
-                    "message": error_message,
-                    "market_address": market_address
-                })
-                continue
-                
-            # Make the API request
-            try:
-                url = f"{API_URL}/api/market/{market_address}/update-odds"
-                print(f"Updating odds for market {market_address}")
-                response = requests.post(url, json=payload)
-                response.raise_for_status()
-                result = response.json()
-                
-                results.append({
-                    "status": "success",
-                    "market_address": market_address,
-                    "decimal_odds_set": {
-                        "home": home_odds, "away": away_odds, "draw": draw_odds,
-                        "home_spread_points": home_spread_points, 
-                        "home_spread_odds": home_spread_odds, 
-                        "away_spread_odds": away_spread_odds,
-                        "total_points": total_points, 
-                        "over_odds": over_odds, 
-                        "under_odds": under_odds
-                    }
-                })
-            except requests.exceptions.HTTPError as e:
-                error_message = f"HTTP Error updating odds for market {market_address}: {e.response.status_code} - {e.response.text}"
-                print(error_message, file=sys.stderr)
-                results.append({
-                    "status": "error", 
-                    "message": error_message,
-                    "market_address": market_address
-                })
-            except requests.exceptions.RequestException as e:
-                error_message = f"Request Error updating odds for market {market_address}: {e}"
-                print(error_message, file=sys.stderr)
-                results.append({
-                    "status": "error", 
-                    "message": error_message,
-                    "market_address": market_address
-                })
-                
-        except Exception as e:
-            error_message = f"An unexpected error occurred processing market: {e}"
-            print(error_message, file=sys.stderr)
-            results.append({
-                "status": "error", 
-                "message": error_message,
-                "market_address": market_data.get("market_address", "unknown")
-            })
-    
-    summary = {
-        "status": "completed",
-        "total_markets": len(markets_data),
-        "successful_updates": sum(1 for r in results if r.get("status") == "success"),
-        "failed_updates": sum(1 for r in results if r.get("status") == "error"),
-        "results": results
-    }
-    
-    print(f"Completed batch update of {summary['total_markets']} markets: {summary['successful_updates']} successful, {summary['failed_updates']} failed")
-    return summary
+    return update_odds_for_multiple_markets_impl(markets_data, API_URL)
 
 @function_tool
 def update_odds_for_multiple_markets(
     markets_data: List[OddsData]
 ) -> BatchUpdateResult:
     """Updates odds for multiple markets at once."""
-    return update_odds_for_multiple_markets_impl(markets_data)
+    return local_update_odds_for_multiple_markets(markets_data)
 
 
 def fetch_games_with_odds_impl(sport_keys: List[str]) -> List[Dict[str, Any]]:
@@ -613,7 +455,7 @@ def fetch_and_update_all_markets_impl() -> Dict[str, Any]:
             continue
             
         # First check if this market already has odds
-        odds_status = check_market_odds_impl(market_address)
+        odds_status = local_check_market_odds(market_address)
         if odds_status.get("has_odds"):
             markets_with_existing_odds += 1
             print(f"Skipping market {market_address} as it already has odds set")
@@ -657,7 +499,7 @@ def fetch_and_update_all_markets_impl() -> Dict[str, Any]:
         }
     
     # Perform the batch update
-    update_results = update_odds_for_multiple_markets_impl(markets_for_update)
+    update_results = local_update_odds_for_multiple_markets(markets_for_update)
     
     # Step 6: Return combined result summary
     return {
@@ -680,85 +522,15 @@ def fetch_and_update_all_markets() -> Dict[str, Any]:
 
 # --- New Tool Implementation ---
 
-def check_market_odds_impl(market_address: str) -> Dict[str, Any]:
+# Use shared implementation with a local function name for backward compatibility
+def local_check_market_odds(market_address: str) -> Dict[str, Any]:
     """Checks if a specific market already has odds set via the API."""
-    if not API_URL:
-        print("Error: Cannot check market odds, API_URL is not configured.", file=sys.stderr)
-        return {"status": "error", "message": "API_URL not configured", "market_address": market_address, "has_odds": None}
-
-    try:
-        url = f"{API_URL}/api/market/{market_address}"
-        print(f"Checking odds status for market: GET {url}")
-        response = requests.get(url)
-        response.raise_for_status()
-        market_data = response.json()
-
-        # Check if ALL essential odds fields exist and are likely set (e.g., not 0 or null)
-        # Check moneyline odds
-        has_home_odds = market_data.get("homeOdds") is not None and market_data.get("homeOdds") != 0
-        has_away_odds = market_data.get("awayOdds") is not None and market_data.get("awayOdds") != 0
-        
-        # Check spread odds
-        has_home_spread_odds = market_data.get("homeSpreadOdds") is not None and market_data.get("homeSpreadOdds") != 0
-        has_away_spread_odds = market_data.get("awaySpreadOdds") is not None and market_data.get("awaySpreadOdds") != 0
-        has_home_spread_points = market_data.get("homeSpreadPoints") is not None
-        
-        # Check total odds
-        has_over_odds = market_data.get("overOdds") is not None and market_data.get("overOdds") != 0
-        has_under_odds = market_data.get("underOdds") is not None and market_data.get("underOdds") != 0
-        has_total_points = market_data.get("totalPoints") is not None
-        
-        # Only consider odds as set if ALL required odds are present
-        # Note: We don't check for drawOdds since that's only relevant for soccer
-        has_moneyline = has_home_odds and has_away_odds
-        has_spreads = has_home_spread_odds and has_away_spread_odds and has_home_spread_points
-        has_totals = has_over_odds and has_under_odds and has_total_points
-        
-        # A market has complete odds only if all three types are set
-        has_odds = has_moneyline and has_spreads and has_totals
-        
-        print(f"Market {market_address} odds status: {'Set' if has_odds else 'Not Set'}")
-        return {
-            "status": "success",
-            "market_address": market_address,
-            "has_odds": has_odds,
-            # Optionally return the odds if found
-            "odds_data": {
-                "homeOdds": market_data.get("homeOdds"),
-                "awayOdds": market_data.get("awayOdds"),
-                "drawOdds": market_data.get("drawOdds"),
-                "homeSpreadPoints": market_data.get("homeSpreadPoints"),
-                "homeSpreadOdds": market_data.get("homeSpreadOdds"),
-                "awaySpreadOdds": market_data.get("awaySpreadOdds"),
-                "totalPoints": market_data.get("totalPoints"),
-                "overOdds": market_data.get("overOdds"),
-                "underOdds": market_data.get("underOdds")
-            } if has_odds else None
-        }
-
-    except requests.exceptions.HTTPError as e:
-        # Handle cases where the market might not be found (e.g., 404)
-        if e.response.status_code == 404:
-            error_message = f"Market {market_address} not found."
-            print(error_message, file=sys.stderr)
-            return {"status": "error", "message": error_message, "market_address": market_address, "has_odds": None}
-        else:
-            error_message = f"HTTP Error checking odds for market {market_address}: {e.response.status_code} - {e.response.text}"
-            print(error_message, file=sys.stderr)
-            return {"status": "error", "message": error_message, "market_address": market_address, "has_odds": None}
-    except requests.exceptions.RequestException as e:
-        error_message = f"Request Error checking odds for market {market_address}: {e}"
-        print(error_message, file=sys.stderr)
-        return {"status": "error", "message": error_message, "market_address": market_address, "has_odds": None}
-    except Exception as e:
-        error_message = f"An unexpected error occurred in check_market_odds_impl: {e}"
-        print(error_message, file=sys.stderr)
-        return {"status": "error", "message": error_message, "market_address": market_address, "has_odds": None}
+    return check_market_odds_impl(market_address, API_URL)
 
 @function_tool
 def check_market_odds(market_address: str) -> Dict[str, Any]:
     """Checks if a specific betting market (identified by its address) already has odds set."""
-    return check_market_odds_impl(market_address)
+    return local_check_market_odds(market_address)
 
 # --- End New Tool Implementation ---
 

@@ -3,10 +3,10 @@
 
 export const CONTRACT_ADDRESSES = {
   // Market Factory contract address
-  MARKET_FACTORY_ADDRESS: "0x4324beFaE3237595B488Ca44BC33A99910379f3E",
+  MARKET_FACTORY_ADDRESS: "0x3A14799B74b73a63b5ca29023946E0EB3A7E6085",
   
   // USDX token contract address
-  USDX_ADDRESS: "0x69506cbB6536715AceAD360A49A4a9eeE7fd7E34",
+  USDX_ADDRESS: "0x8c58FdAFa2653BcaE7159EDaB2Be0d1522a3744D",
   
   // Expected chain ID for the deployed contracts
   // EXPECTED_CHAIN_ID: 84532, // Base Sepolia testnet

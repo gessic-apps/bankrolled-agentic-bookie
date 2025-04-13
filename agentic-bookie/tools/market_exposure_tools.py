@@ -19,10 +19,22 @@ def fetch_market_exposure_details(market_address: str, api_url: Optional[str] = 
         api_url = os.getenv("API_URL", "http://localhost:3000")
     
     try:
-        url = f"{api_url}/api/market/{market_address}/exposure-details"
+        # First try the exposure-limits endpoint (based on Postman collection)
+        url = f"{api_url}/api/market/{market_address}/exposure-limits"
+        print(f"Attempting to fetch exposure details from: {url}")
         response = requests.get(url)
         response.raise_for_status()
-        return response.json()
+        exposure_data = response.json()
+        
+        # If that doesn't work, try getting general market data
+        if not exposure_data or "error" in exposure_data:
+            url = f"{api_url}/api/market/{market_address}"
+            print(f"Falling back to general market data: {url}")
+            response = requests.get(url)
+            response.raise_for_status()
+            exposure_data = response.json()
+            
+        return exposure_data
     except requests.exceptions.RequestException as e:
         print(f"Error fetching market exposure details: {e}", file=sys.stderr)
         return {"error": str(e), "market_address": market_address}
@@ -132,57 +144,102 @@ def get_market_exposure_by_type(market_address: str, api_url: Optional[str] = No
         api_url = os.getenv("API_URL", "http://localhost:3000")
     
     try:
-        # Fetch exposure details from the API
-        exposure_data = fetch_market_exposure_details(market_address, api_url)
+        # First try to get market details including exposure
+        market_data = fetch_market_exposure_details(market_address, api_url)
         
         # Check if there was an error in fetching data
-        if "error" in exposure_data:
-            return exposure_data
+        if "error" in market_data:
+            return market_data
+        
+        # Also try to get general market data to get maxExposure and currentExposure
+        general_market_data = {}
+        try:
+            general_url = f"{api_url}/api/market/{market_address}"
+            response = requests.get(general_url)
+            response.raise_for_status()
+            general_market_data = response.json()
+        except Exception:
+            # If we can't get general data, just use what we have
+            general_market_data = market_data
+            
+        # Resolve field names based on API response structure
+        # First, look for exposure limit fields
+        home_ml_limit = market_data.get("homeMoneylineLimit", 0)
+        away_ml_limit = market_data.get("awayMoneylineLimit", 0)
+        draw_limit = market_data.get("drawLimit", 0)
+        home_spread_limit = market_data.get("homeSpreadLimit", 0)
+        away_spread_limit = market_data.get("awaySpreadLimit", 0)
+        over_limit = market_data.get("overLimit", 0)
+        under_limit = market_data.get("underLimit", 0)
+        
+        # Then look for current exposure fields (these might not be in the API)
+        # If not available, default to 0
+        home_ml_exposure = market_data.get("homeMoneylineExposure", 0)
+        away_ml_exposure = market_data.get("awayMoneylineExposure", 0)
+        draw_exposure = market_data.get("drawExposure", 0)
+        home_spread_exposure = market_data.get("homeSpreadExposure", 0)
+        away_spread_exposure = market_data.get("awaySpreadExposure", 0)
+        over_exposure = market_data.get("overExposure", 0)
+        under_exposure = market_data.get("underExposure", 0)
+        
+        # Get global exposure from general market data
+        max_exposure = float(general_market_data.get("maxExposure", 0))
+        current_exposure = float(general_market_data.get("currentExposure", 0))
         
         # Organize data by bet type and side
         organized_data = {
             "moneyline": {
                 "home": {
-                    "max_exposure": exposure_data.get("homeMoneylineMaxExposure", 0),
-                    "current_exposure": exposure_data.get("homeMoneylineCurrentExposure", 0)
+                    "max_exposure": home_ml_limit,
+                    "current_exposure": home_ml_exposure
                 },
                 "away": {
-                    "max_exposure": exposure_data.get("awayMoneylineMaxExposure", 0),
-                    "current_exposure": exposure_data.get("awayMoneylineCurrentExposure", 0)
+                    "max_exposure": away_ml_limit,
+                    "current_exposure": away_ml_exposure
                 }
             },
             "draw": {
                 "draw": {
-                    "max_exposure": exposure_data.get("drawMaxExposure", 0),
-                    "current_exposure": exposure_data.get("drawCurrentExposure", 0)
+                    "max_exposure": draw_limit,
+                    "current_exposure": draw_exposure
                 }
             },
             "spread": {
                 "home": {
-                    "max_exposure": exposure_data.get("homeSpreadMaxExposure", 0),
-                    "current_exposure": exposure_data.get("homeSpreadCurrentExposure", 0)
+                    "max_exposure": home_spread_limit,
+                    "current_exposure": home_spread_exposure
                 },
                 "away": {
-                    "max_exposure": exposure_data.get("awaySpreadMaxExposure", 0),
-                    "current_exposure": exposure_data.get("awaySpreadCurrentExposure", 0)
+                    "max_exposure": away_spread_limit,
+                    "current_exposure": away_spread_exposure
                 }
             },
             "total": {
                 "over": {
-                    "max_exposure": exposure_data.get("overMaxExposure", 0),
-                    "current_exposure": exposure_data.get("overCurrentExposure", 0)
+                    "max_exposure": over_limit,
+                    "current_exposure": over_exposure
                 },
                 "under": {
-                    "max_exposure": exposure_data.get("underMaxExposure", 0),
-                    "current_exposure": exposure_data.get("underCurrentExposure", 0)
+                    "max_exposure": under_limit,
+                    "current_exposure": under_exposure
                 }
             },
             "global": {
-                "max_exposure": exposure_data.get("maxExposure", 0),
-                "current_exposure": exposure_data.get("currentExposure", 0)
+                "max_exposure": max_exposure,
+                "current_exposure": current_exposure
             }
         }
         
+        # Add raw data for debugging/reference
+        organized_data["raw_exposure_data"] = market_data
+        organized_data["raw_market_data"] = general_market_data
+        
+        # Add basic stats to help with risk assessment
+        if max_exposure > 0:
+            organized_data["global"]["utilization_percentage"] = (current_exposure / max_exposure) * 100
+        else:
+            organized_data["global"]["utilization_percentage"] = 0
+            
         return organized_data
     except Exception as e:
         error_message = f"An unexpected error occurred in get_market_exposure_by_type: {e}"
