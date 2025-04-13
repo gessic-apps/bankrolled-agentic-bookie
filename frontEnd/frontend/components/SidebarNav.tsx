@@ -7,6 +7,7 @@ import { usePathname } from 'next/navigation';
 interface NavItem {
   label: string;
   href: string;
+  //@ts-expect-error icon is a JSX.Element
   icon: JSX.Element;
 }
 

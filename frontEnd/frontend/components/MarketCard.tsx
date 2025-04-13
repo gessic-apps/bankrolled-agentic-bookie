@@ -73,8 +73,8 @@ const getProviderOrSigner = (signer?: ethers.Signer | null): ethers.Provider | e
   // Fallback to a default provider (replace with your preferred setup)
   // Make sure this provider is connected to the correct network (e.g., Base Sepolia)
   // return new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org');
-  // return new ethers.JsonRpcProvider('https://base-sepolia.g.alchemy.com/v2/eU1jQGAZyansfxyaBRIHQrBQh1Y0bIQi');
-  return new ethers.JsonRpcProvider('http://127.0.0.1:8545');
+  return new ethers.JsonRpcProvider('https://base-sepolia.g.alchemy.com/v2/eU1jQGAZyansfxyaBRIHQrBQh1Y0bIQi');
+  // return new ethers.JsonRpcProvider('http://127.0.0.1:8545');
 };
 
 const MarketCard: React.FC<MarketCardProps> = ({ market, usdxAddress, expectedChainId }) => {
