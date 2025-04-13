@@ -45,30 +45,30 @@ export default function SidebarNav() {
         </svg>
       ),
     },
-    {
-      label: 'Basketball',
-      href: '/sports/basketball',
-      icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
-          <circle cx="12" cy="12" r="10" />
-          <path d="M4.93 4.93L19.07 19.07" />
-          <path d="M14.83 9.17C15.55 7.83 19.44 2 19.44 2" />
-          <path d="M9.17 14.83C7.83 15.55 2 19.44 2 19.44" />
-          <path d="M14.83 14.83C11.5 18.17 7.36 19.61 5.73 20.27" />
-          <path d="M9.17 9.17C3.03 11.29 2.56 19.11 2.56 19.11" />
-        </svg>
-      ),
-    },
-    {
-      label: 'Soccer',
-      href: '/sports/soccer',
-      icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
-          <circle cx="12" cy="12" r="10" />
-          <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
-        </svg>
-      ),
-    },
+    // {
+    //   label: 'Basketball',
+    //   href: '/sports/basketball',
+    //   icon: (
+    //     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+    //       <circle cx="12" cy="12" r="10" />
+    //       <path d="M4.93 4.93L19.07 19.07" />
+    //       <path d="M14.83 9.17C15.55 7.83 19.44 2 19.44 2" />
+    //       <path d="M9.17 14.83C7.83 15.55 2 19.44 2 19.44" />
+    //       <path d="M14.83 14.83C11.5 18.17 7.36 19.61 5.73 20.27" />
+    //       <path d="M9.17 9.17C3.03 11.29 2.56 19.11 2.56 19.11" />
+    //     </svg>
+    //   ),
+    // },
+    // {
+    //   label: 'Soccer',
+    //   href: '/sports/soccer',
+    //   icon: (
+    //     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+    //       <circle cx="12" cy="12" r="10" />
+    //       <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+    //     </svg>
+    //   ),
+    // },
     {
       label: 'My Bets',
       href: '/my-bets',

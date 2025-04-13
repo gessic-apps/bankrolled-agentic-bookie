@@ -1,0 +1,485 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "MarketExposureManager",
+  "sourceName": "contracts/MarketExposureManager.sol",
+  "abi": [
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": false,
+          "internalType": "enum MarketExposureManager.BetType",
+          "name": "betType",
+          "type": "uint8"
+        },
+        {
+          "indexed": false,
+          "internalType": "bool",
+          "name": "isBettingOnHomeOrOver",
+          "type": "bool"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "newLimit",
+          "type": "uint256"
+        }
+      ],
+      "name": "MarketExposureLimitSet",
+      "type": "event"
+    },
+    {
+      "inputs": [],
+      "name": "awayMoneylineCurrentExposure",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "awayMoneylineMaxExposure",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "awaySpreadCurrentExposure",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "awaySpreadMaxExposure",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "currentExposure",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_removedAmount",
+          "type": "uint256"
+        }
+      ],
+      "name": "decreaseMaxExposure",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "drawCurrentExposure",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "drawMaxExposure",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "enum MarketExposureManager.BetType",
+          "name": "_betType",
+          "type": "uint8"
+        },
+        {
+          "internalType": "bool",
+          "name": "_isBettingOnHomeOrOver",
+          "type": "bool"
+        }
+      ],
+      "name": "getMarketExposure",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "maxLimit",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "currentAmount",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getMoneylineExposure",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "homeMaxExposure",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "homeCurrentExposure",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "awayMaxExposure",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "awayCurrentExposure",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "drawMax",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "drawCurrent",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getSpreadExposure",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "homeMaxExposure",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "homeCurrentExposure",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "awayMaxExposure",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "awayCurrentExposure",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getTotalExposure",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "overMax",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "overCurrent",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "underMax",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "underCurrent",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "homeMoneylineCurrentExposure",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "homeMoneylineMaxExposure",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "homeSpreadCurrentExposure",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "homeSpreadMaxExposure",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_addedAmount",
+          "type": "uint256"
+        }
+      ],
+      "name": "increaseMaxExposure",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "marketAddress",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "maxExposure",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "overCurrentExposure",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "overMaxExposure",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_homeMoneylineLimit",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_awayMoneylineLimit",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_drawLimit",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_homeSpreadLimit",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_awaySpreadLimit",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_overLimit",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_underLimit",
+          "type": "uint256"
+        }
+      ],
+      "name": "setAllMarketExposureLimits",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "enum MarketExposureManager.BetType",
+          "name": "_betType",
+          "type": "uint8"
+        },
+        {
+          "internalType": "bool",
+          "name": "_isBettingOnHomeOrOver",
+          "type": "bool"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_newLimit",
+          "type": "uint256"
+        }
+      ],
+      "name": "setMarketExposureLimit",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "underCurrentExposure",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "underMaxExposure",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_newMaxExposure",
+          "type": "uint256"
+        }
+      ],
+      "name": "updateMaxExposure",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x",
+  "deployedBytecode": "0x",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

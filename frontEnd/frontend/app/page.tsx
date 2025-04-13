@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { WagmiProvider, useReadContract } from 'wagmi';
 import { readContract } from 'wagmi/actions';
 import { getDefaultConfig, RainbowKitProvider } from '@rainbow-me/rainbowkit';
-import { localhost } from 'wagmi/chains';
+import { localhost, baseSepolia } from 'wagmi/chains';
 import { type Address, BaseError } from 'viem';
 import '@rainbow-me/rainbowkit/styles.css';
 import { HeroUIProvider } from "@heroui/react";

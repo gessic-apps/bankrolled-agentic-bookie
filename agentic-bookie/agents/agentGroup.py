@@ -22,7 +22,7 @@ from .market_creation_agent import SUPPORTED_SPORT_KEYS
 from .market_creation_agent import market_creation_agent
 from .odds_manager_agent import odds_manager_agent
 from .game_status_agent import game_status_agent
-# from .risk_manager_agent import risk_manager_agent
+from .risk_manager_agent import risk_manager_agent
 
 # Set up OpenAI API key from environment (optional, SDK might handle this)
 # api_key = os.getenv("OPENAI_API_KEY")
@@ -74,12 +74,12 @@ triage_agent = Agent(
             game_status_agent, # Use the imported agent object
             tool_name_override="transfer_to_game_status_agent",
             tool_description_override="Transfer task to the agent specializing in monitoring game start times and updating market status."
+        ),
+        handoff( # Add handoff for the risk manager agent
+            risk_manager_agent, # Use the imported agent object
+            tool_name_override="transfer_to_risk_manager_agent",
+            tool_description_override="Transfer task to the agent specializing in managing risk and liquidity for betting markets."
         )
-        # handoff( # Add handoff for the risk manager agent
-        #     risk_manager_agent, # Use the imported agent object
-        #     tool_name_override="transfer_to_risk_manager_agent",
-        #     tool_description_override="Transfer task to the agent specializing in managing risk and liquidity for betting markets."
-        # )
     ],
     # DO NOT CHANGE THIS MODEL FROM THE CURRENT SETTING
     model="gpt-4o-mini-2024-07-18",

@@ -3,13 +3,14 @@
 
 export const CONTRACT_ADDRESSES = {
   // Market Factory contract address
-  MARKET_FACTORY_ADDRESS: "0x901C93b664bb5a77085134a14c1EEC5573B5E6a8",
+  MARKET_FACTORY_ADDRESS: "0x4324beFaE3237595B488Ca44BC33A99910379f3E",
   
   // USDX token contract address
-  USDX_ADDRESS: "0x0aC1360DC4A164BedAbc321a96D208ce7ce0c817",
+  USDX_ADDRESS: "0x69506cbB6536715AceAD360A49A4a9eeE7fd7E34",
   
   // Expected chain ID for the deployed contracts
-  EXPECTED_CHAIN_ID: 84532, // Base Sepolia testnet
+  // EXPECTED_CHAIN_ID: 84532, // Base Sepolia testnet
+  EXPECTED_CHAIN_ID: 31337, // Base Sepolia testnet
 };
 
 // Wagmi configuration

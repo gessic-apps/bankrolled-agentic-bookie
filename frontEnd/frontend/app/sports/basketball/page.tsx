@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { WagmiProvider, useReadContract } from 'wagmi';
-import { readContract } from 'wagmi/actions';
+import { WagmiProvider, useReadContract, useConfig } from 'wagmi';
+import { readContract,  } from 'wagmi/actions';
 import { getDefaultConfig, RainbowKitProvider } from '@rainbow-me/rainbowkit';
-import { localhost } from 'wagmi/chains';
+import { baseSepolia } from 'wagmi/chains';
 import { type Address, BaseError } from 'viem';
 import '@rainbow-me/rainbowkit/styles.css';
 import { HeroUIProvider } from "@heroui/react";
@@ -29,7 +29,7 @@ import { CONTRACT_ADDRESSES, WAGMI_CONFIG } from '../../../config/contracts';
 const config = getDefaultConfig({
   appName: WAGMI_CONFIG.APP_NAME,
   projectId: WAGMI_CONFIG.PROJECT_ID,
-  chains: [localhost],
+  chains: [baseSepolia],
   ssr: false,
 });
 
@@ -50,14 +50,17 @@ function BasketballMarketsDisplay() {
   const [markets, setMarkets] = useState<Market[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-
+  const config = useConfig();
+  console.log("Config:", config.chains);
+  console.log("Contract Addresses:", CONTRACT_ADDRESSES.MARKET_FACTORY_ADDRESS);
   // Read market addresses from factory
   const { data: marketAddresses, error: factoryError, isLoading: factoryLoading } = useReadContract({
     address: CONTRACT_ADDRESSES.MARKET_FACTORY_ADDRESS as Address,
     abi: MarketFactoryAbi.abi,
     functionName: 'getDeployedMarkets',
+    chainId: CONTRACT_ADDRESSES.EXPECTED_CHAIN_ID,
   });
-
+  console.log("Market Addresses:", marketAddresses, error, factoryError, factoryLoading);
   // Fetch market details
   useEffect(() => {
     const fetchMarketDetails = async () => {

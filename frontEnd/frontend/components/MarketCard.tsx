@@ -73,7 +73,8 @@ const getProviderOrSigner = (signer?: ethers.Signer | null): ethers.Provider | e
   // Fallback to a default provider (replace with your preferred setup)
   // Make sure this provider is connected to the correct network (e.g., Base Sepolia)
   // return new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org');
-  return new ethers.JsonRpcProvider('https://base-sepolia.g.alchemy.com/v2/eU1jQGAZyansfxyaBRIHQrBQh1Y0bIQi');
+  // return new ethers.JsonRpcProvider('https://base-sepolia.g.alchemy.com/v2/eU1jQGAZyansfxyaBRIHQrBQh1Y0bIQi');
+  return new ethers.JsonRpcProvider('http://127.0.0.1:8545');
 };
 
 const MarketCard: React.FC<MarketCardProps> = ({ market, usdxAddress, expectedChainId }) => {
@@ -436,12 +437,12 @@ const MarketCard: React.FC<MarketCardProps> = ({ market, usdxAddress, expectedCh
               <p className="text-xs text-blue-600 dark:text-blue-400 mb-1">{market.homeTeam}</p>
               <p className="font-medium text-blue-700 dark:text-blue-300 text-lg">{isFetchingData ? 'Loading...' : formatOdds(liveOdds?.homeOdds)}</p>
             </div>
-            {liveOdds?.drawOdds && liveOdds.drawOdds > 0n && (
+            {(liveOdds?.drawOdds && liveOdds.drawOdds > 0n ) ? (
               <div className="text-center p-2 bg-yellow-50 dark:bg-yellow-900/30 rounded">
                 <p className="text-xs text-yellow-600 dark:text-yellow-400 mb-1">Draw</p>
                 <p className="font-medium text-yellow-700 dark:text-yellow-300 text-lg">{isFetchingData ? 'Loading...' : formatOdds(liveOdds?.drawOdds)}</p>
               </div>
-            )}
+            ) : null}
             <div className="text-center p-2 bg-green-50 dark:bg-green-900/30 rounded">
               <p className="text-xs text-green-600 dark:text-green-400 mb-1">{market.awayTeam}</p>
               <p className="font-medium text-green-700 dark:text-green-300 text-lg">{isFetchingData ? 'Loading...' : formatOdds(liveOdds?.awayOdds)}</p>
@@ -586,7 +587,7 @@ const MarketCard: React.FC<MarketCardProps> = ({ market, usdxAddress, expectedCh
               </button>
               
               {/* Draw betting button - only show for Moneyline bets when draw odds are available */}
-              {selectedBetType === MONEYLINE_BET_TYPE && liveOdds?.drawOdds && liveOdds.drawOdds > 0n && (
+              {(selectedBetType === MONEYLINE_BET_TYPE && liveOdds?.drawOdds && liveOdds.drawOdds > 0n) ? (
                 <button
                   type="button"
                   onClick={() => {
@@ -602,7 +603,7 @@ const MarketCard: React.FC<MarketCardProps> = ({ market, usdxAddress, expectedCh
                 >
                   {isLoading ? 'Processing...' : 'Bet Draw'}
                 </button>
-              )}
+              ) : null}
               
               <button
                 type="button"
