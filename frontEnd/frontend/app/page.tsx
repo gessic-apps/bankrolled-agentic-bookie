@@ -5,6 +5,7 @@ import MarketsList from "../components/MarketsList";
 import Faucet from "../components/Faucet";
 import UserBetsList from "../components/UserBetsList";
 import { Market, MarketStatus } from "../types/market";
+import {Button} from "@heroui/button";
 import '@rainbow-me/rainbowkit/styles.css';
 import {
   getDefaultConfig,
@@ -22,6 +23,7 @@ import {
   QueryClient,
 } from "@tanstack/react-query";
 import { ConnectButton } from '@rainbow-me/rainbowkit';
+import {HeroUIProvider} from "@heroui/react";
 
 // Import ABIs from the correct paths
 import MarketFactoryAbi from "../abis/contracts/MarketFactory.sol/MarketFactory.json";
@@ -213,7 +215,7 @@ function MarketDisplay() {
 
   // Render logic moved here
   return (
-    <>
+    <HeroUIProvider>
       <h1 className="text-3xl font-bold mb-6">NBA Betting Markets</h1>
       {loading ? (
         <div className="text-center py-10">
@@ -233,7 +235,7 @@ function MarketDisplay() {
       {!loading && !error && (
          <UserBetsList markets={markets} />
       )}
-    </>
+    </HeroUIProvider>
   );
 }
 
