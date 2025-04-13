@@ -9,21 +9,21 @@ import { localhost } from 'wagmi/chains';
 import { type Address, BaseError } from 'viem';
 import '@rainbow-me/rainbowkit/styles.css';
 import { HeroUIProvider } from "@heroui/react";
-import MarketsList from "../components/MarketsList";
+import MarketsList from "../../../components/MarketsList";
 // Faucet now in header
 import { ConnectButton } from '@rainbow-me/rainbowkit';
-import SidebarNav from "../components/SidebarNav";
-import ThemeToggle from "../components/ThemeToggle";
-import FaucetButton from "../components/FaucetButton";
-import { Market, MarketStatus } from "../types/market";
+import SidebarNav from "../../../components/SidebarNav";
+import ThemeToggle from "../../../components/ThemeToggle";
+import FaucetButton from "../../../components/FaucetButton";
+import { Market, MarketStatus } from "../../../types/market";
 
 // Import ABIs
-import MarketFactoryAbi from "../abis/contracts/MarketFactory.sol/MarketFactory.json";
-import NBAMarketAbi from "../abis/contracts/NBAMarket.sol/NBAMarket.json";
-import MarketOddsAbi from "../abis/contracts/MarketOdds.sol/MarketOdds.json";
+import MarketFactoryAbi from "../../../abis/contracts/MarketFactory.sol/MarketFactory.json";
+import NBAMarketAbi from "../../../abis/contracts/NBAMarket.sol/NBAMarket.json";
+import MarketOddsAbi from "../../../abis/contracts/MarketOdds.sol/MarketOdds.json";
 
 // Import contract addresses from central config
-import { CONTRACT_ADDRESSES, WAGMI_CONFIG } from '../config/contracts';
+import { CONTRACT_ADDRESSES, WAGMI_CONFIG } from '../../../config/contracts';
 
 // Configure Wagmi client
 const config = getDefaultConfig({
@@ -46,7 +46,7 @@ const formatContractValue = (value: bigint | number | undefined, decimals: numbe
 };
 
 // Market Display Component
-function AllMarketsDisplay() {
+function SoccerMarketsDisplay() {
   const [markets, setMarkets] = useState<Market[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -98,8 +98,6 @@ function AllMarketsDisplay() {
                 abi: MarketOddsAbi.abi,
                 functionName: 'getFullOdds',
               }) as any;
-            } else {
-              console.warn(`Market ${marketAddress} has no MarketOdds contract linked.`);
             }
 
             // Destructure data
@@ -118,6 +116,11 @@ function AllMarketsDisplay() {
             const gameStarted: boolean = numericStatus >= MarketStatus.STARTED;
             const gameEnded: boolean = numericStatus >= MarketStatus.SETTLED;
             const oddsSet: boolean = numericStatus >= MarketStatus.OPEN;
+
+            // Check if this is a soccer game (has draw odds)
+            if (!oddsData?._drawOdds || Number(oddsData._drawOdds) <= 0) {
+              return null; // Skip basketball games
+            }
 
             return {
               address: marketAddress,
@@ -179,7 +182,7 @@ function AllMarketsDisplay() {
 
   return (
     <>
-      <h2 className="text-2xl font-bold mb-6 text-gray-800 dark:text-white">All Available Markets</h2>
+      <h2 className="text-2xl font-bold mb-6 text-gray-800 dark:text-white">Soccer Markets</h2>
       {loading ? (
         <div className="flex justify-center items-center py-20">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
@@ -195,7 +198,7 @@ function AllMarketsDisplay() {
   );
 }
 
-export default function Home() {
+export default function SoccerPage() {
   const [queryClient] = useState(() => new QueryClient());
 
   return (
@@ -208,7 +211,7 @@ export default function Home() {
               <div className="content-area">
                 <header className="sticky top-0 z-10 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow">
                   <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-                    <h1 className="text-2xl font-bold text-gray-800 dark:text-white">Bankrolled Sports Betting</h1>
+                    <h1 className="text-2xl font-bold text-gray-800 dark:text-white">Soccer Betting</h1>
                     <div className="flex items-center gap-4">
                       <FaucetButton />
                       <ThemeToggle />
@@ -217,7 +220,7 @@ export default function Home() {
                   </div>
                 </header>
                 <main className="container mx-auto px-4 py-8">
-                  <AllMarketsDisplay />
+                  <SoccerMarketsDisplay />
                 </main>
               </div>
             </div>

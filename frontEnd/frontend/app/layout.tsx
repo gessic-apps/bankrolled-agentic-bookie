@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { ThemeProvider } from "../components/ThemeProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -13,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "NBA Betting Markets",
-  description: "View and interact with NBA betting markets",
+  title: "Bankrolled | Sports Betting",
+  description: "Premium sports betting platform with competitive odds",
 };
 
 export default function RootLayout({
@@ -23,18 +24,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        <div className="min-h-screen bg-gray-50">
-          <header className="bg-blue-600 text-white shadow-md">
-            <div className="container mx-auto px-4 py-4">
-              <h1 className="text-xl font-bold">NBA Betting Markets</h1>
-            </div>
-          </header>
+    <html lang="en" suppressHydrationWarning>
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+        <ThemeProvider>
           {children}
-        </div>
+        </ThemeProvider>
       </body>
     </html>
   );

@@ -38,10 +38,13 @@ async function getEthersSigner(walletClient: WalletClient): Promise<ethers.Signe
   }
 }
 
+// Import contract addresses from central config
+import { CONTRACT_ADDRESSES } from '../config/contracts';
+
 interface MarketCardProps {
   market: Market;
   usdxAddress: string; // Address of the USDX ERC20 token
-  expectedChainId: number; // The chain ID the contracts are deployed on
+  expectedChainId: number; // The chain ID the contracts are deployed on (default to value from config)
 }
 
 // BetType enum values from BettingEngine.sol
@@ -215,32 +218,32 @@ const MarketCard: React.FC<MarketCardProps> = ({ market, usdxAddress, expectedCh
   const getStatusBadge = () => {
     // Handle loading and initial null state first
     if (isFetchingData || marketStatus === null) { 
-      return <span className="px-2 py-1 text-xs font-semibold text-gray-700 bg-gray-200 rounded-full">Loading...</span>;
+      return <span className="status-badge text-white bg-gray-500">Loading...</span>;
     }
     if (fetchError) {
-      return <span className="px-2 py-1 text-xs font-semibold text-red-700 bg-red-200 rounded-full">Error</span>;
+      return <span className="status-badge status-cancelled">Error</span>;
     }
 
     switch (marketStatus) {
       case MarketStatus.PENDING:
-        return <span className="px-2 py-1 text-xs font-semibold text-gray-700 bg-gray-200 rounded-full">Pending</span>;
+        return <span className="status-badge status-pending">Pending</span>;
       case MarketStatus.OPEN:
         // Check game time vs current time
-         const now = Date.now() / 1000; // Current time in seconds
+        const now = Date.now() / 1000; // Current time in seconds
         if (parseInt(market.gameTimestamp, 10) > now) {
-            return <span className="px-2 py-1 text-xs font-semibold text-green-700 bg-green-200 rounded-full">Open</span>;
+            return <span className="status-badge status-open">Open</span>;
         } else {
             // If time has passed but status is still OPEN, maybe there's a delay? Treat as Started for UI.
-            return <span className="px-2 py-1 text-xs font-semibold text-yellow-700 bg-yellow-200 rounded-full">Live</span>;
+            return <span className="status-badge status-live">Live</span>;
         }
       case MarketStatus.STARTED:
-         return <span className="px-2 py-1 text-xs font-semibold text-yellow-700 bg-yellow-200 rounded-full">Live</span>;
+        return <span className="status-badge status-live">Live</span>;
       case MarketStatus.SETTLED:
-        return <span className="px-2 py-1 text-xs font-semibold text-blue-700 bg-blue-200 rounded-full">Settled</span>;
+        return <span className="status-badge status-settled">Settled</span>;
       case MarketStatus.CANCELLED:
-        return <span className="px-2 py-1 text-xs font-semibold text-red-700 bg-red-200 rounded-full">Cancelled</span>;
+        return <span className="status-badge status-cancelled">Cancelled</span>;
       default:
-        return <span className="px-2 py-1 text-xs font-semibold text-gray-700 bg-gray-200 rounded-full">Unknown</span>;
+        return <span className="status-badge text-white bg-gray-500">Unknown</span>;
     }
   };
 
@@ -414,51 +417,56 @@ const MarketCard: React.FC<MarketCardProps> = ({ market, usdxAddress, expectedCh
   );
 
   return (
-    <div className="border rounded-lg overflow-hidden shadow-md bg-white">
-      <div className="bg-gray-100 px-4 py-2 border-b flex justify-between items-center">
-        <h3 className="font-bold truncate">{market.homeTeam} vs {market.awayTeam}</h3>
+    <div className="card dark:bg-gray-800 hover:shadow-lg">
+      <div className="bg-gray-100 dark:bg-gray-700 px-4 py-3 border-b border-gray-200 dark:border-gray-600 flex justify-between items-center">
+        <h3 className="font-bold truncate text-gray-800 dark:text-white">{market.homeTeam} vs {market.awayTeam}</h3>
         {getStatusBadge()}
       </div>
       
-      <div className="p-4">
+      <div className="p-5">
         <div className="mb-4">
-          <p className="text-sm text-gray-600 mb-1">Game Time:</p>
-          <p className="font-medium">{gameDate}</p>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Game Time:</p>
+          <p className="font-medium text-gray-800 dark:text-white">{gameDate}</p>
         </div>
         
-        <div className="mb-4">
-          <p className="text-sm text-gray-600 mb-1 font-semibold">Moneyline:</p>
+        <div className="mb-5 bg-gray-50 dark:bg-gray-900 p-3 rounded-lg">
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-2 font-semibold border-b border-gray-200 dark:border-gray-700 pb-1">Moneyline:</p>
           <div className={`grid ${liveOdds?.drawOdds && liveOdds.drawOdds > 0n ? 'grid-cols-3' : 'grid-cols-2'} gap-4`}>
-            <div>
-              <p className="text-xs text-gray-500">{market.homeTeam}</p>
-              <p className="font-medium">{isFetchingData ? 'Loading...' : formatOdds(liveOdds?.homeOdds)}</p>
+            <div className="text-center p-2 bg-blue-50 dark:bg-blue-900/30 rounded">
+              <p className="text-xs text-blue-600 dark:text-blue-400 mb-1">{market.homeTeam}</p>
+              <p className="font-medium text-blue-700 dark:text-blue-300 text-lg">{isFetchingData ? 'Loading...' : formatOdds(liveOdds?.homeOdds)}</p>
             </div>
             {liveOdds?.drawOdds && liveOdds.drawOdds > 0n && (
-              <div>
-                <p className="text-xs text-gray-500">Draw</p>
-                <p className="font-medium">{isFetchingData ? 'Loading...' : formatOdds(liveOdds?.drawOdds)}</p>
+              <div className="text-center p-2 bg-yellow-50 dark:bg-yellow-900/30 rounded">
+                <p className="text-xs text-yellow-600 dark:text-yellow-400 mb-1">Draw</p>
+                <p className="font-medium text-yellow-700 dark:text-yellow-300 text-lg">{isFetchingData ? 'Loading...' : formatOdds(liveOdds?.drawOdds)}</p>
               </div>
             )}
-            <div>
-              <p className="text-xs text-gray-500">{market.awayTeam}</p>
-              <p className="font-medium">{isFetchingData ? 'Loading...' : formatOdds(liveOdds?.awayOdds)}</p>
+            <div className="text-center p-2 bg-green-50 dark:bg-green-900/30 rounded">
+              <p className="text-xs text-green-600 dark:text-green-400 mb-1">{market.awayTeam}</p>
+              <p className="font-medium text-green-700 dark:text-green-300 text-lg">{isFetchingData ? 'Loading...' : formatOdds(liveOdds?.awayOdds)}</p>
             </div>
           </div>
         </div>
         
         {/* Spread Odds */}
         {!isFetchingData && liveOdds && liveOdds.homeSpreadOdds > 0n && (
-          <div className="mb-4">
-            <p className="text-sm text-gray-600 mb-1 font-semibold">Spread:</p>
+          <div className="mb-5 bg-gray-50 dark:bg-gray-900 p-3 rounded-lg">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-2 font-semibold border-b border-gray-200 dark:border-gray-700 pb-1">Spread:</p>
             <div className="grid grid-cols-2 gap-4 text-center">
-              <div>
-                <p className="text-xs text-gray-500">{market.homeTeam}</p>
-                <p className="font-medium">{formatPoints(liveOdds?.homeSpreadPoints)} ({formatOdds(liveOdds?.homeSpreadOdds)})</p>
+              <div className="p-2 bg-blue-50 dark:bg-blue-900/30 rounded">
+                <p className="text-xs text-blue-600 dark:text-blue-400 mb-1">{market.homeTeam}</p>
+                <p className="font-medium text-blue-700 dark:text-blue-300">
+                  <span className="block text-lg">{formatPoints(liveOdds?.homeSpreadPoints)}</span>
+                  <span className="text-sm text-gray-600 dark:text-gray-400">({formatOdds(liveOdds?.homeSpreadOdds)})</span>
+                </p>
               </div>
-              <div>
-                 <p className="text-xs text-gray-500">{market.awayTeam}</p>
-                 {/* Away spread points are the negative of home spread points */}
-                 <p className="font-medium">{formatPoints(liveOdds && liveOdds.homeSpreadPoints ? -liveOdds.homeSpreadPoints : null)} ({formatOdds(liveOdds?.awaySpreadOdds)})</p>
+              <div className="p-2 bg-green-50 dark:bg-green-900/30 rounded">
+                <p className="text-xs text-green-600 dark:text-green-400 mb-1">{market.awayTeam}</p>
+                <p className="font-medium text-green-700 dark:text-green-300">
+                  <span className="block text-lg">{formatPoints(liveOdds && liveOdds.homeSpreadPoints ? -liveOdds.homeSpreadPoints : null)}</span>
+                  <span className="text-sm text-gray-600 dark:text-gray-400">({formatOdds(liveOdds?.awaySpreadOdds)})</span>
+                </p>
               </div>
             </div>
           </div>
@@ -466,18 +474,24 @@ const MarketCard: React.FC<MarketCardProps> = ({ market, usdxAddress, expectedCh
 
         {/* Total Odds */}
         {!isFetchingData && liveOdds && liveOdds.overOdds > 0n && (
-          <div className="mb-4">
-            <p className="text-sm text-gray-600 mb-1 font-semibold">Total:</p>
-             <div className="grid grid-cols-2 gap-4 text-center">
-               <div>
-                 <p className="text-xs text-gray-500">Over</p>
-                 <p className="font-medium">{formatPoints(liveOdds?.totalPoints)} ({formatOdds(liveOdds?.overOdds)})</p>
-               </div>
-               <div>
-                 <p className="text-xs text-gray-500">Under</p>
-                 <p className="font-medium">{formatPoints(liveOdds?.totalPoints)} ({formatOdds(liveOdds?.underOdds)})</p>
-               </div>
-             </div>
+          <div className="mb-5 bg-gray-50 dark:bg-gray-900 p-3 rounded-lg">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-2 font-semibold border-b border-gray-200 dark:border-gray-700 pb-1">Total:</p>
+            <div className="grid grid-cols-2 gap-4 text-center">
+              <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 rounded">
+                <p className="text-xs text-indigo-600 dark:text-indigo-400 mb-1">Over</p>
+                <p className="font-medium text-indigo-700 dark:text-indigo-300">
+                  <span className="block text-lg">{formatPoints(liveOdds?.totalPoints)}</span>
+                  <span className="text-sm text-gray-600 dark:text-gray-400">({formatOdds(liveOdds?.overOdds)})</span>
+                </p>
+              </div>
+              <div className="p-2 bg-purple-50 dark:bg-purple-900/30 rounded">
+                <p className="text-xs text-purple-600 dark:text-purple-400 mb-1">Under</p>
+                <p className="font-medium text-purple-700 dark:text-purple-300">
+                  <span className="block text-lg">{formatPoints(liveOdds?.totalPoints)}</span>
+                  <span className="text-sm text-gray-600 dark:text-gray-400">({formatOdds(liveOdds?.underOdds)})</span>
+                </p>
+              </div>
+            </div>
           </div>
         )}
 
@@ -485,11 +499,15 @@ const MarketCard: React.FC<MarketCardProps> = ({ market, usdxAddress, expectedCh
         
         {/* Betting Section - Show only if market status is OPEN */}
         {!isFetchingData && marketStatus === MarketStatus.OPEN && (
-          <div className="mt-4 pt-4 border-t">
+          <div className="mt-5 pt-4 border-t border-gray-200 dark:border-gray-700">
             {/* Bet Type Selection Tabs */}
-            <div className="mb-4 flex border-b">
+            <div className="mb-4 flex border-b border-gray-200 dark:border-gray-700">
               <button 
-                className={`flex-1 py-2 px-4 text-center text-sm font-medium ${selectedBetType === MONEYLINE_BET_TYPE ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                className={`flex-1 py-2 px-4 text-center text-sm font-medium ${
+                  selectedBetType === MONEYLINE_BET_TYPE 
+                    ? 'border-b-2 border-primary text-primary dark:text-primary-light' 
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                }`}
                 onClick={() => {
                   setSelectedBetType(MONEYLINE_BET_TYPE);
                   setIsBettingOnDraw(false); // Reset draw selection when switching bet types
@@ -499,36 +517,44 @@ const MarketCard: React.FC<MarketCardProps> = ({ market, usdxAddress, expectedCh
                 Moneyline
               </button>
               <button 
-                 className={`flex-1 py-2 px-4 text-center text-sm font-medium ${selectedBetType === SPREAD_BET_TYPE ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
-                 onClick={() => {
-                   setSelectedBetType(SPREAD_BET_TYPE);
-                   setIsBettingOnDraw(false); // Reset draw selection when switching bet types
-                 }}
-                 disabled={!liveOdds || liveOdds.homeSpreadOdds <= 0n} // Disable if spread odds not available
+                className={`flex-1 py-2 px-4 text-center text-sm font-medium ${
+                  selectedBetType === SPREAD_BET_TYPE 
+                    ? 'border-b-2 border-primary text-primary dark:text-primary-light' 
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                }`}
+                onClick={() => {
+                  setSelectedBetType(SPREAD_BET_TYPE);
+                  setIsBettingOnDraw(false); // Reset draw selection when switching bet types
+                }}
+                disabled={!liveOdds || liveOdds.homeSpreadOdds <= 0n} // Disable if spread odds not available
               >
                 Spread
               </button>
               <button 
-                 className={`flex-1 py-2 px-4 text-center text-sm font-medium ${selectedBetType === TOTAL_BET_TYPE ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
-                 onClick={() => {
-                   setSelectedBetType(TOTAL_BET_TYPE);
-                   setIsBettingOnDraw(false); // Reset draw selection when switching bet types
-                 }}
-                 disabled={!liveOdds || liveOdds.overOdds <= 0n} // Disable if total odds not available
+                className={`flex-1 py-2 px-4 text-center text-sm font-medium ${
+                  selectedBetType === TOTAL_BET_TYPE 
+                    ? 'border-b-2 border-primary text-primary dark:text-primary-light' 
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                }`}
+                onClick={() => {
+                  setSelectedBetType(TOTAL_BET_TYPE);
+                  setIsBettingOnDraw(false); // Reset draw selection when switching bet types
+                }}
+                disabled={!liveOdds || liveOdds.overOdds <= 0n} // Disable if total odds not available
               >
                 Total
               </button>
             </div>
 
-            <div className="mb-3">
-              <label htmlFor={`bet-amount-${market.address}`} className="block text-sm font-medium text-gray-700 mb-1">
+            <div className="mb-4">
+              <label htmlFor={`bet-amount-${market.address}`} className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Bet Amount (USDX)
               </label>
               <input
                 type="number"
                 id={`bet-amount-${market.address}`}
                 name={`bet-amount-${market.address}`}
-                className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2"
+                className="shadow-sm focus:ring-primary focus:border-primary block w-full text-sm border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg p-3"
                 placeholder="0.0"
                 value={betAmount}
                 onChange={(e) => setBetAmount(e.target.value)}
@@ -549,8 +575,10 @@ const MarketCard: React.FC<MarketCardProps> = ({ market, usdxAddress, expectedCh
                   }
                 }}
                 disabled={isLoading || isFetchingData || marketStatus !== MarketStatus.OPEN || !betAmount || parseFloat(betAmount) <= 0}
-                className={`inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white ${
-                  isLoading || isFetchingData || marketStatus !== MarketStatus.OPEN || !betAmount || parseFloat(betAmount) <= 0 ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500'
+                className={`btn-home inline-flex justify-center items-center px-4 py-3 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white ${
+                  isLoading || isFetchingData || marketStatus !== MarketStatus.OPEN || !betAmount || parseFloat(betAmount) <= 0 
+                    ? 'bg-gray-400 dark:bg-gray-600 cursor-not-allowed' 
+                    : 'bet-button-home hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500'
                 }`}
               >
                 {isLoading ? 'Processing...' : 
@@ -566,8 +594,10 @@ const MarketCard: React.FC<MarketCardProps> = ({ market, usdxAddress, expectedCh
                     placeBet("draw", "Draw");
                   }}
                   disabled={isLoading || isFetchingData || marketStatus !== MarketStatus.OPEN || !betAmount || parseFloat(betAmount) <= 0}
-                  className={`inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white ${
-                    isLoading || isFetchingData || marketStatus !== MarketStatus.OPEN || !betAmount || parseFloat(betAmount) <= 0 ? 'bg-gray-400 cursor-not-allowed' : 'bg-yellow-600 hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500'
+                  className={`btn-draw inline-flex justify-center items-center px-4 py-3 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white ${
+                    isLoading || isFetchingData || marketStatus !== MarketStatus.OPEN || !betAmount || parseFloat(betAmount) <= 0 
+                      ? 'bg-gray-400 dark:bg-gray-600 cursor-not-allowed' 
+                      : 'bet-button-draw hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500'
                   }`}
                 >
                   {isLoading ? 'Processing...' : 'Bet Draw'}
@@ -585,8 +615,10 @@ const MarketCard: React.FC<MarketCardProps> = ({ market, usdxAddress, expectedCh
                   }
                 }}
                 disabled={isLoading || isFetchingData || marketStatus !== MarketStatus.OPEN || !betAmount || parseFloat(betAmount) <= 0}
-                className={`inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white ${
-                  isLoading || isFetchingData || marketStatus !== MarketStatus.OPEN || !betAmount || parseFloat(betAmount) <= 0 ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500'
+                className={`btn-away inline-flex justify-center items-center px-4 py-3 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white ${
+                  isLoading || isFetchingData || marketStatus !== MarketStatus.OPEN || !betAmount || parseFloat(betAmount) <= 0 
+                    ? 'bg-gray-400 dark:bg-gray-600 cursor-not-allowed' 
+                    : 'bet-button-away hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500'
                 }`}
               >
                 {isLoading ? 'Processing...' : 
@@ -596,7 +628,7 @@ const MarketCard: React.FC<MarketCardProps> = ({ market, usdxAddress, expectedCh
           </div>
         )}
         
-        <div className="mt-4 pt-3 border-t text-xs text-gray-500">
+        <div className="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700 text-xs text-gray-500 dark:text-gray-400">
           <p className="truncate">Market Address: {market.address}</p>
         </div>
       </div>
