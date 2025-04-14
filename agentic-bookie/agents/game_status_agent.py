@@ -270,9 +270,11 @@ def check_completed_games(markets_to_check: List[MarketInfo]) -> List[Dict[str, 
             except Exception as e:
                 print(f"An unexpected error occurred checking completed games against fallback key {potential_sport_key}: {e}", file=sys.stderr) # <-- Updated print
 
-
     total_checked_count = len(markets_to_check)
     print(f"Completed checks. Found {len(all_completed_games_info)} total completed games with scores across all checks for {total_checked_count} markets provided.")
+    # //set game result for each completed game
+    for game_info in all_completed_games_info:
+        set_game_result(game_info["market_address"], game_info["home_score"], game_info["away_score"])
     return all_completed_games_info
 
 
@@ -466,7 +468,7 @@ game_status_agent = Agent(
     tools=[
         get_bettable_unsettled_markets,
         check_completed_games,
-        set_game_result
+        # set_game_result
     ],
     # DO NOT CHANGE THIS MODEL FROM THE CURRENT SETTING
     model="gpt-4o-mini-2024-07-18",
