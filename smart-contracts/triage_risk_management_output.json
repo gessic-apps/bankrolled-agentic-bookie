@@ -1,0 +1,3 @@
+{
+    "finalOutput": "We've examined the available data:\n\u2022 The get_markets call returned an empty list \u2013 currently, no active markets are available for adjustment.\n\u2022 We also could not retrieve liquidity pool information because the liquidity pool API returned an error.\n\u2022 Without active markets, we aren't running any odds or exposure adjustments, and no Monte Carlo simulation was executed.\n\nNo actions (like adjusting odds, liquidity, or exposure limits) were required at this time. Once new markets become active and liquidity data is available, we can proceed with risk-adjusted changes."
+}

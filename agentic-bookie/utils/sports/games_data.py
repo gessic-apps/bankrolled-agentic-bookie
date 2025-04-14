@@ -27,8 +27,10 @@ def fetch_upcoming_games(sport_keys: List[str]) -> List[Dict[str, Any]]:
 
     # Calculate time filtering range to include both today and tomorrow
     today_utc = datetime.datetime.now(datetime.timezone.utc).date()
-    # Start from current time to get today's games
-    start_of_period_utc = datetime.datetime.now(datetime.timezone.utc)
+    print(today_utc)
+    # Start from one hour before current time to get today's games
+    start_of_period_utc = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=1)
+    print(start_of_period_utc)
     # End at the end of tomorrow
     tomorrow_utc = today_utc + datetime.timedelta(days=1)
     end_of_period_utc = datetime.datetime.combine(tomorrow_utc, datetime.time(23, 59, 59), tzinfo=datetime.timezone.utc)

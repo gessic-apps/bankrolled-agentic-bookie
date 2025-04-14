@@ -115,8 +115,8 @@ if __name__ == '__main__':
         print(result.final_output)
 
         # Define the output file path
-        output_file_path = "/Users/osman/bankrolled-agent-bookie/smart-contracts/market_creation_output.json"
-        
+        # output_file_path = "/Users/osman/bankrolled-agent-bookie/smart-contracts/market_creation_output.json"
+        output_file_path = Path(__file__).resolve().parent.parent / "smart-contracts" / "market_creation_output.json"
         # Prepare the data to be written
         output_data = {"finalOutput": result.final_output}
         

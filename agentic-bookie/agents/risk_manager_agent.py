@@ -2,6 +2,7 @@
 import sys
 import os
 from typing import List, Dict, Any, Optional
+from pathlib import Path
 # Don't use TypedDict here to avoid conflicts with function_tool
 
 # Try to import dotenv, but handle when it's not available
@@ -695,8 +696,8 @@ if __name__ == '__main__':
         print(result.final_output)
 
         # Define the output file path
-        output_file_path = "/Users/osman/bankrolled-agent-bookie/smart-contracts/risk_manager_output.json"
-        
+        # output_file_path = "/Users/osman/bankrolled-agent-bookie/smart-contracts/risk_manager_output.json"
+        output_file_path = Path(__file__).resolve().parent.parent / "smart-contracts" / "risk_manager_output.json"
         # Prepare the data to be written
         output_data = {"finalOutput": result.final_output}
         

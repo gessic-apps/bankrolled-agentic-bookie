@@ -83,6 +83,7 @@ if __name__ == "__main__":
         # Ensure environment variables are loaded if testing directly
         from dotenv import load_dotenv # Ensure load_dotenv is imported here too
         load_dotenv()
+        print(os.getenv("SPORTS_API_KEY"))
         if not os.getenv("SPORTS_API_KEY"):
              print("Error: Missing SPORTS_API_KEY or API_URL in .env file. Cannot run full test.", file=sys.stderr)
              # Decide if you want to proceed with partial tests or return
@@ -97,7 +98,8 @@ if __name__ == "__main__":
 
         # Helper function to write output to JSON
         def write_output_to_json(output_data, filename_base):
-            output_file_path = f"/Users/osman/bankrolled-agent-bookie/smart-contracts/{filename_base}_output.json"
+            # output_file_path = f"/Users/osman/bankrolled-agent-bookie/smart-contracts/{filename_base}_output.json"
+            output_file_path = Path(__file__).resolve().parent.parent / "smart-contracts" / f"{filename_base}_output.json"
             data_to_write = {"finalOutput": output_data}
             try:
                 with open(output_file_path, 'w') as f:
