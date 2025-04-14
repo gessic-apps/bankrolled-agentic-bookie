@@ -29,6 +29,7 @@ export async function GET(
       try {
         errorJson = JSON.parse(errorBody);
       } catch (e) {
+        console.error('Error parsing error JSON:', e);
         // Ignore JSON parsing error, use the text body
       }
       return NextResponse.json(errorJson, { status: res.status });

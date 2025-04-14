@@ -10,7 +10,6 @@ import { ConnectButton } from '@rainbow-me/rainbowkit';
 import ThemeToggle from "../components/ThemeToggle";
 import FaucetButton from "../components/FaucetButton";
 import Link from 'next/link';
-import Image from 'next/image'; // Using next/image for potential optimization
 import { getDefaultConfig } from '@rainbow-me/rainbowkit';
 import { SELECTED_NETWORK, WAGMI_CONFIG } from '../config/contracts'; // Import constants AND selected network
 
@@ -65,7 +64,7 @@ function LandingPageContent() {
           The Future of Sports Betting is Here.
         </h1>
         <p className="text-lg md:text-xl text-gray-600 dark:text-gray-300 max-w-3xl mx-auto mb-8">
-          Experience the world's first fully decentralized autonomous sportsbook, run entirely by cutting-edge AI employees. Fair odds, transparent operations, powered by the blockchain.
+          The world&apos;s first sportsbook run entirely by AI employees. Fair odds, transparent operations, powered by the blockchain.
         </p>
         <Link href="/all-markets">
           <button className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-11 rounded-md px-8">
