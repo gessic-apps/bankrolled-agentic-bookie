@@ -1668,3 +1668,89 @@ function parseTokenAmount(amount) {
   if (!amount) return 0; // Default to 0 for undefined/null
   return ethers.utils.parseUnits(amount.toString(), 6); // Assuming 6 decimals for USDX
 }
+
+// Get agent output from triage JSON files
+app.get('/api/getAgentOutput', (req, res) => {
+  try {
+    const marketCreationPath = path.join(__dirname, 'triage_market_creation_output.json');
+    const oddsManagerPath = path.join(__dirname, 'triage_odds_manager_output.json');
+    const riskManagerPath = path.join(__dirname, 'risk_manager_output.json');
+    const gameStatusPath = path.join(__dirname, 'game_status_output.json'); // Added game status path
+
+    let marketCreationOutput = "File not found or invalid JSON.";
+    let oddsManagerOutput = "File not found or invalid JSON.";
+    let riskManagerOutput = "File not found or invalid JSON.";
+    let gameStatusOutput = "File not found or invalid JSON."; // Added game status output variable
+
+    // Read Market Creation Output
+    if (fs.existsSync(marketCreationPath)) {
+      try {
+        const marketCreationData = JSON.parse(fs.readFileSync(marketCreationPath, 'utf8'));
+        if (marketCreationData && marketCreationData.finalOutput) {
+          marketCreationOutput = marketCreationData.finalOutput;
+        } else {
+           marketCreationOutput = "finalOutput field missing in market creation file.";
+        }
+      } catch (parseError) {
+        console.error('Error parsing market creation JSON:', parseError);
+        marketCreationOutput = "Error parsing market creation JSON.";
+      }
+    }
+
+    // Read Odds Manager Output
+    if (fs.existsSync(oddsManagerPath)) {
+       try {
+        const oddsManagerData = JSON.parse(fs.readFileSync(oddsManagerPath, 'utf8'));
+         if (oddsManagerData && oddsManagerData.finalOutput) {
+           oddsManagerOutput = oddsManagerData.finalOutput;
+         } else {
+            oddsManagerOutput = "finalOutput field missing in odds manager file.";
+         }
+       } catch (parseError) {
+         console.error('Error parsing odds manager JSON:', parseError);
+         oddsManagerOutput = "Error parsing odds manager JSON.";
+       }
+    }
+
+    // Read Risk Manager Output (New section)
+    if (fs.existsSync(riskManagerPath)) {
+      try {
+        const riskManagerData = JSON.parse(fs.readFileSync(riskManagerPath, 'utf8'));
+        if (riskManagerData && riskManagerData.finalOutput) {
+          riskManagerOutput = riskManagerData.finalOutput;
+        } else {
+          riskManagerOutput = "finalOutput field missing in risk manager file.";
+        }
+      } catch (parseError) {
+        console.error('Error parsing risk manager JSON:', parseError);
+        riskManagerOutput = "Error parsing risk manager JSON.";
+      }
+    }
+
+    // Read Game Status Output (New section)
+    if (fs.existsSync(gameStatusPath)) {
+      try {
+        const gameStatusData = JSON.parse(fs.readFileSync(gameStatusPath, 'utf8'));
+        if (gameStatusData && gameStatusData.finalOutput) {
+          gameStatusOutput = gameStatusData.finalOutput;
+        } else {
+          gameStatusOutput = "finalOutput field missing in game status file.";
+        }
+      } catch (parseError) {
+        console.error('Error parsing game status JSON:', parseError);
+        gameStatusOutput = "Error parsing game status JSON.";
+      }
+    }
+
+    res.json({
+      marketCreationAgent: marketCreationOutput,
+      oddsManagerAgent: oddsManagerOutput,
+      riskManagerAgent: riskManagerOutput,
+      gameStatusAgent: gameStatusOutput // Added game status output to response
+    });
+
+  } catch (error) {
+    console.error('Error getting agent output:', error);
+    res.status(500).json({ error: 'Failed to retrieve agent output', details: error.message });
+  }
+});

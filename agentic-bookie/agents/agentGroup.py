@@ -3,6 +3,7 @@ import os
 import sys
 from pathlib import Path
 from typing import List, Dict, Any, Optional
+import json
 
 # Add the project root to path to find the tools
 project_root = Path(__file__).resolve().parent.parent
@@ -94,26 +95,40 @@ if __name__ == "__main__":
         game_status_prompt = f"Check for completed games and settle results for markets in these sports: {supported_sports_str}."
         risk_management_prompt = f"Analyze current markets and add liquidity where needed based on risk assessment."
 
+        # Helper function to write output to JSON
+        def write_output_to_json(output_data, filename_base):
+            output_file_path = f"/Users/osman/bankrolled-agent-bookie/smart-contracts/{filename_base}_output.json"
+            data_to_write = {"finalOutput": output_data}
+            try:
+                with open(output_file_path, 'w') as f:
+                    json.dump(data_to_write, f, indent=4)
+                print(f"Successfully wrote agent output to {output_file_path}")
+            except Exception as e:
+                print(f"Error writing agent output to {output_file_path}: {e}")
+
         # --- Run Market Creation Agent ---
         print("\n--- Running Market Creation Agent ---")
-        # Use the triage_agent instance defined above
         triage_result_market = await Runner.run(triage_agent, market_creation_prompt)
         print("Triage Result (Market Creation):", triage_result_market.final_output)
+        write_output_to_json(triage_result_market.final_output, "triage_market_creation")
 
         # --- Run Odds Manager Agent ---
         print("\n--- Running Odds Manager Agent ---")
         triage_result_odds = await Runner.run(triage_agent, odds_management_prompt)
         print("Triage Result (Odds Management):", triage_result_odds.final_output)
+        write_output_to_json(triage_result_odds.final_output, "triage_odds_manager")
 
         # --- Run Game Status Agent ---
         print("\n--- Running Game Status Agent ---")
         triage_result_status = await Runner.run(triage_agent, game_status_prompt)
         print("Triage Result (Game Status):", triage_result_status.final_output)
+        write_output_to_json(triage_result_status.final_output, "triage_game_status")
 
         # --- Run Risk Triage Agent ---
         print("\n--- Running Risk Triage Agent ---")
         triage_result_risk = await Runner.run(triage_agent, risk_management_prompt)
         print("Triage Result (Risk Management):", triage_result_risk.final_output)
+        write_output_to_json(triage_result_risk.final_output, "triage_risk_management")
 
         print("\n--- Test Sequence Complete ---")
 

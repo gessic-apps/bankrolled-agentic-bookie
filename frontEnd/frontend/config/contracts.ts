@@ -5,14 +5,14 @@ import {  localhost } from 'wagmi/chains';
 
 export const CONTRACT_ADDRESSES = {
   // Market Factory contract address
-  MARKET_FACTORY_ADDRESS: "",
+  MARKET_FACTORY_ADDRESS: "0xD25C72668f82ec16E0769bB22d37B1Bc87263d3a",
   
   // USDX token contract address
-  USDX_ADDRESS: "",
+  USDX_ADDRESS: "0x09531a2392591e77d46D4d1450Ce6fD52BaD5987",
   
   // Expected chain ID for the deployed contracts
-  // EXPECTED_CHAIN_ID: 84532, // Base Sepolia testnet
-  EXPECTED_CHAIN_ID: 31337, // localhost hardhat
+  EXPECTED_CHAIN_ID: 84532, // Base Sepolia testnet
+  // EXPECTED_CHAIN_ID: 31337, // localhost hardhat
 };
 
 // Wagmi configuration

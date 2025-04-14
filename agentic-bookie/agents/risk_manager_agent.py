@@ -30,6 +30,9 @@ from utils.markets.odds_management import (
     update_odds_for_multiple_markets,
     check_market_odds
 )
+from utils.markets.odds_operations import (
+    prepare_single_market_update_payload
+)
 from utils.sports.games_data import fetch_games_with_odds
 from utils.predictions import (
     get_bankrolled_predictions,
@@ -43,6 +46,16 @@ from utils.config import SUPPORTED_SPORT_KEYS
 def get_markets() -> List[Dict[str, Any]]:
     """Fetches all existing betting markets from the smart contract API."""
     return get_all_markets()
+
+@function_tool
+def update_single_market(market_address: str, home_odds: float, away_odds: float, draw_odds: Optional[float], home_spread_points: float, home_spread_odds: float, away_spread_odds: float, total_points: float, over_odds: float, under_odds: float) -> Dict[str, Any]:
+    """Updates the odds for a single specified market. Risk control is NOT checked by this function."""
+    return update_odds_for_market(market_address, home_odds, away_odds, draw_odds, home_spread_points, home_spread_odds, away_spread_odds, total_points, over_odds, under_odds)
+
+@function_tool  
+def get_single_market_update_payload(market_address: str) -> Dict[str, Any]:
+    """Fetches latest odds and updates a single specified market. Risk control is NOT checked by this function."""
+    return prepare_single_market_update_payload(market_address)
 
 @function_tool
 def add_market_liquidity(market_address: str, amount: int) -> Dict[str, Any]:
@@ -557,6 +570,24 @@ def get_prediction_data() -> Dict[str, Any]:
         dict: A structure containing prediction data and user performance metrics
     """
     return get_bankrolled_predictions()
+# add a function tool that lets the agent write its most recent actions to a file. The caller should decide whether to append or overwrite the file.
+@function_tool
+def write_actions_to_file(actions: str, append: bool):
+    """
+    Writes the most recent actions to a file.
+    """
+    with open("/Users/osman/bankrolled-agent-bookie/agentic-bookie/agents/risk_manager_context.json", "a" if append else "w") as f: 
+        f.write(actions)
+    return {"status": "success", "message": "Actions written to file"}
+
+#Add a function that lets the agent read the most recent actions from the file.
+@function_tool
+def read_actions_from_file():
+    """
+    Reads the most recent actions from the file.
+    """
+    with open("/Users/osman/bankrolled-agent-bookie/agentic-bookie/agents/risk_manager_context.json", "r") as f:
+        return f.read()
 
 @function_tool
 def get_market_predictions(
@@ -604,35 +635,40 @@ risk_manager_agent = Agent(
         You are the risk manager for a decntralized sports betting platform. Your job is to manage liquidity and risk in order to maximize profit, and minimize insolvency risk.
         You have full autonomy to make decisions, using all the tools provided to you You do not need to ask for clarification or which market to do first, you have the freedom to proceed as you see fit.
         The levers you have to do your job are:
-        • Understanding how much liquidity is in the market, and how much is allocated to each market.
-        • Understanding the exposure limits for each market, and the bet types and sides within each market.
-        • Understanding the odds for each market, and the bet types and sides within each market.
-        • Understanding the betting trends for each market, and the bet types and sides within each market.
-        • Understanding the sharp users for each market, and the bet types and sides within each market.
-        • Understanding the market sentiment for each market, and the bet types and sides within each market.
+        • Understand the last actions you took, by using the read_actions_from_file function tool.
+        • Understanding how much liquidity is in the market, and how much is allocated to each market get_markets and get_pool_info tools.
+        • Understanding the exposure limits for each market via get_market_exposure tool, and the bet types and sides within each market.
+        • Understanding the odds for each market, and the bet types and sides within each market via get_market_exposure and check_odds tool.
         • Ability to run monte carlo simulations to obtain recommandetaion  (you always prefer to run the simulations)
         • Ability to set exposure limits for each bet type and side within a market.
         • Ability to add liquidity to a market.
         • Ability to decrease liquidity from a market.
         • Ability to check the current exposure limits for each market.
         • Ability to change the current odds for any market to make one side more attractive, or to make the market more balanced.
-
-       
+        • Ability to write your most recent actions, to use as context for your future actions to a file. Use a standard JSON format (e.g. market addresses, odds, exposure limits, etc.) that will be easy for you to understand, and choose to either append or overwrite the entire file. 
+        • WHen writing to the file, include a field for each market called "risk_controlled" - which if true, means that you will handle updating the odds for this market. If false, updating will be handled by the odds manager agent. 
+        • Note, when you read the file, if risk_controlled is true, you absolutely must  update the odds for the market. To do this,  Call the get_single_market_update_payload function tool, which will give you all the latest odds for the different bet types, . Decide how much you want to increase or decrease the odds by based on your risk analysis, then call them update_single_market  with the updated odds (if there's no draw odds, put 0)
+        • You must always calls the tools at your disposal. Never make up your own data, or hallucinate, you have no information except what you get from the tools. 
+        • In your final report , in addition to explaining your actions, mention whether you used the monte carlo simulations to make your decisions.
     """,
     tools=[
         get_markets,
         add_market_liquidity,
         get_pool_info,
+        write_actions_to_file,
+        read_actions_from_file,
         # update_market_odds,
         # update_multiple_markets_odds,
         check_odds,
+        get_single_market_update_payload,
+        update_single_market,
         # fetch_latest_odds,
         # fetch_and_update_markets,
         # run_monte_carlo_analysis,
         run_monte_carlo_analysis_with_exposure,
         set_exposure_limits,
         # decrease_market_funding,
-        # get_market_exposure,
+        get_market_exposure,
         # set_bet_type_limit,
         # get_prediction_data,
         # get_market_predictions
@@ -655,10 +691,27 @@ if __name__ == '__main__':
         result = await Runner.run(risk_manager_agent, prompt, max_turns=20)
         print("--- Risk Manager Agent Result ---")
         print(result.final_output)
+
+        # Define the output file path
+        output_file_path = "/Users/osman/bankrolled-agent-bookie/smart-contracts/risk_manager_output.json"
+        
+        # Prepare the data to be written
+        output_data = {"finalOutput": result.final_output}
+        
+        # Write the data to the JSON file
+        try:
+            with open(output_file_path, 'w') as f:
+                json.dump(output_data, f, indent=4)
+            print(f"Successfully wrote agent output to {output_file_path}")
+        except Exception as e:
+            print(f"Error writing agent output to {output_file_path}: {e}")
+
         print("--------------------------------")
 
     # Run the test
-    # loop through this next line 3 times
-    for i in range(3):
-        asyncio.run(test_risk_management())
+    asyncio.run(test_risk_management())
     print("Risk Manager Agent defined. Run agentGroup.py to test via Triage.")
+
+    # • Understanding the betting trends for each market, and the bet types and sides within each market via get_market_predictions tool.
+    #     • Understanding the sharp users for each market, and the bet types and sides within each market via get_market_predictions tool.
+    #     • Understanding the market sentiment for each market, and the bet types and sides within each market.

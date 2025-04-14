@@ -68,6 +68,15 @@ def fetch_and_update_odds() -> Dict[str, Any]:
     """Fetches games with odds, gets existing markets, and updates all market odds in a single operation."""
     return fetch_and_update_all_markets()
 
+#Add a function that lets the agent read the most recent actions from the file.
+@function_tool
+def read_actions_from_file():
+    """
+    Reads the most recent actions from the file.
+    """
+    with open("/Users/osman/bankrolled-agent-bookie/agentic-bookie/agents/risk_manager_context.json", "r") as f:
+        return f.read()
+
 # Define the Odds Manager Agent
 odds_manager_agent = Agent(
     name="Odds Manager Agent",
@@ -82,7 +91,6 @@ odds_manager_agent = Agent(
        - Fetch games with latest odds from The Odds API for all supported sports.
        - Get existing markets from your platform's API.
        - Match markets with their corresponding odds.
-       - **Attempt** to update all matched markets in a single batch operation (Note: The underlying implementation updates odds, but your instruction is to *set* new odds, implying you should only target markets without existing odds if possible, though the tool might overwrite).
        - Return a comprehensive summary of the update process.
     
     2. Report back the summary of results, including:
@@ -125,6 +133,21 @@ if __name__ == '__main__':
         result = await Runner.run(odds_manager_agent, prompt)
         print("--- Odds Manager Agent Result ---")
         print(result.final_output)
+
+        # Define the output file path
+        output_file_path = "/Users/osman/bankrolled-agent-bookie/smart-contracts/odds_manager_output.json"
+        
+        # Prepare the data to be written
+        output_data = {"finalOutput": result.final_output}
+        
+        # Write the data to the JSON file
+        try:
+            with open(output_file_path, 'w') as f:
+                json.dump(output_data, f, indent=4)
+            print(f"Successfully wrote agent output to {output_file_path}")
+        except Exception as e:
+            print(f"Error writing agent output to {output_file_path}: {e}")
+
         print("---------------------------------")
 
     # Run the test

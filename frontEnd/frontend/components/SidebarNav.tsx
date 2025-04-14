@@ -37,13 +37,27 @@ export default function SidebarNav() {
 
   const navItems: NavItem[] = [
     {
-      label: 'All Markets',
+      label: 'Home',
       href: '/',
       icon: (
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
-          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-          <polyline points="9 22 9 12 15 12 15 22" />
-        </svg>
+        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+        <polyline points="9 22 9 12 15 12 15 22" />
+      </svg>
+        
+      ),
+    },
+    {
+      label: 'All Markets',
+      href: '/all-markets',
+      icon: (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+        <path d="m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8.34a2 2 0 0 1 1.42.59L22 7" />
+        <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
+        <path d="M15 22v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4" />
+        <path d="M2 7h20" />
+        <path d="M22 7v3a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7" />
+      </svg>
       ),
     },
     // {
@@ -78,6 +92,19 @@ export default function SidebarNav() {
           <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
           <polyline points="17 21 17 13 7 13 7 21" />
           <polyline points="7 3 7 8 15 8" />
+        </svg>
+      ),
+    },
+    {
+      label: 'Agent Reports',
+      href: '/agent-reports',
+      icon: (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+          <path d="M12 8V4H8V8H6v8h12V8z" />
+          <path d="M16 16v-4h4V8h-4V4h-4v4H8v4h4v4z" />
+          <path d="M12 16h.01" />
+          <path d="M12 20c-2.21 0-4-1.79-4-4h8c0 2.21-1.79 4-4 4z" />
+          <path d="M4 16H2v-4h2M22 16h-2v-4h2" />
         </svg>
       ),
     },

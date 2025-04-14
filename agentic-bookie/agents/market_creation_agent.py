@@ -113,6 +113,21 @@ if __name__ == '__main__':
         result = await Runner.run(market_creation_agent, prompt)
         print("--- Market Creation Agent Result ---")
         print(result.final_output)
+
+        # Define the output file path
+        output_file_path = "/Users/osman/bankrolled-agent-bookie/smart-contracts/market_creation_output.json"
+        
+        # Prepare the data to be written
+        output_data = {"finalOutput": result.final_output}
+        
+        # Write the data to the JSON file
+        try:
+            with open(output_file_path, 'w') as f:
+                json.dump(output_data, f, indent=4)
+            print(f"Successfully wrote agent output to {output_file_path}")
+        except Exception as e:
+            print(f"Error writing agent output to {output_file_path}: {e}")
+
         print("------------------------------------")
     
     # Run the test

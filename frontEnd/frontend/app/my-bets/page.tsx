@@ -11,7 +11,6 @@ import '@rainbow-me/rainbowkit/styles.css';
 import { HeroUIProvider } from "@heroui/react";
 import UserBetsList from "../../components/UserBetsList";
 import { ConnectButton } from '@rainbow-me/rainbowkit';
-import SidebarNav from "../../components/SidebarNav";
 import ThemeToggle from "../../components/ThemeToggle";
 import FaucetButton from "../../components/FaucetButton";
 import { Market } from '../../types/market';
@@ -110,8 +109,7 @@ function MyBetsPageComponent() {
   }, [isConnected, address, wagmiConfig]);
 
   return (
-    <div className="main-container">
-      <SidebarNav />
+    <>
       <div className="content-area">
         <header className="sticky top-0 z-10 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow">
           <div className="container mx-auto px-4 py-4 flex justify-between items-center">
@@ -129,7 +127,7 @@ function MyBetsPageComponent() {
           <UserBetsList markets={markets} />
         </main>
       </div>
-    </div>
+    </>
   );
 }
 

@@ -9,6 +9,7 @@ from typing import List, Dict, Any, Optional
 from dotenv import load_dotenv
 from collections import defaultdict
 from pydantic import BaseModel, Field
+import json
 
 # Load environment variables from .env file
 load_dotenv()
@@ -460,14 +461,12 @@ game_status_agent = Agent(
         b. Extract the `home_score` and `away_score` from the completed game data.
         c. For each corresponding market address found in step 5a, call `set_game_result` with the market's `address`, `home_score`, and `away_score`. **If the call to `set_game_result` indicates an error for a specific market (e.g., returns a status other than 'success'), log the error details including the market address and the reason for failure, but continue processing the next completed game or market. Do not stop the entire process due to a single market failure.**
     6. Report a summary of the markets for which you attempted to set the result (mentioning success or failure for each attempt, based on the outcome of step 5c). If no markets were processed or no games were found completed, state that.
-    7. Call `sleep_tool` with `duration_seconds` set to 60 to wait for 1 minute.
     8. Go back to step 1 to repeat the cycle.
     """,
     tools=[
         get_bettable_unsettled_markets,
         check_completed_games,
-        set_game_result,
-        sleep_tool
+        set_game_result
     ],
     # DO NOT CHANGE THIS MODEL FROM THE CURRENT SETTING
     model="gpt-4o-mini-2024-07-18",
@@ -494,6 +493,21 @@ if __name__ == '__main__':
         result = await Runner.run(game_status_agent, prompt) # Removed max_i if not defined
         print("--- Game Result Settlement Agent Result (One Cycle) ---")
         print(result.final_output)
+
+        # Define the output file path
+        output_file_path = "/Users/osman/bankrolled-agent-bookie/smart-contracts/game_status_output.json"
+        
+        # Prepare the data to be written
+        output_data = {"finalOutput": result.final_output}
+        
+        # Write the data to the JSON file
+        try:
+            with open(output_file_path, 'w') as f:
+                json.dump(output_data, f, indent=4)
+            print(f"Successfully wrote agent output to {output_file_path}")
+        except Exception as e:
+            print(f"Error writing agent output to {output_file_path}: {e}")
+
         print("------------------------------------------------------")
 
     # To run the test:

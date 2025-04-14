@@ -67,6 +67,29 @@ interface FullOdds {
   underOdds: bigint;
 }
 
+// Structure for individual exposure details
+interface ExposureDetail {
+  maxExposure: string; // Keep as string from API
+  currentExposure: string;
+}
+
+// Structure for the exposure limits data fetched from the API
+interface ExposureLimits {
+  moneyline: {
+    home: ExposureDetail;
+    away: ExposureDetail;
+    draw: ExposureDetail;
+  };
+  spread: {
+    home: ExposureDetail;
+    away: ExposureDetail;
+  };
+  total: {
+    over: ExposureDetail;
+    under: ExposureDetail;
+  };
+}
+
 // Helper function to get provider/signer (adjust based on your setup)
 const getProviderOrSigner = (signer?: ethers.Signer | null): ethers.Provider | ethers.Signer => {
   // Use signer if available (for transactions), otherwise use a provider for reads
@@ -84,7 +107,9 @@ const MarketCard: React.FC<MarketCardProps> = ({ market, usdxAddress, expectedCh
   const [isLoading, setIsLoading] = useState<boolean>(false); // For loading state
   const [signer, setSigner] = useState<ethers.Signer | null>(null); // State for ethers signer
   const [isFetchingData, setIsFetchingData] = useState(true); // For initial odds/status fetch
+  const [isFetchingLimits, setIsFetchingLimits] = useState(true); // Separate state for limits fetch
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [limitsError, setLimitsError] = useState<string | null>(null); // Separate state for limits error
 
   // State for selected bet type and betting on draw option
   const [selectedBetType, setSelectedBetType] = useState<number>(MONEYLINE_BET_TYPE);
@@ -121,24 +146,34 @@ console.log(isBettingOnDraw)
   // Add state for scores
   const [homeScore, setHomeScore] = useState<number | null>(null);
   const [awayScore, setAwayScore] = useState<number | null>(null);
+  // State for overall market exposure limit
+  const [overallMarketLimit, setOverallMarketLimit] = useState<string | null>(null);
+  // State for overall current exposure
+  const [overallCurrentExposure, setOverallCurrentExposure] = useState<string | null>(null);
+  // State for detailed exposure limits
+  const [exposureLimits, setExposureLimits] = useState<ExposureLimits | null>(null);
 
-  // Fetch Market Status and Odds from Blockchain
+  // Fetch Market Status, Odds, and Overall Limit from Blockchain
   useEffect(() => {
     const fetchMarketData = async () => {
       setIsFetchingData(true);
       setFetchError(null);
+      setOverallMarketLimit(null); // Reset market limit on fetch
+      setOverallCurrentExposure(null); // Reset current exposure on fetch
       try {
         const provider = getProviderOrSigner(); // Use read-only provider
         const marketContract = new ethers.Contract(market.address, NBAMarketABI.abi, provider);
 
-        // Fetch details (includes status and scores) and odds concurrently
-        const [details, oddsResult] = await Promise.all([
+        // Fetch details (includes status, scores, overall exposure) and odds concurrently
+        const [details, oddsResult, exposureInfo] = await Promise.all([
           marketContract.getMarketDetails(),
-          marketContract.getFullOdds()
+          marketContract.getFullOdds(),
+          marketContract.getExposureInfo() // Fetch overall exposure info
         ]);
 
         console.log(`Market ${market.address} - Raw Details Result:`, details);
         console.log(`Market ${market.address} - Raw Odds Result:`, oddsResult);
+        console.log(`Market ${market.address} - Raw Exposure Info:`, exposureInfo);
 
         // Extract and set status, home score, and away score from details
         // Indices based on user feedback: 0: homeTeam, 1: awayTeam, 2: timestamp, 3: oddsApiId, 4: status, 5: settled, 6: homeScore, 7: awayScore
@@ -146,6 +181,15 @@ console.log(isBettingOnDraw)
         setMarketStatus(numericStatus as MarketStatus);
         setHomeScore(Number(details[6])); // Home score is at index 6
         setAwayScore(Number(details[7])); // Away score is at index 7
+
+        // Extract and set overall market limit (max exposure) from exposureInfo
+        // Assuming exposureInfo returns [maxExposure, currentExposure]
+        if (exposureInfo && exposureInfo[0]) {
+          setOverallMarketLimit(ethers.formatUnits(exposureInfo[0], 6)); // Assuming 6 decimals
+        }
+        if (exposureInfo && exposureInfo[1]) {
+          setOverallCurrentExposure(ethers.formatUnits(exposureInfo[1], 6)); // Assuming 6 decimals
+        }
 
         // Map the tuple to the FullOdds interface (updated to include drawOdds)
         setLiveOdds({
@@ -167,6 +211,8 @@ console.log(isBettingOnDraw)
         setLiveOdds(null);
         setHomeScore(null); // Reset scores on error
         setAwayScore(null); // Reset scores on error
+        setOverallMarketLimit(null); // Reset market limit on error
+        setOverallCurrentExposure(null); // Reset current exposure on error
       } finally {
         setIsFetchingData(false);
       }
@@ -182,6 +228,41 @@ console.log(isBettingOnDraw)
     // Optional: Setup interval polling or event listeners for updates
     // const intervalId = setInterval(fetchMarketData, 30000); // Re-fetch every 30s
     // return () => clearInterval(intervalId); // Cleanup interval
+
+  }, [market.address]); // Re-fetch if market address changes
+
+   // Fetch Detailed Exposure Limits from API Route
+   useEffect(() => {
+    const fetchLimits = async () => {
+      if (!market.address) return; // Don't fetch if no address
+
+      setIsFetchingLimits(true);
+      setLimitsError(null);
+      setExposureLimits(null); // Reset limits on fetch
+
+      try {
+        const response = await fetch(`/api/limits/${market.address}`);
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+        }
+        const data: ExposureLimits = await response.json();
+        setExposureLimits(data);
+        console.log(`Fetched limits for ${market.address}:`, data);
+      } catch (error: any) {
+        console.error(`Error fetching limits for market ${market.address}:`, error);
+        setLimitsError(`Failed to load limits: ${error.message || 'Unknown error'}`);
+        setExposureLimits(null); // Reset on error
+      } finally {
+        setIsFetchingLimits(false);
+      }
+    };
+
+    fetchLimits();
+
+    // Optional: Fetch limits periodically if they might change often
+    // const intervalId = setInterval(fetchLimits, 60000); // e.g., every 60 seconds
+    // return () => clearInterval(intervalId);
 
   }, [market.address]); // Re-fetch if market address changes
 
@@ -214,6 +295,130 @@ console.log(isBettingOnDraw)
     } catch (e) {
       console.error("Error formatting points:", pointsBigInt, e);
       return 'Error';
+    }
+  };
+
+  // Helper function to get the **actual** Bet Limit for a specific option, considering odds and current exposure
+  const getBetLimit = (type: 'moneyline' | 'spread' | 'total', side: 'home' | 'away' | 'draw' | 'over' | 'under'): string => {
+    if (isFetchingLimits || isFetchingData) return 'Loading...'; // Need both limits and odds
+    if (limitsError || fetchError) return 'Error';
+    if (!exposureLimits || overallMarketLimit === null || !liveOdds) return 'N/A'; // Need odds now
+
+    let specificMaxExposureString: string | undefined = '0.0';
+    let specificCurrentExposureString: string | undefined = '0.0';
+    let relevantOddsBigInt: bigint | undefined | null = 0n;
+
+    try {
+        // 1. Determine the relevant Max and Current Exposure limit strings
+        let limitsDetail: ExposureDetail | undefined;
+        switch (type) {
+            case 'moneyline':
+                if (side === 'home') limitsDetail = exposureLimits.moneyline.home;
+                else if (side === 'away') limitsDetail = exposureLimits.moneyline.away;
+                else if (side === 'draw') limitsDetail = exposureLimits.moneyline.draw;
+                break;
+            case 'spread':
+                if (side === 'home') limitsDetail = exposureLimits.spread.home;
+                else if (side === 'away') limitsDetail = exposureLimits.spread.away;
+                break;
+            case 'total':
+                if (side === 'over') limitsDetail = exposureLimits.total.over;
+                else if (side === 'under') limitsDetail = exposureLimits.total.under;
+                break;
+        }
+        if (limitsDetail) {
+            specificMaxExposureString = limitsDetail.maxExposure;
+            specificCurrentExposureString = limitsDetail.currentExposure;
+        }
+
+
+        // 2. Determine the relevant Odds BigInt
+        switch (type) {
+            case 'moneyline':
+                if (side === 'home') relevantOddsBigInt = liveOdds.homeOdds;
+                else if (side === 'away') relevantOddsBigInt = liveOdds.awayOdds;
+                else if (side === 'draw') relevantOddsBigInt = liveOdds.drawOdds;
+                break;
+            case 'spread':
+                 if (side === 'home') relevantOddsBigInt = liveOdds.homeSpreadOdds;
+                 else if (side === 'away') relevantOddsBigInt = liveOdds.awaySpreadOdds;
+                 break;
+            case 'total':
+                 if (side === 'over') relevantOddsBigInt = liveOdds.overOdds;
+                 else if (side === 'under') relevantOddsBigInt = liveOdds.underOdds;
+                 break;
+        }
+    } catch (e) {
+        console.error("Error accessing exposure limits or odds structure:", e, exposureLimits, liveOdds);
+        return 'Error'; // Return error if structure is invalid
+    }
+
+    // 3. Use overall market limit if specific limit is "0.0"
+    //    This logic might need revisiting: if specific limit is 0, does it mean use overall or truly 0?
+    //    Assuming for now it means use the overall market limit's remaining capacity.
+    //    HOWEVER, the *current* exposure should still be the specific one if available.
+    const effectiveMaxExposureString = (specificMaxExposureString === '0.0' || specificMaxExposureString === undefined) ? overallMarketLimit : specificMaxExposureString;
+    // Note: We will use the specificCurrentExposureString regardless of whether max exposure was specific or overall.
+
+    // 4. Validate and convert limit strings to numbers
+    let maxExposureValue: number;
+    let currentExposureValue: number;
+    try {
+        maxExposureValue = parseFloat(effectiveMaxExposureString);
+        if (isNaN(maxExposureValue) || maxExposureValue < 0) throw new Error("Invalid max exposure value");
+
+        // Use specific current exposure if available, otherwise default to 0? Needs clarification.
+        // For now, assume if we couldn't get specific limits, current exposure is also unknown relative to max.
+        currentExposureValue = parseFloat(specificCurrentExposureString || '0');
+         if (isNaN(currentExposureValue) || currentExposureValue < 0) throw new Error("Invalid current exposure value");
+
+    } catch (e: any) {
+        console.warn("Could not parse exposure values:", effectiveMaxExposureString, specificCurrentExposureString, e?.message);
+        return 'Invalid Limit Data';
+    }
+
+    // 5. Calculate Available Exposure
+    const availableExposure = Math.max(0, maxExposureValue - currentExposureValue); // Ensure it's not negative
+
+     if (availableExposure <= 0) {
+        return '$0.00'; // No room left for more exposure
+    }
+
+    // 6. Validate and convert odds BigInt to multiplier
+    if (relevantOddsBigInt === undefined || relevantOddsBigInt === null || relevantOddsBigInt <= 0n) {
+        return 'N/A (Odds)';
+    }
+
+    let oddsMultiplier: number;
+    try {
+        oddsMultiplier = parseFloat(ethers.formatUnits(relevantOddsBigInt, 3));
+        if (isNaN(oddsMultiplier) || oddsMultiplier <= 0) throw new Error("Invalid odds multiplier derived");
+        if (oddsMultiplier < 1) {
+             console.warn("Odds multiplier < 1:", oddsMultiplier);
+             // If multiplier is < 1, the bet amount itself might exceed exposure.
+             // Example: Limit $10, Odds 0.5 (-200). Bet $20 -> Payout $10. Max bet is $10.
+             // If limit $10, Odds 0.8. Bet $12.5 -> Payout $10. Max bet is $12.5.
+             // Hmm, the formula Max Bet = Available / Multiplier still holds, but interpretation is tricky.
+             // Let's assume odds >= 1 (>= +100) for simplicity, typical for payouts.
+             // If odds represent the *profit* multiplier, the formula changes slightly.
+             // Assuming odds *represent total return multiplier* (stake + profit).
+        }
+    } catch(e) {
+        console.error("Error converting odds to multiplier:", relevantOddsBigInt, e);
+        return 'Invalid Odds';
+    }
+
+    // 7. Calculate the actual maximum bet amount based on available exposure
+    // Max Bet = Available Exposure / Odds Multiplier
+    const actualMaxBet = availableExposure / oddsMultiplier;
+
+    // 8. Format the result
+    try {
+        if (isNaN(actualMaxBet)) return 'Calculation Error';
+        // Return $0.00 if calculated max bet is negligible or negative
+        return `$${Math.max(0, actualMaxBet).toFixed(2)}`;
+    } catch {
+        return 'Format Error';
     }
   };
 
@@ -264,7 +469,7 @@ console.log(isBettingOnDraw)
      }
 
     return (
-      <div className="mt-4 text-center font-semibold text-gray-800">
+      <div className="mt-4 text-center font-semibold text-gray-800 dark:text-gray-100">
         {outcomeText}
       </div>
     );
@@ -416,7 +621,7 @@ console.log(isBettingOnDraw)
   
   // Log state values before render
   console.log(`Market ${market.address} - Rendering State:`, 
-    { isLoading, isFetchingData, marketStatus, fetchError }
+    { isLoading, isFetchingData, marketStatus, fetchError, isFetchingLimits, limitsError, overallMarketLimit, overallCurrentExposure, exposureLimits }
   );
 
   return (
@@ -427,9 +632,23 @@ console.log(isBettingOnDraw)
       </div>
       
       <div className="p-5">
-        <div className="mb-4">
-          <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Game Time:</p>
-          <p className="font-medium text-gray-800 dark:text-white">{gameDate}</p>
+        <div className="mb-4 flex justify-between items-center">
+            <div>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Game Time:</p>
+                <p className="font-medium text-gray-800 dark:text-white">{gameDate}</p>
+            </div>
+            {/* Display Overall Market Limit */}
+            <div>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-1 text-right">Market Limit:</p>
+                <p className="font-medium text-gray-800 dark:text-white text-right">
+                    {isFetchingData ? 'Loading...' : overallMarketLimit !== null ? `$${parseFloat(overallMarketLimit).toFixed(2)}` : fetchError ? 'Error' : 'N/A'}
+                </p>
+                {/* Display Overall Current Exposure */} 
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-1 text-right">Current Exposure:</p>
+                <p className="font-medium text-gray-800 dark:text-white text-right">
+                    {isFetchingData ? 'Loading...' : overallCurrentExposure !== null ? `$${parseFloat(overallCurrentExposure).toFixed(2)}` : fetchError ? 'Error' : 'N/A'}
+                </p>
+            </div>
         </div>
         
         <div className="mb-5 bg-gray-50 dark:bg-gray-900 p-3 rounded-lg">
@@ -501,14 +720,14 @@ console.log(isBettingOnDraw)
         {getOutcome()}
         
         {/* Betting Section - Show only if market status is OPEN */}
-        {!isFetchingData && marketStatus === MarketStatus.OPEN && (
+        {/* Ensure both data and limits are loaded before showing betting section */}
+        {!isFetchingData && !isFetchingLimits && marketStatus === MarketStatus.OPEN && !fetchError && !limitsError && (
           <div className="mt-5 pt-4 border-t border-gray-200 dark:border-gray-700">
             {/* Bet Type Selection Tabs */}
             <div className="mb-4 flex border-b border-gray-200 dark:border-gray-700">
-              <button 
-                className={`flex-1 py-2 px-4 text-center text-sm font-medium ${
-                  selectedBetType === MONEYLINE_BET_TYPE 
-                    ? 'border-b-2 border-primary text-primary dark:text-primary-light' 
+              <button
+                className={`flex-1 py-2 px-4 text-center text-sm font-medium ${                  selectedBetType === MONEYLINE_BET_TYPE
+                    ? 'border-b-2 border-primary text-primary dark:text-primary-light'
                     : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
                 }`}
                 onClick={() => {
@@ -563,74 +782,113 @@ console.log(isBettingOnDraw)
                 onChange={(e) => setBetAmount(e.target.value)}
                 min="0"
                 step="any" // Allow decimals
-                disabled={isLoading || isFetchingData || marketStatus !== MarketStatus.OPEN}
+                disabled={isLoading || isFetchingData || isFetchingLimits || marketStatus !== MarketStatus.OPEN}
               />
             </div>
-            <div className={`grid ${selectedBetType === MONEYLINE_BET_TYPE && liveOdds?.drawOdds && liveOdds.drawOdds > 0n ? 'grid-cols-3' : 'grid-cols-2'} gap-3`}>
-              <button
-                type="button"
-                onClick={() => {
-                  // Use the new placeBet function with explicit type and name
-                  if (selectedBetType === MONEYLINE_BET_TYPE || selectedBetType === SPREAD_BET_TYPE) {
-                    placeBet("home", market.homeTeam);
-                  } else {
-                    placeBet("over", "Over");
-                  }
-                }}
-                disabled={isLoading || isFetchingData || marketStatus !== MarketStatus.OPEN || !betAmount || parseFloat(betAmount) <= 0}
-                className={`btn-home inline-flex justify-center items-center px-4 py-3 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white ${
-                  isLoading || isFetchingData || marketStatus !== MarketStatus.OPEN || !betAmount || parseFloat(betAmount) <= 0 
-                    ? 'bg-gray-400 dark:bg-gray-600 cursor-not-allowed' 
-                    : 'bet-button-home hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500'
-                }`}
-              >
-                {isLoading ? 'Processing...' : 
-                 (selectedBetType === MONEYLINE_BET_TYPE || selectedBetType === SPREAD_BET_TYPE) ? `Bet ${market.homeTeam}` : 'Bet Over'}
-              </button>
-              
-              {/* Draw betting button - only show for Moneyline bets when draw odds are available */}
-              {(selectedBetType === MONEYLINE_BET_TYPE && liveOdds?.drawOdds && liveOdds.drawOdds > 0n) ? (
+            {/* Betting Buttons with Limits */}
+            <div className={`grid ${selectedBetType === MONEYLINE_BET_TYPE && liveOdds?.drawOdds && liveOdds.drawOdds > 0n ? 'grid-cols-3' : 'grid-cols-2'} gap-3 items-start`}>
+              {/* Home / Over Button */}
+              <div className="flex flex-col items-center">
                 <button
                   type="button"
                   onClick={() => {
-                    // Use the new placeBet function with explicit "draw" type
-                    placeBet("draw", "Draw");
+                    if (selectedBetType === MONEYLINE_BET_TYPE || selectedBetType === SPREAD_BET_TYPE) {
+                      placeBet("home", market.homeTeam);
+                    } else {
+                      placeBet("over", "Over");
+                    }
                   }}
-                  disabled={isLoading || isFetchingData || marketStatus !== MarketStatus.OPEN || !betAmount || parseFloat(betAmount) <= 0}
-                  className={`btn-draw inline-flex justify-center items-center px-4 py-3 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white ${
-                    isLoading || isFetchingData || marketStatus !== MarketStatus.OPEN || !betAmount || parseFloat(betAmount) <= 0 
-                      ? 'bg-gray-400 dark:bg-gray-600 cursor-not-allowed' 
-                      : 'bet-button-draw hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500'
+                  disabled={isLoading || !betAmount || parseFloat(betAmount) <= 0}
+                  className={`btn-home w-full inline-flex justify-center items-center px-4 py-3 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white ${                    isLoading || !betAmount || parseFloat(betAmount) <= 0
+                      ? 'bg-gray-400 dark:bg-gray-600 cursor-not-allowed'
+                      : 'bet-button-home hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500'
                   }`}
                 >
-                  {isLoading ? 'Processing...' : 'Bet Draw'}
+                  {isLoading ? 'Processing...' :
+                   (selectedBetType === MONEYLINE_BET_TYPE || selectedBetType === SPREAD_BET_TYPE) ? `Bet ${market.homeTeam}` : 'Bet Over'}
                 </button>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Bet Limit: {
+                        (selectedBetType === MONEYLINE_BET_TYPE) ? getBetLimit('moneyline', 'home') :
+                        (selectedBetType === SPREAD_BET_TYPE) ? getBetLimit('spread', 'home') :
+                        getBetLimit('total', 'over')
+                    }
+                </p>
+              </div>
+
+              {/* Draw Button (Conditional) */}
+              {((selectedBetType === MONEYLINE_BET_TYPE && liveOdds?.drawOdds && liveOdds.drawOdds > 0n)) ? (
+                <div className="flex flex-col items-center">
+                  <button
+                    type="button"
+                    onClick={() => placeBet("draw", "Draw")}
+                    disabled={isLoading || !betAmount || parseFloat(betAmount) <= 0}
+                    className={`btn-draw w-full inline-flex justify-center items-center px-4 py-3 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white ${                      isLoading || !betAmount || parseFloat(betAmount) <= 0
+                        ? 'bg-gray-400 dark:bg-gray-600 cursor-not-allowed'
+                        : 'bet-button-draw hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500'
+                    }`}
+                  >
+                    {isLoading ? 'Processing...' : 'Bet Draw'}
+                  </button>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Bet Limit: {getBetLimit('moneyline', 'draw')}
+                  </p>
+                </div>
               ) : null}
-              
-              <button
-                type="button"
-                onClick={() => {
-                  // Use the new placeBet function with explicit type and name
-                  if (selectedBetType === MONEYLINE_BET_TYPE || selectedBetType === SPREAD_BET_TYPE) {
-                    placeBet("away", market.awayTeam);
-                  } else {
-                    placeBet("under", "Under");
-                  }
-                }}
-                disabled={isLoading || isFetchingData || marketStatus !== MarketStatus.OPEN || !betAmount || parseFloat(betAmount) <= 0}
-                className={`btn-away inline-flex justify-center items-center px-4 py-3 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white ${
-                  isLoading || isFetchingData || marketStatus !== MarketStatus.OPEN || !betAmount || parseFloat(betAmount) <= 0 
-                    ? 'bg-gray-400 dark:bg-gray-600 cursor-not-allowed' 
-                    : 'bet-button-away hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500'
-                }`}
-              >
-                {isLoading ? 'Processing...' : 
-                 (selectedBetType === MONEYLINE_BET_TYPE || selectedBetType === SPREAD_BET_TYPE) ? `Bet ${market.awayTeam}` : 'Bet Under'}
-              </button>
+
+              {/* Away / Under Button */}
+              <div className="flex flex-col items-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (selectedBetType === MONEYLINE_BET_TYPE || selectedBetType === SPREAD_BET_TYPE) {
+                      placeBet("away", market.awayTeam);
+                    } else {
+                      placeBet("under", "Under");
+                    }
+                  }}
+                  disabled={isLoading || !betAmount || parseFloat(betAmount) <= 0}
+                  className={`btn-away w-full inline-flex justify-center items-center px-4 py-3 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white ${                    isLoading || !betAmount || parseFloat(betAmount) <= 0
+                      ? 'bg-gray-400 dark:bg-gray-600 cursor-not-allowed'
+                      : 'bet-button-away hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500'
+                  }`}
+                >
+                  {isLoading ? 'Processing...' :
+                   (selectedBetType === MONEYLINE_BET_TYPE || selectedBetType === SPREAD_BET_TYPE) ? `Bet ${market.awayTeam}` : 'Bet Under'}
+                </button>
+                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Bet Limit: {
+                        (selectedBetType === MONEYLINE_BET_TYPE) ? getBetLimit('moneyline', 'away') :
+                        (selectedBetType === SPREAD_BET_TYPE) ? getBetLimit('spread', 'away') :
+                        getBetLimit('total', 'under')
+                    }
+                </p>
+              </div>
             </div>
+             {/* Display Limits Error */}
+             {limitsError && (
+                <p className="text-xs text-red-500 dark:text-red-400 mt-2 text-center">
+                    Could not load bet limits: {limitsError}
+                </p>
+            )}
           </div>
         )}
         
+        {/* Display Fetching/Error States for Betting Section */}
+        {(isFetchingData || isFetchingLimits) && marketStatus === MarketStatus.OPEN && (
+           <p className="text-sm text-gray-500 dark:text-gray-400 mt-4 text-center">Loading betting options...</p>
+        )}
+        {(fetchError || limitsError) && marketStatus === MarketStatus.OPEN && (
+            <p className="text-sm text-red-500 dark:text-red-400 mt-4 text-center">
+                Error loading market data or limits. Betting unavailable.
+            </p>
+        )}
+         {marketStatus !== MarketStatus.OPEN && marketStatus !== null && (
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-4 text-center">
+               Betting is closed for this market.
+            </p>
+         )}
+
         <div className="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700 text-xs text-gray-500 dark:text-gray-400">
           <p className="truncate">Market Address: {market.address}</p>
         </div>
