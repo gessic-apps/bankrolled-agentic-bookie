@@ -1,84 +1,49 @@
 #!/usr/bin/env python3
 import sys
-import requests
-import os
-import datetime
-import time
-from pathlib import Path
 from typing import List, Dict, Any, Optional, Union
-from dotenv import load_dotenv
-
-# Load environment variables from .env file
-load_dotenv()
-API_URL = os.getenv("API_URL", "http://localhost:3000") # Default matching other agents
-
-if not API_URL:
-    print(f"Warning: API_URL not found, defaulting to {API_URL}", file=sys.stderr)
 
 # Import Agent SDK components
-from agents import Agent, function_tool, handoff, AsyncOpenAI, OpenAIChatCompletionsModel
+from agents import Agent, function_tool, handoff
 
 # Import risk handler agents
 from .high_risk_handler_agent import high_risk_handler_agent  
 from .risk_manager_agent import risk_manager_agent  # Use existing agent for batch updates
 
-# Import market exposure tools
-from ..tools.market_exposure_tools import (
-    fetch_market_exposure_details,
-    set_bet_type_exposure_limit,
-    get_market_exposure_by_type
-)
-
-# Import the fetch_games_with_odds function from odds_manager_agent
-from .odds_manager_agent import fetch_games_with_odds_impl, SUPPORTED_SPORT_KEYS
+# Import utility modules
+from utils.config import SUPPORTED_SPORT_KEYS
+from utils.markets.market_data import get_all_markets
+from utils.risk_management.exposure import get_detailed_market_exposure, get_market_exposure_by_type
+from utils.sports.games_data import fetch_games_with_odds
 
 @function_tool
-def get_all_markets() -> List[Dict[str, Any]]:
-    """Fetches all existing betting markets from the smart contract API."""
-    if not API_URL:
-        print("Error: Cannot get existing markets, API_URL is not configured.", file=sys.stderr)
-        return []
-
-    try:
-        url = f"{API_URL}/api/markets"
-        response = requests.get(url)
-        response.raise_for_status()
-        markets_data = response.json()
-
-        # Ensure the response is a list and contains required fields
-        cleaned_markets = []
-        if isinstance(markets_data, list):
-            for market in markets_data:
-                # Check for all required fields including exposure fields
-                if isinstance(market, dict) and all(k in market for k in ["address", "oddsApiId", "status", "maxExposure", "currentExposure"]):
-                    # Convert exposure values to float for easier comparison
-                    try:
-                        market["maxExposure"] = float(market["maxExposure"])
-                        market["currentExposure"] = float(market["currentExposure"])
-                    except (ValueError, TypeError):
-                        print(f"Warning: Could not convert exposure values to float for market {market.get('address')}", file=sys.stderr)
-                        # Use default values if conversion fails
-                        market["maxExposure"] = 2000.0
-                        market["currentExposure"] = 0.0
-                    
-                    cleaned_markets.append(market)
-                else:
-                    print(f"Warning: Skipping market entry due to missing required fields: {market}", file=sys.stderr)
-        else:
-            print(f"Warning: Expected a list from /api/markets, but got {type(markets_data)}", file=sys.stderr)
-            return []
-
-        print(f"Successfully fetched {len(cleaned_markets)} existing markets with exposure data.")
-        return cleaned_markets
-    except requests.exceptions.RequestException as e:
-        print(f"Error fetching existing markets: {e}", file=sys.stderr)
-        return []
-    except Exception as e:
-        print(f"An unexpected error occurred in get_all_markets: {e}", file=sys.stderr)
-        return []
+def get_all_markets_with_exposure() -> List[Dict[str, Any]]:
+    """Fetches all existing betting markets from the smart contract API with exposure data."""
+    markets = get_all_markets()
+    
+    # Process exposure values to ensure they're floats for easier comparison
+    for market in markets:
+        try:
+            # Convert exposure values to float for easier comparison if they exist
+            if "maxExposure" in market:
+                market["maxExposure"] = float(market["maxExposure"])
+            else:
+                market["maxExposure"] = 2000.0  # Default value
+                
+            if "currentExposure" in market:
+                market["currentExposure"] = float(market["currentExposure"])
+            else:
+                market["currentExposure"] = 0.0  # Default value
+        except (ValueError, TypeError):
+            print(f"Warning: Could not convert exposure values to float for market {market.get('address')}", file=sys.stderr)
+            # Use default values if conversion fails
+            market["maxExposure"] = 2000.0
+            market["currentExposure"] = 0.0
+    
+    print(f"Successfully fetched {len(markets)} existing markets with exposure data.")
+    return markets
 
 @function_tool
-def get_detailed_market_exposure(market_address: str) -> Dict[str, Any]:
+def get_market_exposure_details(market_address: str) -> Dict[str, Any]:
     """
     Gets detailed exposure information for a specific market, broken down by bet type and side.
     
@@ -88,53 +53,8 @@ def get_detailed_market_exposure(market_address: str) -> Dict[str, Any]:
     Returns:
         dict: Detailed exposure information organized by bet type and side
     """
-    if not API_URL:
-        print("Error: Cannot get detailed market exposure, API_URL is not configured.", file=sys.stderr)
-        return {"status": "error", "message": "API_URL not configured"}
-    
-    try:
-        result = get_market_exposure_by_type(market_address, API_URL)
-        
-        if "error" in result:
-            # Try to get basic market info as a fallback
-            try:
-                url = f"{API_URL}/api/market/{market_address}"
-                print(f"Falling back to basic market data from: {url}")
-                response = requests.get(url)
-                response.raise_for_status()
-                market_data = response.json()
-                
-                # Create a simplified exposure model from the general market data
-                max_exposure = float(market_data.get("maxExposure", 0))
-                current_exposure = float(market_data.get("currentExposure", 0))
-                
-                # Calculate a utilization percentage
-                utilization = 0
-                if max_exposure > 0:
-                    utilization = (current_exposure / max_exposure) * 100
-                
-                simplified_result = {
-                    "global": {
-                        "max_exposure": max_exposure,
-                        "current_exposure": current_exposure,
-                        "utilization_percentage": utilization
-                    },
-                    "warning": "Detailed exposure breakdown not available - showing global values only",
-                    "raw_market_data": market_data
-                }
-                
-                print(f"Created simplified exposure model for market {market_address}: utilization {utilization:.1f}%")
-                return simplified_result
-            except Exception as e:
-                print(f"Error fetching basic market data: {e}", file=sys.stderr)
-                return result  # Return the original error
-        
-        print(f"Detailed exposure for market {market_address} fetched successfully")
-        return result
-    except Exception as e:
-        error_message = f"Unexpected error in get_detailed_market_exposure: {e}"
-        print(error_message, file=sys.stderr)
-        return {"status": "error", "message": error_message, "market_address": market_address}
+    # Use the refactored utility function directly 
+    return get_detailed_market_exposure(market_address)
 
 @function_tool
 def fetch_latest_odds(sport_keys: Optional[List[str]] = None) -> Dict[str, Any]:
@@ -151,7 +71,7 @@ def fetch_latest_odds(sport_keys: Optional[List[str]] = None) -> Dict[str, Any]:
     if sport_keys is None:
         sport_keys = SUPPORTED_SPORT_KEYS
     try:
-        games_with_odds = fetch_games_with_odds_impl(sport_keys)
+        games_with_odds = fetch_games_with_odds(sport_keys)
         
         # Create a mapping from oddsApiId to odds data for efficient lookup
         odds_api_id_to_odds = {}
@@ -188,7 +108,7 @@ def identify_high_risk_markets() -> Dict[str, Any]:
         dict: List of high-risk markets with details on risk factors and latest odds data
     """
     # Step 1: Get all markets
-    all_markets = get_all_markets()
+    all_markets = get_all_markets_with_exposure()
     open_markets = [m for m in all_markets if m.get("status") == "Open"]
     print(f"Found {len(open_markets)} open markets out of {len(all_markets)} total markets")
     
@@ -226,7 +146,7 @@ def identify_high_risk_markets() -> Dict[str, Any]:
                 risk_details["utilization_percentage"] = utilization
         
         # Get detailed exposure
-        exposure_data = get_detailed_market_exposure(market_address)
+        exposure_data = get_market_exposure_details(market_address)
         
         # Check for imbalances
         if "moneyline" in exposure_data:
@@ -387,8 +307,8 @@ You are the Risk Triage Agent, responsible for analyzing betting markets, identi
 - Ensure all markets are updated, regardless of risk level
 """,
     tools=[
-        get_all_markets,
-        get_detailed_market_exposure,
+        get_all_markets_with_exposure,
+        get_market_exposure_details,
         fetch_latest_odds,
         identify_high_risk_markets
     ],
@@ -405,10 +325,7 @@ You are the Risk Triage Agent, responsible for analyzing betting markets, identi
         )
     ],
     # DO NOT CHANGE THIS MODEL FROM THE CURRENT SETTING
-    model=OpenAIChatCompletionsModel(
-        model="deepseek-chat",
-        openai_client=deepseek_client,
-    ),
+    model="gpt-4o-mini-2024-07-18",
 )
 
 # Example of how this agent might be run
@@ -416,6 +333,7 @@ if __name__ == '__main__':
     # This part is just for testing the agent directly if needed
     from agents import Runner
     import asyncio
+    from utils.config import API_URL
 
     async def test_risk_triage():
         # Input prompt to trigger the agent's logic

@@ -1,7 +1,7 @@
 {
-  "usdx": "0x8c58FdAFa2653BcaE7159EDaB2Be0d1522a3744D",
-  "liquidityPool": "0x5D9d17cA76DE28F8aCcAD0eeBa2154A5104D8E98",
-  "marketFactory": "0x3A14799B74b73a63b5ca29023946E0EB3A7E6085",
+  "usdx": "0x51b48084Ebe0229B053916E46631Eff428D4d6a9",
+  "liquidityPool": "0xFbcB595923306ea343A4E72C427F849b644B951a",
+  "marketFactory": "0x9666137633813845eD7F09dd13d961A7751f3ef1",
   "markets": [
     {
       "address": "0x79cCC6cd2169726800f1503A083FF2f9eF716A68",
@@ -3069,7 +3069,7 @@
       "overOdds": 1910,
       "underOdds": 1910,
       "oddsSet": true,
-      "updatedAt": "2025-04-13T18:58:31.723Z",
+      "updatedAt": "2025-04-13T22:53:41.793Z",
       "additionalFunding": [
         {
           "amount": 6000,
@@ -3096,7 +3096,9 @@
           "timestamp": "2025-04-13T19:33:34.729Z",
           "transaction": "0x861520d30a9ef783a3003cbf4a0e07ddf92eb13bf2d09f0fd2419516ad6dfc34"
         }
-      ]
+      ],
+      "gameStarted": true,
+      "gameEnded": true
     },
     {
       "address": "0x7b14641239aFBffbB6d49a0DfBed7a252f7C961C",
@@ -3116,7 +3118,9 @@
       "overOdds": 1910,
       "underOdds": 1910,
       "oddsSet": true,
-      "updatedAt": "2025-04-13T16:36:36.724Z"
+      "updatedAt": "2025-04-13T22:57:07.921Z",
+      "gameStarted": true,
+      "gameEnded": true
     },
     {
       "address": "0xF4673FC12DdE207C088B0881F23B54F5905094c5",
@@ -3136,7 +3140,9 @@
       "overOdds": 1910,
       "underOdds": 1910,
       "oddsSet": true,
-      "updatedAt": "2025-04-13T16:36:36.785Z"
+      "updatedAt": "2025-04-13T22:53:41.870Z",
+      "gameStarted": true,
+      "gameEnded": true
     },
     {
       "address": "0x6970F5A82aC0486d86E1e738a7A0Ebe5CD5349BE",
@@ -3156,7 +3162,9 @@
       "overOdds": 1910,
       "underOdds": 1910,
       "oddsSet": true,
-      "updatedAt": "2025-04-13T16:36:36.842Z"
+      "updatedAt": "2025-04-13T22:53:41.956Z",
+      "gameStarted": true,
+      "gameEnded": true
     },
     {
       "address": "0xfB05E58DeD6727d49D48a1b2099bd51deb33F61f",
@@ -3176,7 +3184,9 @@
       "overOdds": 1910,
       "underOdds": 1910,
       "oddsSet": true,
-      "updatedAt": "2025-04-13T16:36:36.898Z"
+      "updatedAt": "2025-04-13T22:53:42.038Z",
+      "gameStarted": true,
+      "gameEnded": true
     },
     {
       "address": "0xECC3CB07B0A08527Db5480a959cEBe821212f8A6",
@@ -3196,7 +3206,9 @@
       "overOdds": 1910,
       "underOdds": 1910,
       "oddsSet": true,
-      "updatedAt": "2025-04-13T16:36:36.951Z"
+      "updatedAt": "2025-04-13T22:53:42.123Z",
+      "gameStarted": true,
+      "gameEnded": true
     },
     {
       "address": "0xe353f56cda55Fa7f0A8af57037b84F4c375d3d74",
@@ -3216,7 +3228,9 @@
       "overOdds": 1910,
       "underOdds": 1910,
       "oddsSet": true,
-      "updatedAt": "2025-04-13T16:36:36.998Z"
+      "updatedAt": "2025-04-13T22:53:41.605Z",
+      "gameStarted": true,
+      "gameEnded": true
     },
     {
       "address": "0x1720A55362218fA2d10C8142C0890d0a574173D5",
@@ -3236,7 +3250,9 @@
       "overOdds": 1910,
       "underOdds": 1910,
       "oddsSet": true,
-      "updatedAt": "2025-04-13T16:36:37.053Z"
+      "updatedAt": "2025-04-13T22:57:08.003Z",
+      "gameStarted": true,
+      "gameEnded": true
     },
     {
       "address": "0x89F5BA7A942284aF10eD7D2E6EA8669C5Af29911",
@@ -3256,7 +3272,9 @@
       "overOdds": 1910,
       "underOdds": 1910,
       "oddsSet": true,
-      "updatedAt": "2025-04-13T16:36:37.108Z"
+      "updatedAt": "2025-04-13T22:57:08.074Z",
+      "gameStarted": true,
+      "gameEnded": true
     },
     {
       "address": "0xB493E20E44C2F1f8BB4D1078cc41e6deb47Dc45B",
@@ -3276,7 +3294,9 @@
       "overOdds": 1910,
       "underOdds": 1910,
       "oddsSet": true,
-      "updatedAt": "2025-04-13T16:36:37.166Z"
+      "updatedAt": "2025-04-13T22:53:42.244Z",
+      "gameStarted": true,
+      "gameEnded": true
     },
     {
       "address": "0x3406573AbC1fEc3eF6d63B6ccC6fd9705C6264c4",
@@ -3296,7 +3316,9 @@
       "overOdds": 1910,
       "underOdds": 1910,
       "oddsSet": true,
-      "updatedAt": "2025-04-13T16:36:37.217Z"
+      "updatedAt": "2025-04-13T22:53:42.328Z",
+      "gameStarted": true,
+      "gameEnded": true
     },
     {
       "address": "0x7a890732d458C99c6F421d0931917A422CC2329E",
@@ -3316,7 +3338,9 @@
       "overOdds": 1910,
       "underOdds": 1910,
       "oddsSet": true,
-      "updatedAt": "2025-04-13T16:36:37.271Z"
+      "updatedAt": "2025-04-13T22:53:42.411Z",
+      "gameStarted": true,
+      "gameEnded": true
     },
     {
       "address": "0xE80584d7AB03731D9aef7a2231EE63e048aC8542",
@@ -3336,7 +3360,9 @@
       "overOdds": 1910,
       "underOdds": 1910,
       "oddsSet": true,
-      "updatedAt": "2025-04-13T16:36:37.328Z"
+      "updatedAt": "2025-04-13T22:53:42.499Z",
+      "gameStarted": true,
+      "gameEnded": true
     },
     {
       "address": "0x3dd55281dC5505CEC7b15E75A73C0770eCa4D000",
@@ -3356,7 +3382,9 @@
       "overOdds": 1910,
       "underOdds": 1910,
       "oddsSet": true,
-      "updatedAt": "2025-04-13T16:36:37.388Z"
+      "updatedAt": "2025-04-13T22:53:42.586Z",
+      "gameStarted": true,
+      "gameEnded": true
     },
     {
       "address": "0xf6354a1eCC088B3f430283bd3612Eb649d3A7264",
@@ -3376,7 +3404,9 @@
       "overOdds": 1910,
       "underOdds": 1910,
       "oddsSet": true,
-      "updatedAt": "2025-04-13T16:36:37.442Z"
+      "updatedAt": "2025-04-13T22:53:42.666Z",
+      "gameStarted": true,
+      "gameEnded": true
     },
     {
       "address": "0xcadeA9Df6C5068EE1660450D8e7CA766659F89e9",
@@ -3396,7 +3426,9 @@
       "overOdds": 1870,
       "underOdds": 1920,
       "oddsSet": true,
-      "updatedAt": "2025-04-13T16:36:37.495Z"
+      "updatedAt": "2025-04-13T22:53:42.753Z",
+      "gameStarted": true,
+      "gameEnded": true
     },
     {
       "address": "0xd546f09e7A2e1a9ac40970F3651C474dEdF66286",
@@ -3416,7 +3448,9 @@
       "overOdds": 2190,
       "underOdds": 1720,
       "oddsSet": true,
-      "updatedAt": "2025-04-13T16:36:37.548Z"
+      "updatedAt": "2025-04-13T22:57:07.841Z",
+      "gameStarted": true,
+      "gameEnded": true
     },
     {
       "address": "0xbD85B33C5AB69b2458b1d4b046d97C8AbC520cf4",
@@ -3436,8 +3470,201 @@
       "overOdds": 1800,
       "underOdds": 2050,
       "oddsSet": true,
-      "updatedAt": "2025-04-13T16:36:37.596Z"
+      "updatedAt": "2025-04-13T22:53:41.689Z",
+      "gameStarted": true,
+      "gameEnded": true
+    },
+    {
+      "address": "0x9385368c957e3cB579141cB2Abf34dB5Eebf5b9B",
+      "homeTeam": "Bournemouth",
+      "awayTeam": "Fulham",
+      "gameTimestamp": 1744657200,
+      "oddsApiId": "2d47b0131e8839849d30741559257fdc",
+      "funding": "1000.0",
+      "transaction": "0xac9f856ec7a52c5c8e815cc1e50983b25ccf3344635d2d1b64e4c84b9fb4ade7",
+      "createdAt": "2025-04-13T21:55:44.097Z",
+      "homeOdds": 2180,
+      "awayOdds": 3400,
+      "homeSpreadPoints": -2,
+      "homeSpreadOdds": 1870,
+      "awaySpreadOdds": 1990,
+      "totalPoints": 27,
+      "overOdds": 1910,
+      "underOdds": 1940,
+      "oddsSet": true,
+      "updatedAt": "2025-04-13T22:53:42.836Z",
+      "gameStarted": true,
+      "gameEnded": true
+    },
+    {
+      "address": "0xB0147B04aAfEf4f3B827CE60d4925d1b1a416EE0",
+      "homeTeam": "Napoli",
+      "awayTeam": "Empoli",
+      "gameTimestamp": 1744656300,
+      "oddsApiId": "adf55ba3369855974e14637f5596026d",
+      "funding": "1000.0",
+      "transaction": "0x6049df9b1c34d5edf8be3da33a1a1ea5d8fb45fc75a2630f1c10a74f8472ef70",
+      "createdAt": "2025-04-13T21:55:44.173Z",
+      "homeOdds": 1330,
+      "awayOdds": 10500,
+      "homeSpreadPoints": -15,
+      "homeSpreadOdds": 2009,
+      "awaySpreadOdds": 1830,
+      "totalPoints": 25,
+      "overOdds": 1880,
+      "underOdds": 1930,
+      "oddsSet": true,
+      "updatedAt": "2025-04-13T22:53:42.922Z",
+      "gameStarted": true,
+      "gameEnded": true
+    },
+    {
+      "address": "0x629E4EEa49699F5C7234963d9770bEFD0F156121",
+      "homeTeam": "Atlético Madrid",
+      "awayTeam": "Valladolid",
+      "gameTimestamp": 1744657200,
+      "oddsApiId": "806603b56a1534efdab14d161f3532f4",
+      "funding": "1000.0",
+      "transaction": "0xa6ed7ff474e42da813b3e9194d4bbf72f9d92a523e9b6fed68a7ee494fa32277",
+      "createdAt": "2025-04-13T21:55:44.254Z",
+      "homeOdds": 1120,
+      "awayOdds": 19000,
+      "homeSpreadPoints": -25,
+      "homeSpreadOdds": 2050,
+      "awaySpreadOdds": 1800,
+      "totalPoints": 35,
+      "overOdds": 2200,
+      "underOdds": 1710,
+      "oddsSet": true,
+      "updatedAt": "2025-04-13T21:57:49.018Z"
+    },
+    {
+      "address": "0x68fD21C3B908796958A2e3E8F677Ec3b9A17b26e",
+      "homeTeam": "Orlando Magic",
+      "awayTeam": "Atlanta Hawks",
+      "gameTimestamp": 1744760400,
+      "oddsApiId": "12b46f184c1fdead46e57fbcea9406ad",
+      "funding": "1000.0",
+      "transaction": "0x66d438fca9c53d8e1bc88aaae44a51f2eb5546ab589de905e8ba89c8c95afa15",
+      "createdAt": "2025-04-14T07:37:15.071Z",
+      "homeOdds": 1490,
+      "awayOdds": 2700,
+      "homeSpreadPoints": -50,
+      "homeSpreadOdds": 1910,
+      "awaySpreadOdds": 1910,
+      "totalPoints": 2165,
+      "overOdds": 1910,
+      "underOdds": 1910,
+      "oddsSet": true,
+      "updatedAt": "2025-04-14T07:37:24.838Z"
+    },
+    {
+      "address": "0x51062b595a538D8281B1585d782B088ea0Ef77Ad",
+      "homeTeam": "Bournemouth",
+      "awayTeam": "Fulham",
+      "gameTimestamp": 1744657200,
+      "oddsApiId": "2d47b0131e8839849d30741559257fdc",
+      "funding": "1000.0",
+      "transaction": "0x4d12dd25549805cc243af76ed9d05cb931ab0f7fa601a13067ef501ac5dcd65f",
+      "createdAt": "2025-04-14T07:37:15.157Z",
+      "homeOdds": 2060,
+      "awayOdds": 3720,
+      "homeSpreadPoints": -5,
+      "homeSpreadOdds": 2060,
+      "awaySpreadOdds": 1820,
+      "totalPoints": 27,
+      "overOdds": 1990,
+      "underOdds": 1870,
+      "oddsSet": true,
+      "updatedAt": "2025-04-14T07:37:24.911Z"
+    },
+    {
+      "address": "0xD61310D9C30A4d09Be470A978912e6EDB41F5361",
+      "homeTeam": "Napoli",
+      "awayTeam": "Empoli",
+      "gameTimestamp": 1744656300,
+      "oddsApiId": "adf55ba3369855974e14637f5596026d",
+      "funding": "1000.0",
+      "transaction": "0x69ca7158e338714410e11eb561607f1a0f516dafe61b512e623fde20637ae889",
+      "createdAt": "2025-04-14T07:37:15.234Z",
+      "homeOdds": 1340,
+      "awayOdds": 10600,
+      "homeSpreadPoints": -15,
+      "homeSpreadOdds": 2000,
+      "awaySpreadOdds": 1830,
+      "totalPoints": 25,
+      "overOdds": 1950,
+      "underOdds": 1870,
+      "oddsSet": true,
+      "updatedAt": "2025-04-14T07:37:24.979Z"
+    },
+    {
+      "address": "0xA8F5530ea74EAf57619AfeFcDFC7a29d05aD88fa",
+      "homeTeam": "Atl\\u00e9tico Madrid",
+      "awayTeam": "Valladolid",
+      "gameTimestamp": 1744657200,
+      "oddsApiId": "806603b56a1534efdab14d161f3532f4",
+      "funding": "1000.0",
+      "transaction": "0x0bbce3e40a4d3034a9425a720b98cccf57da6121b5793bef1334b4ab02ad1d17",
+      "createdAt": "2025-04-14T07:37:15.320Z",
+      "homeOdds": 1120,
+      "awayOdds": 18000,
+      "homeSpreadPoints": -25,
+      "homeSpreadOdds": 2100,
+      "awaySpreadOdds": 1770,
+      "totalPoints": 35,
+      "overOdds": 2200,
+      "underOdds": 1710,
+      "oddsSet": true,
+      "updatedAt": "2025-04-14T07:37:25.047Z"
+    },
+    {
+      "address": "0x44Dd3C3Da6b14e0970F64C2E54AB40C1d3AC1489",
+      "homeTeam": "Aston Villa",
+      "awayTeam": "Paris Saint Germain",
+      "gameTimestamp": 1744743600,
+      "oddsApiId": "9191e91d254d6b0aeaa12e2fa2fd62f3",
+      "funding": "1000.0",
+      "transaction": "0xee6db40ed3c4f45a3f604d33527066bdb296a77be41c938fd8032db4391f5f50",
+      "createdAt": "2025-04-14T07:37:15.399Z",
+      "homeOdds": 3200,
+      "awayOdds": 2100,
+      "homeSpreadPoints": 2,
+      "homeSpreadOdds": 1980,
+      "awaySpreadOdds": 1850,
+      "totalPoints": 30,
+      "overOdds": 2050,
+      "underOdds": 1800,
+      "oddsSet": true,
+      "updatedAt": "2025-04-14T07:37:25.114Z"
+    },
+    {
+      "address": "0xca2DCcEDba9Eef75a7d3C5650570B96EFaFF2e0a",
+      "homeTeam": "Borussia Dortmund",
+      "awayTeam": "Barcelona",
+      "gameTimestamp": 1744743600,
+      "oddsApiId": "84dbd4e4ca99b5094923b839bf30be88",
+      "funding": "1000.0",
+      "transaction": "0xdda5b57ffb2e1ea4133c322b6a96a78930b6877a75e7e301fde6148a50c3410e",
+      "createdAt": "2025-04-14T07:37:15.491Z",
+      "homeOdds": 3750,
+      "awayOdds": 1830,
+      "homeSpreadPoints": 5,
+      "homeSpreadOdds": 1980,
+      "awaySpreadOdds": 1850,
+      "totalPoints": 32,
+      "overOdds": 1890,
+      "underOdds": 1930,
+      "oddsSet": true,
+      "updatedAt": "2025-04-14T07:37:25.187Z",
+      "additionalFunding": [
+        {
+          "amount": 136,
+          "timestamp": "2025-04-14T08:05:14.454Z",
+          "transaction": "0x0e453d67083ab81e5a9651931b6ca5186e424a25cd629beb4176cd0bb03b6c12"
+        }
+      ]
     }
   ],
-  "marketDeployer": "0xb69Bfd5BB1F6fbcEee252D974fabeD086dD5776D"
+  "marketDeployer": "0xd4a817d4D130202C02680b0016d380e33940B701"
 }

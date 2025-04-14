@@ -9,15 +9,12 @@ project_root = Path(__file__).resolve().parent.parent
 if str(project_root) not in sys.path:
     sys.path.append(str(project_root))
 
-# Import the actual tool implementation functions
-from tools.events.fetchEvents import fetch_nba_games_today, GameEvent # Assuming GameEvent is used by fetch
-from tools.createMarket import create_market, get_all_markets, update_market_odds
+# Import from shared utilities
+from utils.config import SUPPORTED_SPORT_KEYS
 
 # Import OpenAI Agent SDK
 from agents import Agent, Runner, function_tool, handoff
 
-# Import SUPPORTED_SPORT_KEYS from one of the agents
-from .market_creation_agent import SUPPORTED_SPORT_KEYS
 # Import the specialized agents
 from .market_creation_agent import market_creation_agent
 from .odds_manager_agent import odds_manager_agent
@@ -26,19 +23,7 @@ from .risk_triage_agent import risk_triage_agent  # New risk triage agent replac
 from .high_risk_handler_agent import high_risk_handler_agent  # For individual high-risk market handling
 from .risk_manager_agent import risk_manager_agent  # Still used for batch updates through risk_triage_agent
 
-# Set up OpenAI API key from environment (optional, SDK might handle this)
-# api_key = os.getenv("OPENAI_API_KEY")
-# if not api_key:
-#     print("OPENAI_API_KEY not found in environment variables.")
-#     # Consider exiting or letting the SDK handle the missing key error
-#     # sys.exit(1)
-
-
-
-# ======================= AGENT DEFINITIONS =======================
-
 # Define the Triage Agent
-# No context type specified, simplifying the agent definition
 triage_agent = Agent(
     name="Triage Agent",
     instructions="""
@@ -106,7 +91,7 @@ if __name__ == "__main__":
         supported_sports_str = ", ".join(SUPPORTED_SPORT_KEYS)
         market_creation_prompt = f"Create betting markets for today's games in these leagues: {supported_sports_str}."
         odds_management_prompt = f"Set or update odds for all existing markets for these sports: {supported_sports_str}."
-        game_status_prompt = f"Check for completed games and settle results for markets in these sports: {supported_sports_str}." # Updated prompt
+        game_status_prompt = f"Check for completed games and settle results for markets in these sports: {supported_sports_str}."
         risk_management_prompt = f"Analyze current markets and add liquidity where needed based on risk assessment."
 
         # --- Run Market Creation Agent ---

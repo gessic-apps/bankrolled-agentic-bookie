@@ -1,50 +1,28 @@
 #!/usr/bin/env python3
 import sys
-import requests
 import os
-import datetime
-import time
-from pathlib import Path
-from typing import List, Dict, Any, Optional, Union
-from dotenv import load_dotenv
+from typing import Dict, Any, Optional, List
 
-# Load environment variables from .env file
-load_dotenv()
-API_URL = os.getenv("API_URL", "http://localhost:3000") # Default matching other agents
-
-if not API_URL:
-    print(f"Warning: API_URL not found, defaulting to {API_URL}", file=sys.stderr)
-
-# Import Agent SDK components
 from agents import Agent, function_tool, AsyncOpenAI, OpenAIChatCompletionsModel
 
-# Import Monte Carlo simulation tool
-from .monte_carlo_sims import analyze_market_risk, bulk_analyze_markets
-
-# Import market exposure tools
-from ..tools.market_exposure_tools import (
-    fetch_market_exposure_details,
-    set_bet_type_exposure_limit,
-    get_market_exposure_by_type
+# Import utilities from our refactored structure
+from utils.monte_carlo import analyze_market_risk
+from utils.risk_management import (
+    add_liquidity_to_market,
+    get_liquidity_pool_info,
+    get_detailed_market_exposure,
+    set_specific_bet_type_limit,
+    set_market_exposure_limits
 )
-
-# Import odds management tools
-from ..tools.odds_tools import (
-    update_odds_for_market_impl,
-    update_odds_for_multiple_markets_impl,
-    check_market_odds_impl,
-    OddsData,
-    BatchUpdateResult
+from utils.markets.odds_management import (
+    update_odds_for_market,
+    check_market_odds
 )
-
-# Import the fetch_games_with_odds function from odds_manager_agent
-from .odds_manager_agent import fetch_games_with_odds_impl, SUPPORTED_SPORT_KEYS
-
-# --- Tool Definitions ---
-deepseek_client = AsyncOpenAI(base_url="https://api.deepseek.com", api_key="sk-524207d333a049f5b02cbc0c36bc860f")
+from utils.sports.games_data import fetch_games_with_odds
+from utils.config import SUPPORTED_SPORT_KEYS
 
 @function_tool
-def add_liquidity_to_market(market_address: str, amount: int) -> Dict[str, Any]:
+def add_market_liquidity(market_address: str, amount: int) -> Dict[str, Any]:
     """
     Adds liquidity to a specific market.
     
@@ -55,42 +33,10 @@ def add_liquidity_to_market(market_address: str, amount: int) -> Dict[str, Any]:
     Returns:
         dict: API response with liquidity addition details
     """
-    if not API_URL:
-        print("Error: Cannot add liquidity, API_URL is not configured.", file=sys.stderr)
-        return {"status": "error", "message": "API_URL not configured"}
-    
-    payload = {
-        "amount": amount
-    }
-    
-    try:
-        url = f"{API_URL}/api/market/{market_address}/add-liquidity"
-        print(f"Attempting to add liquidity: POST {url} with payload: {payload}")
-        response = requests.post(url, json=payload)
-        response.raise_for_status()
-        result = response.json()
-        print(f"Successfully added liquidity to market {market_address}. Response: {result}")
-        return {
-            "status": "success",
-            "market_address": market_address,
-            "amount_added": amount,
-            "result": result
-        }
-    except requests.exceptions.HTTPError as e:
-        error_message = f"HTTP Error adding liquidity to market {market_address}: {e.response.status_code} - {e.response.text}"
-        print(error_message, file=sys.stderr)
-        return {"status": "error", "message": error_message, "market_address": market_address}
-    except requests.exceptions.RequestException as e:
-        error_message = f"Request Error adding liquidity to market {market_address}: {e}"
-        print(error_message, file=sys.stderr)
-        return {"status": "error", "message": error_message, "market_address": market_address}
-    except Exception as e:
-        error_message = f"An unexpected error occurred in add_liquidity_to_market: {e}"
-        print(error_message, file=sys.stderr)
-        return {"status": "error", "message": error_message, "market_address": market_address}
+    return add_liquidity_to_market(market_address, amount)
 
 @function_tool
-def get_liquidity_pool_info() -> Dict[str, Any]:
+def get_pool_info() -> Dict[str, Any]:
     """
     Gets information about the global liquidity pool.
     
@@ -98,26 +44,7 @@ def get_liquidity_pool_info() -> Dict[str, Any]:
         dict: Information about the liquidity pool including total liquidity,
               allocated liquidity, and available liquidity
     """
-    if not API_URL:
-        print("Error: Cannot get liquidity pool info, API_URL is not configured.", file=sys.stderr)
-        return {"status": "error", "message": "API_URL not configured"}
-    
-    try:
-        url = f"{API_URL}/api/liquidity-pool"
-        response = requests.get(url)
-        response.raise_for_status()
-        result = response.json()
-        print(f"Successfully fetched liquidity pool information.")
-        return {
-            "status": "success",
-            "pool_info": result
-        }
-    except requests.exceptions.RequestException as e:
-        print(f"Error fetching liquidity pool info: {e}", file=sys.stderr)
-        return {"status": "error", "message": str(e)}
-    except Exception as e:
-        print(f"An unexpected error occurred in get_liquidity_pool_info: {e}", file=sys.stderr)
-        return {"status": "error", "message": str(e)}
+    return get_liquidity_pool_info()
 
 # Monte Carlo simulation tools
 @function_tool
@@ -273,7 +200,7 @@ def run_monte_carlo_analysis_with_exposure(
 
 # --- Tool Definition for odds management ---
 @function_tool
-def update_odds_for_market(
+def update_market_odds(
     market_address: str,
     home_odds: float,
     away_odds: float,
@@ -286,26 +213,22 @@ def update_odds_for_market(
     draw_odds: Optional[float] = None
 ) -> Dict[str, Any]:
     """Updates all odds types (moneyline, spread, total) for a specific market to influence betting behavior and manage risk. Expects decimal floats/points, converts to integer format for the API call. Now supports draw odds for soccer markets."""
-    # Set default values for draw_odds if None
-    draw_odds_val = draw_odds if draw_odds is not None else 0.0
-    
-    return update_odds_for_market_impl(
+    return update_odds_for_market(
         market_address=market_address,
         home_odds=home_odds,
-        away_odds=away_odds, 
-        draw_odds=draw_odds_val,
+        away_odds=away_odds,
+        draw_odds=draw_odds if draw_odds is not None else 0.0,
         home_spread_points=home_spread_points,
         home_spread_odds=home_spread_odds,
         away_spread_odds=away_spread_odds,
         total_points=total_points,
         over_odds=over_odds,
-        under_odds=under_odds,
-        api_url=API_URL
+        under_odds=under_odds
     )
 
 # --- NEW TOOL: Set Market Exposure Limits ---
 @function_tool
-def set_market_exposure_limits(
+def set_exposure_limits(
     market_address: str,
     home_moneyline_limit: Optional[int] = None,
     away_moneyline_limit: Optional[int] = None,
@@ -316,50 +239,19 @@ def set_market_exposure_limits(
     under_limit: Optional[int] = None
 ) -> Dict[str, Any]:
     """Sets specific exposure limits for various bet types within a market. Only provided limits will be updated."""
-    if not API_URL:
-        print("Error: Cannot set exposure limits, API_URL is not configured.", file=sys.stderr)
-        return {"status": "error", "message": "API_URL not configured"}
-
-    payload = {}
-    if home_moneyline_limit is not None: payload["homeMoneylineLimit"] = home_moneyline_limit
-    if away_moneyline_limit is not None: payload["awayMoneylineLimit"] = away_moneyline_limit
-    if draw_limit is not None: payload["drawLimit"] = draw_limit
-    if home_spread_limit is not None: payload["homeSpreadLimit"] = home_spread_limit
-    if away_spread_limit is not None: payload["awaySpreadLimit"] = away_spread_limit
-    if over_limit is not None: payload["overLimit"] = over_limit
-    if under_limit is not None: payload["underLimit"] = under_limit
-
-    if not payload:
-        return {"status": "warning", "message": "No limits provided to set.", "market_address": market_address}
-
-    try:
-        url = f"{API_URL}/api/market/{market_address}/exposure-limits"
-        print(f"Attempting to set exposure limits: POST {url} with payload: {payload}")
-        response = requests.post(url, json=payload)
-        response.raise_for_status()
-        result = response.json()
-        print(f"Successfully set exposure limits for market {market_address}. Response: {result}")
-        return {
-            "status": "success",
-            "market_address": market_address,
-            "limits_set": payload,
-            "result": result
-        }
-    except requests.exceptions.HTTPError as e:
-        error_message = f"HTTP Error setting exposure limits for market {market_address}: {e.response.status_code} - {e.response.text}"
-        print(error_message, file=sys.stderr)
-        return {"status": "error", "message": error_message, "market_address": market_address}
-    except requests.exceptions.RequestException as e:
-        error_message = f"Request Error setting exposure limits for market {market_address}: {e}"
-        print(error_message, file=sys.stderr)
-        return {"status": "error", "message": error_message, "market_address": market_address}
-    except Exception as e:
-         error_message = f"An unexpected error occurred in set_market_exposure_limits: {e}"
-         print(error_message, file=sys.stderr)
-         return {"status": "error", "message": error_message, "market_address": market_address}
+    return set_market_exposure_limits(
+        market_address=market_address,
+        home_moneyline_limit=home_moneyline_limit,
+        away_moneyline_limit=away_moneyline_limit,
+        draw_limit=draw_limit,
+        home_spread_limit=home_spread_limit,
+        away_spread_limit=away_spread_limit,
+        over_limit=over_limit,
+        under_limit=under_limit
+    )
 
 @function_tool
-def set_specific_bet_type_limit(
+def set_bet_type_limit(
     market_address: str,
     bet_type: str,
     side: str,
@@ -377,14 +269,12 @@ def set_specific_bet_type_limit(
     Returns:
         dict: Result of the operation
     """
-    if not API_URL:
-        print("Error: Cannot set bet type limit, API_URL is not configured.", file=sys.stderr)
-        return {"status": "error", "message": "API_URL not configured"}
-    
-    print(f"Setting limit for {bet_type}/{side} to {limit} on market {market_address}")
-    result = set_bet_type_exposure_limit(market_address, bet_type, side, limit, API_URL)
-    
-    return result
+    return set_specific_bet_type_limit(
+        market_address=market_address,
+        bet_type=bet_type,
+        side=side,
+        limit=limit
+    )
 
 @function_tool
 def fetch_latest_odds_for_market(odds_api_id: str) -> Dict[str, Any]:
@@ -399,8 +289,7 @@ def fetch_latest_odds_for_market(odds_api_id: str) -> Dict[str, Any]:
     """
     try:
         # Fetch all odds (we'll filter for the specific market)
-        sport_keys = SUPPORTED_SPORT_KEYS
-        games_with_odds = fetch_games_with_odds_impl(sport_keys)
+        games_with_odds = fetch_games_with_odds(SUPPORTED_SPORT_KEYS)
         
         # Find the specific market
         market_odds = None
@@ -429,7 +318,7 @@ def fetch_latest_odds_for_market(odds_api_id: str) -> Dict[str, Any]:
         }
 
 @function_tool
-def get_detailed_market_exposure(market_address: str) -> Dict[str, Any]:
+def get_market_exposure(market_address: str) -> Dict[str, Any]:
     """
     Gets detailed exposure information for a specific market, broken down by bet type and side.
     
@@ -439,58 +328,12 @@ def get_detailed_market_exposure(market_address: str) -> Dict[str, Any]:
     Returns:
         dict: Detailed exposure information organized by bet type and side
     """
-    if not API_URL:
-        print("Error: Cannot get detailed market exposure, API_URL is not configured.", file=sys.stderr)
-        return {"status": "error", "message": "API_URL not configured"}
-    
-    try:
-        result = get_market_exposure_by_type(market_address, API_URL)
-        
-        if "error" in result:
-            # Try to get basic market info as a fallback
-            try:
-                url = f"{API_URL}/api/market/{market_address}"
-                print(f"Falling back to basic market data from: {url}")
-                response = requests.get(url)
-                response.raise_for_status()
-                market_data = response.json()
-                
-                # Create a simplified exposure model from the general market data
-                max_exposure = float(market_data.get("maxExposure", 0))
-                current_exposure = float(market_data.get("currentExposure", 0))
-                
-                # Calculate a utilization percentage
-                utilization = 0
-                if max_exposure > 0:
-                    utilization = (current_exposure / max_exposure) * 100
-                
-                simplified_result = {
-                    "global": {
-                        "max_exposure": max_exposure,
-                        "current_exposure": current_exposure,
-                        "utilization_percentage": utilization
-                    },
-                    "warning": "Detailed exposure breakdown not available - showing global values only",
-                    "raw_market_data": market_data
-                }
-                
-                print(f"Created simplified exposure model for market {market_address}: utilization {utilization:.1f}%")
-                return simplified_result
-            except Exception as e:
-                print(f"Error fetching basic market data: {e}", file=sys.stderr)
-                return result  # Return the original error
-        
-        print(f"Detailed exposure for market {market_address} fetched successfully")
-        return result
-    except Exception as e:
-        error_message = f"Unexpected error in get_detailed_market_exposure: {e}"
-        print(error_message, file=sys.stderr)
-        return {"status": "error", "message": error_message, "market_address": market_address}
+    return get_detailed_market_exposure(market_address)
 
 @function_tool
-def check_market_odds(market_address: str) -> Dict[str, Any]:
+def check_odds(market_address: str) -> Dict[str, Any]:
     """Checks if a specific betting market (identified by its address) already has odds set."""
-    return check_market_odds_impl(market_address, API_URL)
+    return check_market_odds(market_address)
 
 # --- Define the High Risk Handler Agent ---
 high_risk_handler_agent = Agent(
@@ -540,24 +383,24 @@ For each identified risk factor, apply the appropriate mitigation strategy:
   - Totals imbalance:
     - Adjust over/under odds to balance action
     - In severe cases only, adjust total points line by 0.5-1 point
-  - Call `update_odds_for_market()` with these adjustments
+  - Call `update_market_odds()` with these adjustments
 
 #### b) Set Bet Size Limits
 - For severe imbalances (>3:1 ratio):
-  - Use `set_specific_bet_type_limit()` to restrict betting on overexposed sides
+  - Use `set_bet_type_limit()` to restrict betting on overexposed sides
   - Calculate limit based on current exposure (typically 50-70% of current)
   - Example: If home moneyline exposure is $10,000 and away is $2,000, set home limit to $5,000-$7,000
 
 #### c) Add Liquidity
 - When exposure exceeds 80% of max_exposure:
   - Calculate additional liquidity needed (typically 20-30% buffer)
-  - Use `add_liquidity_to_market()` to increase market capacity
-  - Verify with `get_liquidity_pool_info()` that sufficient global liquidity exists
+  - Use `add_market_liquidity()` to increase market capacity
+  - Verify with `get_pool_info()` that sufficient global liquidity exists
 
 ### 5. Verify Changes
 - After implementing changes:
-  - Use `check_market_odds()` to verify odds updates
-  - Confirm exposure limits with `get_detailed_market_exposure()`
+  - Use `check_odds()` to verify odds updates
+  - Confirm exposure limits with `get_market_exposure()`
   - Ensure all points (spread, total) are updated, not just odds
 
 ### 6. Generate Detailed Report
@@ -585,22 +428,19 @@ For each identified risk factor, apply the appropriate mitigation strategy:
 - For severe imbalances, bet limits are often more effective than extreme odds adjustments
 """,
     tools=[
-        add_liquidity_to_market,
-        get_liquidity_pool_info,
-        update_odds_for_market,
-        set_market_exposure_limits,
-        set_specific_bet_type_limit,
+        add_market_liquidity,
+        get_pool_info,
+        update_market_odds,
+        set_exposure_limits,
+        set_bet_type_limit,
         run_monte_carlo_analysis,
         run_monte_carlo_analysis_with_exposure,
         fetch_latest_odds_for_market,
-        get_detailed_market_exposure,
-        check_market_odds
+        get_market_exposure,
+        check_odds
     ],
     # DO NOT CHANGE THIS MODEL FROM THE CURRENT SETTING
-    model=OpenAIChatCompletionsModel(
-        model="deepseek-chat",
-        openai_client=deepseek_client,
-    ),
+    model="gpt-4o-mini-2024-07-18",
 )
 
 # Example of how this agent might be run
@@ -608,6 +448,7 @@ if __name__ == '__main__':
     # This part is just for testing the agent directly if needed
     from agents import Runner
     import asyncio
+    import json
 
     async def test_high_risk_handler():
         # Input prompt to trigger the agent's logic
@@ -629,10 +470,6 @@ if __name__ == '__main__':
         }"""
         
         print(f"--- Running High Risk Handler Agent with prompt: '{prompt}' ---")
-        # Ensure environment variables are loaded if running directly
-        if not API_URL:
-             print("Error: Missing API_URL in .env file. Cannot run test.", file=sys.stderr)
-             return
         result = await Runner.run(high_risk_handler_agent, prompt)
         print("--- High Risk Handler Agent Result ---")
         print(result.final_output)
