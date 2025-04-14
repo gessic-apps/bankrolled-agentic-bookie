@@ -205,7 +205,7 @@ function LandingPageContent() {
             {/* Founder 1: Chris Brookings - Card */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden p-6 hover:shadow-lg transition-shadow duration-300">
               <div className="flex flex-col items-center text-center">
-                <img src={founderChris} alt="Chris Brookings" className="w-32 h-32 rounded-full mb-6 object-cover bg-gray-200 dark:bg-gray-700 shadow-md" />
+                <img src={founderChris} alt="Chris Brookins" className="w-32 h-32 rounded-full mb-6 object-cover bg-gray-200 dark:bg-gray-700 shadow-md" />
                 <h3 className="text-2xl font-semibold mb-3 text-gray-900 dark:text-white">Chris Brookings</h3>
                 <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
                   Co-founder of RociFi, a Web3 under-collateralized lending platform leveraging ML-powered credit scoring. Chris is a seasoned entrepreneur with deep expertise in Crypto x AI and DeFi. He has led two startups at the intersection of large-scale data systems and ML/AI: a quant hedge fund and RociFi.
