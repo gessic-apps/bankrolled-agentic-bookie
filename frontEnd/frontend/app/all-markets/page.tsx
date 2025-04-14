@@ -11,7 +11,6 @@ import { HeroUIProvider } from "@heroui/react";
 import MarketsList from "../../components/MarketsList";
 // Faucet now in header
 import { ConnectButton } from '@rainbow-me/rainbowkit';
-import ThemeToggle from "../../components/ThemeToggle";
 import FaucetButton from "../../components/FaucetButton";
 import { Market, MarketStatus } from "../../types/market";
 
@@ -207,7 +206,6 @@ export default function Home() {
                   <h1 className="text-2xl font-bold text-gray-800 dark:text-white">All Markets</h1>
                   <div className="flex items-center gap-4">
                     <FaucetButton />
-                    <ThemeToggle />
                     <ConnectButton />
                   </div>
                 </div>

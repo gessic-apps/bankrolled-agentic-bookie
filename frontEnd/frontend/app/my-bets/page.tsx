@@ -11,11 +11,11 @@ import '@rainbow-me/rainbowkit/styles.css';
 import { HeroUIProvider } from "@heroui/react";
 import UserBetsList from "../../components/UserBetsList";
 import { ConnectButton } from '@rainbow-me/rainbowkit';
-import ThemeToggle from "../../components/ThemeToggle";
 import FaucetButton from "../../components/FaucetButton";
 import { Market } from '../../types/market';
 import MarketFactoryABI from '../../abis/contracts/MarketFactory.sol/MarketFactory.json';
 import NBAMarketABI from '../../abis/contracts/NBAMarket.sol/NBAMarket.json';
+
 
 import { WAGMI_CONFIG, CONTRACT_ADDRESSES, SELECTED_NETWORK } from '../../config/contracts';
 
@@ -116,7 +116,6 @@ function MyBetsPageComponent() {
             <h1 className="text-2xl font-bold text-gray-800 dark:text-white">My Bets</h1>
             <div className="flex items-center gap-4">
               <FaucetButton />
-              <ThemeToggle />
               <ConnectButton />
             </div>
           </div>
