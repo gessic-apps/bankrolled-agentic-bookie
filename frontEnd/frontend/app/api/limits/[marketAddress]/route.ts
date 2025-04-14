@@ -1,15 +1,22 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 
 // Example backend API base URL - Replace with your actual backend URL
 // You might want to use an environment variable for this
 const BACKEND_API_URL = 'http://localhost:3000'; // Make sure this is correct
 
-export async function GET(
-  request: Request,
-  { params }: { params: { marketAddress: string } }
-) {
-  const marketAddress = params.marketAddress;
+type RouteContext = {
+  params: Promise<{
+    marketAddress: string;
+  }>;
+};
 
+export async function GET(
+  request: NextRequest,
+  context: RouteContext
+) {
+  const resolvedParams = await context.params; // Await the params promise
+  const marketAddress = resolvedParams.marketAddress; // Access marketAddress from resolved params
+  console.log(`Market address: ${marketAddress}`);
   if (!marketAddress) {
     return NextResponse.json({ error: 'Market address is required' }, { status: 400 });
   }
