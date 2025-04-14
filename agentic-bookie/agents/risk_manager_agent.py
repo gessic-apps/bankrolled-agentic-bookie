@@ -576,7 +576,8 @@ def write_actions_to_file(actions: str, append: bool):
     """
     Writes the most recent actions to a file.
     """
-    with open("/Users/osman/bankrolled-agent-bookie/agentic-bookie/agents/risk_manager_context.json", "a" if append else "w") as f: 
+    with open("/home/osman/bankrolled-agent-bookie/agentic-bookie/agents/risk_manager_context.json", "a" if append else "w") as f: 
+    # with open("/Users/osman/bankrolled-agent-bookie/agentic-bookie/agents/risk_manager_context.json", "a" if append else "w") as f: 
         f.write(actions)
     return {"status": "success", "message": "Actions written to file"}
 
@@ -586,7 +587,8 @@ def read_actions_from_file():
     """
     Reads the most recent actions from the file.
     """
-    with open("/Users/osman/bankrolled-agent-bookie/agentic-bookie/agents/risk_manager_context.json", "r") as f:
+    with open("/home/osman/bankrolled-agent-bookie/agentic-bookie/agents/risk_manager_context.json", "r") as f:
+    # with open("/Users/osman/bankrolled-agent-bookie/agentic-bookie/agents/risk_manager_context.json", "r") as f:
         return f.read()
 
 @function_tool

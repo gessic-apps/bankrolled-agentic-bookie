@@ -74,7 +74,8 @@ def read_actions_from_file():
     """
     Reads the most recent actions from the file.
     """
-    with open("/Users/osman/bankrolled-agent-bookie/agentic-bookie/agents/risk_manager_context.json", "r") as f:
+    # with open("/Users/osman/bankrolled-agent-bookie/agentic-bookie/agents/risk_manager_context.json", "r") as f:
+    with open("/home/osman/bankrolled-agent-bookie/agentic-bookie/agents/risk_manager_context.json", "r") as f:
         return f.read()
 
 # Define the Odds Manager Agent

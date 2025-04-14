@@ -64,8 +64,8 @@ triage_agent = Agent(
             tool_description_override="Transfer task to the agent specializing in monitoring game start times and updating market status."
         ),
         handoff( # Add handoff for the risk triage agent
-            risk_triage_agent, # Use the imported agent object
-            tool_name_override="transfer_to_risk_triage_agent",
+            risk_manager_agent, # Use the imported agent object
+            tool_name_override="transfer_to_risk_manager_agent",
             tool_description_override="Transfer task to the agent specializing in triaging market risk, identifying high-risk markets for individual handling, and coordinating batch updates for regular markets."
         )
     ],
@@ -93,7 +93,7 @@ if __name__ == "__main__":
         market_creation_prompt = f"Create betting markets for today's games in these leagues: {supported_sports_str}."
         odds_management_prompt = f"Set or update odds for all existing markets for these sports: {supported_sports_str}."
         game_status_prompt = f"Check for completed games and settle results for markets in these sports: {supported_sports_str}."
-        risk_management_prompt = f"Analyze current markets and add liquidity where needed based on risk assessment."
+        risk_management_prompt = f"Analyze current markets and adjust odds, liquidity or limits/exposures where needed based on risk assessment."
 
         # Helper function to write output to JSON
         def write_output_to_json(output_data, filename_base):

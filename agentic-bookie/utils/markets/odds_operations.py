@@ -16,7 +16,8 @@ def read_actions_from_file():
     Reads the most recent actions from the risk manager context file and parses the JSON.
     Returns an empty dictionary if the file doesn't exist, is empty, or contains invalid JSON.
     """
-    file_path = "/Users/osman/bankrolled-agent-bookie/agentic-bookie/agents/risk_manager_context.json"
+    # file_path = "/Users/osman/bankrolled-agent-bookie/agentic-bookie/agents/risk_manager_context.json"
+    file_path = "/home/osman/bankrolled-agent-bookie/agentic-bookie/agents/risk_manager_context.json"
     try:
         with open(file_path, "r") as f:
             content = f.read()

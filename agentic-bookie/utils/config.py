@@ -6,7 +6,8 @@ import sys
 try:
     from dotenv import load_dotenv
     # Load environment variables from .env file
-    load_dotenv('/Users/osman/bankrolled-agent-bookie/agentic-bookie/.env')
+    # load_dotenv('/Users/osman/bankrolled-agent-bookie/agentic-bookie/.env')
+    load_dotenv('/home/osman/bankrolled-agent-bookie/agentic-bookie/.env')
 except ImportError:
     print("Warning: python-dotenv package not installed, skipping .env file loading.", file=sys.stderr)
 

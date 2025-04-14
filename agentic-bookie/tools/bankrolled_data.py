@@ -15,7 +15,8 @@ def fetch_predictions_last_two_days():
     """
     # Initialize Firestore client
     if not firebase_admin._apps:
-        cred = credentials.Certificate('/Users/osman/bankrolled-agent-bookie/agentic-bookie/bankrolledtg-firebase-adminsdk-1rt0t-5980d07f2b.json')
+        cred = credentials.Certificate('/home/osman/bankrolled-agent-bookie/agentic-bookie/bankrolledtg-firebase-adminsdk-1rt0t-5980d07f2b.json')
+        # cred = credentials.Certificate('/Users/osman/bankrolled-agent-bookie/agentic-bookie/bankrolledtg-firebase-adminsdk-1rt0t-5980d07f2b.json')
         firebase_admin.initialize_app(cred)
 
     db = firestore.client()

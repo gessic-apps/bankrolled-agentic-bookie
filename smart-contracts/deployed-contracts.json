@@ -3822,7 +3822,14 @@
       "overOdds": 1910,
       "underOdds": 1910,
       "oddsSet": true,
-      "updatedAt": "2025-04-14T15:57:40.937Z"
+      "updatedAt": "2025-04-14T15:57:40.937Z",
+      "additionalFunding": [
+        {
+          "amount": 1570,
+          "timestamp": "2025-04-14T16:43:34.422Z",
+          "transaction": "0xee34afc4ca5a35ed3f66b6f2095c89f9f92970f68eae8d06c3144f510ae533a3"
+        }
+      ]
     },
     {
       "address": "0xCF88A50b65576796Fd791f3D1752C035eccc6933",
@@ -3873,16 +3880,16 @@
       "funding": "1000.0",
       "transaction": "0x9cbc51acab3a85f3cdec252847fdbaa90a329f99f978b08f5c92cb1922ce837b",
       "createdAt": "2025-04-14T14:16:01.890Z",
-      "homeOdds": 1100,
-      "awayOdds": 27000,
+      "homeOdds": 1150,
+      "awayOdds": 26000,
       "homeSpreadPoints": -25,
-      "homeSpreadOdds": 2150,
-      "awaySpreadOdds": 1740,
+      "homeSpreadOdds": 2100,
+      "awaySpreadOdds": 1800,
       "totalPoints": 35,
-      "overOdds": 2150,
-      "underOdds": 1740,
+      "overOdds": 2100,
+      "underOdds": 1800,
       "oddsSet": true,
-      "updatedAt": "2025-04-14T15:57:41.045Z",
+      "updatedAt": "2025-04-14T16:44:11.527Z",
       "additionalFunding": [
         {
           "amount": 2695,
