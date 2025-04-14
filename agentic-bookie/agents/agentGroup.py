@@ -99,7 +99,7 @@ if __name__ == "__main__":
         # Helper function to write output to JSON
         def write_output_to_json(output_data, filename_base):
             # output_file_path = f"/Users/osman/bankrolled-agent-bookie/smart-contracts/{filename_base}_output.json"
-            output_file_path = Path(__file__).resolve().parent.parent / "smart-contracts" / f"{filename_base}_output.json"
+            output_file_path = Path(__file__).resolve().parent.parent.parent / "smart-contracts" / f"{filename_base}_output.json"
             data_to_write = {"finalOutput": output_data}
             try:
                 with open(output_file_path, 'w') as f:
