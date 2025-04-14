@@ -29,7 +29,7 @@ def fetch_upcoming_games(sport_keys: List[str]) -> List[Dict[str, Any]]:
     today_utc = datetime.datetime.now(datetime.timezone.utc).date()
     print(today_utc)
     # Start from one hour before current time to get today's games
-    start_of_period_utc = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=2)
+    start_of_period_utc = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=4)
     print(start_of_period_utc)
     # End at the end of tomorrow
     tomorrow_utc = today_utc + datetime.timedelta(days=1)
