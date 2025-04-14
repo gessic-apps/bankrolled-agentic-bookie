@@ -281,7 +281,7 @@ async function signAndSendTransaction(options, provider) {
  */
 function setupProvider() {
     // Determine network target primarily from TARGET_NETWORK env var
-    const targetNetwork = process.env.TARGET_NETWORK || 'localhost'; // Default to localhost if not set
+    const targetNetwork = process.env.TARGET_NETWORK || 'baseSepolia'; // Default to localhost if not set
     console.log(`DEBUG (wallet-helper): setupProvider - Target network from env/default: ${targetNetwork}`);
 
     // For local development using Hardhat node
