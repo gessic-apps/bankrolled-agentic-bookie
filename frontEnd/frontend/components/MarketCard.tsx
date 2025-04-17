@@ -1,43 +1,44 @@
 import React, { useState, useEffect } from 'react';
 import { Market, MarketStatus } from '../types/market';
 // Imports for ethers v6 and wagmi v1/v2
-import { ethers, BrowserProvider, Contract } from 'ethers'; // Use BrowserProvider, Contract from ethers v6
+import { ethers, Contract } from 'ethers'; // Use BrowserProvider, Contract from ethers v6
 import { useAccount, useWalletClient, useChainId } from 'wagmi'; // Use useChainId instead of useNetwork
-import { type WalletClient } from 'viem';
+// import { type WalletClient } from 'viem';
 import NBAMarketABI from '../abis/contracts/NBAMarket.sol/NBAMarket.json';
 import USDXABI from '../abis/contracts/USDX.sol/USDX.json';
 import { WAGMI_CONFIG } from '@/config/contracts';
+import { useWallet } from '../contexts/WalletContext';
 // Consider using a toast library for better UX than alerts
 // import { toast } from 'react-toastify';
 
 // Helper to convert WalletClient (viem) to Signer (ethers v6)
 // https://ethers.org/docs/v6/getting-started/#starting-signing
 // Note: This basic version might need adjustments based on specific WalletClient transport
-async function getEthersSigner(walletClient: WalletClient): Promise<ethers.Signer | null> { // Return type includes null
-  const { account, chain, transport } = walletClient;
-  // Add checks for required properties
-  if (!account || !chain || !transport) {
-      console.warn("WalletClient is missing required properties (account, chain, or transport).");
-      return null;
-  }
-  const network = {
-    chainId: chain.id,
-    name: chain.name,
-  };
-  const provider = new BrowserProvider(transport, network);
-  // Ensure account.address exists before getting signer
-  if (!account.address) {
-      console.warn("WalletClient account is missing address.");
-      return null;
-  }
-  try {
-    const signer = await provider.getSigner(account.address);
-    return signer;
-  } catch (error) {
-      console.error("Error getting signer from provider:", error);
-      return null;
-  }
-}
+// async function getEthersSigner(walletClient: WalletClient): Promise<ethers.Signer | null> { // Return type includes null
+//   const { account, chain, transport } = walletClient;
+//   // Add checks for required properties
+//   if (!account || !chain || !transport) {
+//       console.warn("WalletClient is missing required properties (account, chain, or transport).");
+//       return null;
+//   }
+//   const network = {
+//     chainId: chain.id,
+//     name: chain.name,
+//   };
+//   const provider = new BrowserProvider(transport, network);
+//   // Ensure account.address exists before getting signer
+//   if (!account.address) {
+//       console.warn("WalletClient account is missing address.");
+//       return null;
+//   }
+//   try {
+//     const signer = await provider.getSigner(account.address);
+//     return signer;
+//   } catch (error) {
+//       console.error("Error getting signer from provider:", error);
+//       return null;
+//   }
+// }
 
 // Import contract addresses from central config
 // import { CONTRACT_ADDRESSES } from '../config/contracts';
@@ -114,30 +115,38 @@ const MarketCard: React.FC<MarketCardProps> = ({ market, usdxAddress, expectedCh
   // State for selected bet type and betting on draw option
   const [selectedBetType, setSelectedBetType] = useState<number>(MONEYLINE_BET_TYPE);
   const [isBettingOnDraw, setIsBettingOnDraw] = useState<boolean>(false);
-console.log(isBettingOnDraw)
+  console.log("signer", isBettingOnDraw);
   // --- Wallet Hooks ---
-  const { address: userAddress, isConnected, chainId } = useAccount();
+  const {  isConnected, chainId } = useAccount();
   const currentChainId = useChainId(); // Get current chain ID
   const { data: walletClient } = useWalletClient({ chainId: currentChainId }); // Get WalletClient for the expected chain
+  // --- Wallet Context ---
+  const { displayAddress, isManagedWallet, getManagedSigner, getEthersSigner, refreshBalance } = useWallet();
   // --- End Wallet Hooks ---
-  console.log("signer", signer, "userAddress", userAddress, "isConnected", isConnected, "currentChainId", currentChainId, "expectedChainId", expectedChainId, "walletClient", walletClient);
-  // --- Effect to get Signer when WalletClient is available ---
-   useEffect(() => {
-     const fetchSigner = async () => {
-        if (walletClient) {
-            try {
-                const ethersSigner = await getEthersSigner(walletClient);
-                setSigner(ethersSigner);
-            } catch (error) {
-                console.error("Error getting ethers signer:", error);
-                setSigner(null);
-            }
-        } else {
-            setSigner(null); // Reset signer if walletClient becomes unavailable
+  
+  // --- Effect to get Signer when WalletClient is available or when using managed wallet ---
+  useEffect(() => {
+    const fetchSigner = async () => {
+      try {
+        let signerToUse = null;
+        
+        if (isManagedWallet) {
+          // If using managed wallet, get managed signer
+          signerToUse = await getManagedSigner();
+        } else if (walletClient) {
+          // If using connected wallet client, get signer from wallet client
+          signerToUse = await getEthersSigner();
         }
-     };
-     fetchSigner();
-  }, [walletClient]);
+        
+        setSigner(signerToUse);
+      } catch (error) {
+        console.error("Error getting signer:", error);
+        setSigner(null);
+      }
+    };
+    
+    fetchSigner();
+  }, [walletClient, isManagedWallet, getManagedSigner, getEthersSigner]);
   // --- End Effect ---
 
   // State for blockchain-fetched data
@@ -484,22 +493,43 @@ console.log(isBettingOnDraw)
       alert('Please enter a valid positive bet amount.');
       return;
     }
-    if (!isConnected || !userAddress) { 
-      alert('Please connect your wallet first.');
+    
+    // Validate wallet connection - allow either connected wallet or managed wallet
+    if ((!isConnected && !isManagedWallet) || !displayAddress) { 
+      alert('Please connect your wallet or create an account first.');
       return;
     }
+    
     if (!signer) { 
-      alert('Wallet signer not available. Ensure your wallet is connected and on the correct network.');
-      return;
+      // If this is a managed wallet, try to get the signer again
+      if (isManagedWallet) {
+        const managedSigner = await getManagedSigner();
+        if (!managedSigner) {
+          alert('Unable to create wallet signer. Please try again.');
+          return;
+        }
+        setSigner(managedSigner);
+      } else {
+        alert('Wallet signer not available. Ensure your wallet is connected and on the correct network.');
+        return;
+      }
     }
-    if (chainId !== expectedChainId) {
+    
+    // For connected wallets, check chainId. For managed wallets this is handled internally.
+    if (!isManagedWallet && chainId !== expectedChainId) {
       alert(`Please switch to the correct network (Expected: ${expectedChainId}, Connected: ${chainId}).`);
       return;
     }
     // --- End Validations ---
 
     setIsLoading(true);
-    console.log(`Attempting to bet ${betAmount} USDX on ${displayName}`);
+    
+    // Only show a single "Processing" message for managed wallets
+    if (isManagedWallet) {
+      console.log(`Processing bet of ${betAmount} USDX on ${displayName} with managed wallet...`);
+    } else {
+      console.log(`Attempting to bet ${betAmount} USDX on ${displayName}`);
+    }
 
     try {
       // --- Contract Setup (Ethers v6) ---
@@ -512,23 +542,38 @@ console.log(isBettingOnDraw)
 
       // --- Allowance Check ---
       console.log(`Checking USDX allowance for Betting Engine: ${bettingEngineAddress}`);
-      if (!userAddress) throw new Error("User address not found after connection check.");
-      const currentAllowance = await usdxContract.allowance(userAddress, bettingEngineAddress);
+      
+      // Get the address to check allowance for (either connected wallet or managed wallet)
+      const addressToCheck = displayAddress;
+      if (!addressToCheck) throw new Error("Wallet address not found after connection check.");
+      
+      const currentAllowance = await usdxContract.allowance(addressToCheck, bettingEngineAddress);
 
       if (currentAllowance < amountInWei) {
         console.log(`Allowance (${ethers.formatUnits(currentAllowance, decimals)}) is less than bet amount (${betAmount}). Requesting approval...`);
-        alert(`Approval Needed: The betting contract needs permission to spend ${betAmount} USDX on your behalf. Please confirm the approval transaction in your wallet.`);
+        
+        // Only show alert for regular wallets, not for managed wallets
+        if (!isManagedWallet) {
+          alert(`Approval Needed: The betting contract needs permission to spend ${betAmount} USDX on your behalf. Please confirm the approval transaction in your wallet.`);
+        }
 
         const approveTx = await usdxContract.approve(bettingEngineAddress, ethers.MaxUint256);
         console.log('Approval transaction sent:', approveTx.hash);
-        alert('Approval transaction sent. Waiting for confirmation...');
+        
+        // Only show approval alert for regular wallets
+        if (!isManagedWallet) {
+          alert('Approval transaction sent. Waiting for confirmation...');
+        }
 
         const receipt = await approveTx.wait();
         if (!receipt || receipt.status !== 1) {
           throw new Error(`Approval transaction failed or was reverted. Hash: ${approveTx.hash}`);
         }
 
-        alert('Approval successful! You can now confirm the bet.');
+        // Only show success alert for regular wallets
+        if (!isManagedWallet) {
+          alert('Approval successful! You can now confirm the bet.');
+        }
         console.log('Approval confirmed.');
       } else {
         console.log(`Sufficient allowance found: ${ethers.formatUnits(currentAllowance, decimals)} USDX`);
@@ -537,7 +582,11 @@ console.log(isBettingOnDraw)
 
       // --- Place Bet ---
       console.log(`Calling placeBet on market ${market.address} for ${displayName} with amount ${betAmount} USDX (${amountInWei.toString()} wei)`);
-      alert(`Placing Bet: Please confirm the transaction in your wallet to bet ${betAmount} USDX on ${displayName}.`);
+      
+      // Only show transaction confirmation alert for regular wallets
+      if (!isManagedWallet) {
+        alert(`Placing Bet: Please confirm the transaction in your wallet to bet ${betAmount} USDX on ${displayName}.`);
+      }
 
       // Determine bet parameters based on bet option
       let betType: number;
@@ -588,21 +637,30 @@ console.log(isBettingOnDraw)
       );
       
       console.log('Bet transaction sent:', placeBetTx.hash);
-      alert('Bet transaction sent. Waiting for confirmation...');
+      
+      // Only show waiting alert for regular wallets
+      if (!isManagedWallet) {
+        alert('Bet transaction sent. Waiting for confirmation...');
+      }
 
       const betReceipt = await placeBetTx.wait();
       if (!betReceipt || betReceipt.status !== 1) {
         throw new Error(`Bet transaction failed or was reverted. Hash: ${placeBetTx.hash}`);
       }
 
+      // Show success message
       alert(`Success! Bet of ${betAmount} USDX placed on ${displayName}.`);
       console.log('Bet transaction confirmed:', placeBetTx.hash);
       setBetAmount('');
+      
+      // Refresh balance after successful bet
+      refreshBalance();
       // --- End Place Bet ---
 
     } catch (error: any) {
       console.error('Betting transaction failed:', error);
       let errorMessage = 'Betting failed. Please check the console for details.';
+      
       if (error.code === 'ACTION_REJECTED') {
         errorMessage = 'Transaction rejected in wallet.';
       } else if (error.reason) {
@@ -610,6 +668,53 @@ console.log(isBettingOnDraw)
       } else if (error.message) {
         errorMessage = `Betting failed: ${error.message}`;
       }
+      
+      // Check for insufficient ETH error (for managed wallets)
+      const errorStr = JSON.stringify(error);
+      if (isManagedWallet && (
+          errorStr.includes("doesn't have enough funds") || 
+          errorStr.includes("insufficient funds") ||
+          errorStr.includes("sender's balance is: 0")
+      )) {
+        // For managed wallets with insufficient ETH, automatically try to fund and retry
+        try {
+          // Don't show error message yet - try to recover automatically
+          console.log('Managed wallet needs ETH for gas. Attempting to fund wallet...');
+          
+          // Attempt to fund the wallet
+          const fundResponse = await fetch('/api/fund-wallet', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ address: displayAddress }),
+          });
+          
+          const fundData = await fundResponse.json();
+          console.log('Wallet funding result:', fundData);
+          
+          if (fundData.success) {
+            // If funding was successful, wait a moment for the transaction to be mined
+            // then try the bet again automatically
+            alert("Your wallet is being funded with ETH for gas fees. Your bet will process automatically in a moment.");
+            
+            // Wait for the funding transaction to be mined (5 seconds)
+            await new Promise(resolve => setTimeout(resolve, 5000));
+            
+            // Try the bet again recursively
+            // Reset loading state before recursive call
+            setIsLoading(false);
+            return placeBet(betOption, displayName);
+          } else {
+            // If funding failed, show the error
+            errorMessage = "Unable to fund your wallet with ETH for gas fees. Please try again later.";
+          }
+        } catch (fundError) {
+          console.error('Error funding wallet:', fundError);
+          errorMessage = "Error funding your wallet with ETH for gas fees. Please try again later.";
+        }
+      }
+      
       alert(errorMessage);
     } finally {
       setIsLoading(false);

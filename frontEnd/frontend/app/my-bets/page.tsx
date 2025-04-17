@@ -6,12 +6,14 @@ import { WagmiProvider, useAccount, useConfig } from 'wagmi';
 import { readContract } from 'wagmi/actions';
 import { type Address, BaseError } from 'viem';
 import { getDefaultConfig, RainbowKitProvider } from '@rainbow-me/rainbowkit';
+import { useWallet } from '../../contexts/WalletContext';
 // import { baseSepolia } from 'wagmi/chains';
 import '@rainbow-me/rainbowkit/styles.css';
 import { HeroUIProvider } from "@heroui/react";
 import UserBetsList from "../../components/UserBetsList";
-import { ConnectButton } from '@rainbow-me/rainbowkit';
 import FaucetButton from "../../components/FaucetButton";
+import CreateAccountButton from "../../components/CreateAccountButton";
+import TokenBalance from "../../components/TokenBalance";
 import { Market } from '../../types/market';
 import MarketFactoryABI from '../../abis/contracts/MarketFactory.sol/MarketFactory.json';
 import NBAMarketABI from '../../abis/contracts/NBAMarket.sol/NBAMarket.json';
@@ -29,15 +31,21 @@ const config = getDefaultConfig({
 });
 
 function MyBetsPageComponent() {
-  const { address, isConnected } = useAccount();
+  const {  isConnected } = useAccount();
   const wagmiConfig = useConfig();
+  const { displayAddress, isManagedWallet } = useWallet();
   const [markets, setMarkets] = useState<Market[]>([]);
   const [isLoadingMarkets, setIsLoadingMarkets] = useState(false);
   const [marketError, setMarketError] = useState<string | null>(null);
+  
+  // User is connected if either regular wallet or managed wallet is connected
+  const isUserConnected = isConnected || isManagedWallet;
+  // Use the appropriate address
+  const userAddress = displayAddress as Address | undefined;
 
   useEffect(() => {
     const fetchMarkets = async () => {
-      if (!isConnected || !CONTRACT_ADDRESSES.MARKET_FACTORY_ADDRESS) {
+      if (!isUserConnected || !CONTRACT_ADDRESSES.MARKET_FACTORY_ADDRESS) {
         setMarkets([]);
         return;
       }
@@ -106,7 +114,7 @@ function MyBetsPageComponent() {
     };
 
     fetchMarkets();
-  }, [isConnected, address, wagmiConfig]);
+  }, [isUserConnected, userAddress, wagmiConfig]);
 
   return (
     <>
@@ -115,8 +123,9 @@ function MyBetsPageComponent() {
           <div className="container mx-auto px-4 py-4 flex justify-between items-center">
             <h1 className="text-2xl font-bold text-gray-800 dark:text-white">My Bets</h1>
             <div className="flex items-center gap-4">
+              <TokenBalance />
               <FaucetButton />
-              <ConnectButton />
+              <CreateAccountButton />
             </div>
           </div>
         </header>

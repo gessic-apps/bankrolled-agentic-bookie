@@ -1,16 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { WagmiProvider } from 'wagmi';
-import { RainbowKitProvider } from '@rainbow-me/rainbowkit';
-import '@rainbow-me/rainbowkit/styles.css';
 import { HeroUIProvider } from "@heroui/react";
-import { ConnectButton } from '@rainbow-me/rainbowkit';
 import FaucetButton from "../components/FaucetButton";
+import CreateAccountButton from "../components/CreateAccountButton";
+import TokenBalance from "../components/TokenBalance";
 import Link from 'next/link';
-import { getDefaultConfig } from '@rainbow-me/rainbowkit';
-import { SELECTED_NETWORK, WAGMI_CONFIG } from '../config/contracts'; // Import constants AND selected network
 
 // Placeholder image URLs - replace with your actual image paths or URLs
 const featureImage1 = "/phones.png"; // Example path
@@ -248,35 +242,17 @@ function LandingPageContent() {
 }
 
 export default function Home() {
-  const [queryClient] = useState(() => new QueryClient());
-  // Use the Wagmi config directly from the imported config file -- INCORRECT COMMENT, FIXING SETUP
-  // const config = WAGMI_CONFIG.config; // OLD INCORRECT LINE
-
-  // Create the config object using imported constants
-  const config = getDefaultConfig({
-    appName: WAGMI_CONFIG.APP_NAME,
-    projectId: WAGMI_CONFIG.PROJECT_ID,
-    chains: [SELECTED_NETWORK],
-    ssr: false, // Assuming SSR is false based on all-markets page
-  });
-
   return (
-    <WagmiProvider config={config}>
-      <QueryClientProvider client={queryClient}>
-        <RainbowKitProvider>
-          <HeroUIProvider>
-            {/* Main container managed by layout.tsx */}
-            <div className="absolute top-4 right-4 z-50 flex items-center space-x-2">
-                <div className="flex items-center gap-4">
-                  <FaucetButton />
-                  <ConnectButton />
-                </div>
-            </div>
-            <LandingPageContent />
-            {/* Removed <SidebarNav /> from here */}
-          </HeroUIProvider>
-        </RainbowKitProvider>
-      </QueryClientProvider>
-    </WagmiProvider>
+    <HeroUIProvider>
+      {/* Main container managed by layout.tsx */}
+      <div className="absolute top-4 right-4 z-50 flex items-center space-x-2">
+        <div className="flex items-center gap-4">
+          <TokenBalance />
+          <FaucetButton />
+          <CreateAccountButton />
+        </div>
+      </div>
+      <LandingPageContent />
+    </HeroUIProvider>
   );
 }

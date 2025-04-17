@@ -10,8 +10,9 @@ import '@rainbow-me/rainbowkit/styles.css';
 import { HeroUIProvider } from "@heroui/react";
 import MarketsList from "../../components/MarketsList";
 // Faucet now in header
-import { ConnectButton } from '@rainbow-me/rainbowkit';
 import FaucetButton from "../../components/FaucetButton";
+import CreateAccountButton from "../../components/CreateAccountButton";
+import TokenBalance from "../../components/TokenBalance";
 import { Market, MarketStatus } from "../../types/market";
 
 // Import ABIs
@@ -205,8 +206,9 @@ export default function Home() {
                 <div className="container mx-auto px-4 py-4 flex justify-between items-center">
                   <h1 className="text-2xl font-bold text-gray-800 dark:text-white">All Markets</h1>
                   <div className="flex items-center gap-4">
+                    <TokenBalance />
                     <FaucetButton />
-                    <ConnectButton />
+                    <CreateAccountButton />
                   </div>
                 </div>
               </header>

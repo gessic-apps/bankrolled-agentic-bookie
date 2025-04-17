@@ -1,17 +1,20 @@
 "use client";
 
-import { useState } from 'react';
-import { useAccount } from 'wagmi';
+import React, { useState } from 'react';
+import { useWallet } from '../contexts/WalletContext';
 
 export default function FaucetButton() {
-  const { address, isConnected } = useAccount();
+  const { displayAddress, refreshBalance } = useWallet();
   const [loading, setLoading] = useState(false);
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [isError, setIsError] = useState(false);
 
+  // Determine if we should enable the button
+  const isButtonEnabled = !!displayAddress;
+
   const handleFaucetRequest = async () => {
-    if (!isConnected || !address) {
+    if (!displayAddress) {
       setToastMessage('Please connect your wallet first.');
       setIsError(true);
       setShowToast(true);
@@ -27,7 +30,7 @@ export default function FaucetButton() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ address }),
+        body: JSON.stringify({ address: displayAddress }),
       });
 
       const data = await response.json();
@@ -36,10 +39,16 @@ export default function FaucetButton() {
         throw new Error(data.error || data.message || `Faucet request failed: ${response.statusText}`);
       }
 
-      setToastMessage(data.message || 'Successfully minted tokens!');
+      setToastMessage(data.message || 'Successfully minted 10 USDX tokens! Check your balance.');
       setIsError(false);
       setShowToast(true);
-      setTimeout(() => setShowToast(false), 3000);
+      setTimeout(() => setShowToast(false), 5000);
+      
+      // Refresh the balance
+      refreshBalance();
+      
+      // Dispatch a custom event to notify other components (like TokenBalance)
+      window.dispatchEvent(new Event('faucet-success'));
     } catch (err: any) {
       console.error('Faucet error:', err);
       setToastMessage(err.message || 'Failed to request tokens.');
@@ -55,9 +64,9 @@ export default function FaucetButton() {
     <div className="relative tooltip">
       <button
         onClick={handleFaucetRequest}
-        disabled={loading || !isConnected}
+        disabled={loading || !isButtonEnabled}
         className="flex items-center justify-center px-3 py-1.5 rounded-lg bg-yellow-500 hover:bg-yellow-600 text-white font-medium text-sm shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        aria-label={isConnected ? "Get free coins" : "Connect wallet to get free coins"}
+        aria-label={isButtonEnabled ? "Get free coins" : "Connect wallet to get free coins"}
       >
         {loading ? (
           <>
@@ -83,10 +92,10 @@ export default function FaucetButton() {
               <path d="M12 6v12" />
               <path d="M6 12h12" />
             </svg>
-            <span>USDX Faucet</span>
+            <span>Get Coins</span>
           </>
         )}
-        <span className="tooltip-text">{isConnected ? "Click to get 10 free USDX tokens for betting" : "Connect your wallet first to get free tokens"}</span>
+        <span className="tooltip-text">{isButtonEnabled ? "Click to get 10 free USDX tokens for betting" : "Connect your wallet first to get free tokens"}</span>
       </button>
       
       {/* Toast notification */}

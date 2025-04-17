@@ -7,6 +7,7 @@ import { type Address, zeroAddress, formatUnits, BaseError } from 'viem';
 import { Market } from "../types/market";
 import NBAMarketABI from '../abis/contracts/NBAMarket.sol/NBAMarket.json';
 import BettingEngineABI from '../abis/contracts/BettingEngine.sol/BettingEngine.json';
+import { useWallet } from "../contexts/WalletContext";
 
 // Type for the tuple returned by BettingEngine.getBetDetails
 type BetDetailsTuple = [
@@ -71,15 +72,21 @@ const formatLine = (line: bigint, betType: number): string => {
 };
 
 export default function UserBetsList({ markets }: UserBetsListProps) {
-  const { address, isConnected } = useAccount();
+  const {  isConnected } = useAccount();
   const config = useConfig();
+  const { displayAddress, isManagedWallet } = useWallet();
   const [userBets, setUserBets] = useState<BetWithMarketInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Determine if a user is connected (with either regular wallet or managed wallet)
+  const isUserConnected = isConnected || isManagedWallet;
+  // Use the appropriate address
+  const userAddress = displayAddress as Address | undefined;
 
   useEffect(() => {
     const fetchUserBets = async () => {
-      if (!isConnected || !address || markets.length === 0) {
+      if (!isUserConnected || !userAddress || markets.length === 0) {
         setUserBets([]); // Clear bets if not connected or no markets
         setLoading(false);
         return;
@@ -108,7 +115,7 @@ export default function UserBetsList({ markets }: UserBetsListProps) {
                 address: bettingEngineAddress,
                 abi: BettingEngineABI.abi,
                 functionName: 'getBettorBets',
-                args: [address as Address],
+                args: [userAddress],
             }) as bigint[] | undefined;
 
             if (!betIds || betIds.length === 0) {
@@ -200,9 +207,9 @@ export default function UserBetsList({ markets }: UserBetsListProps) {
     };
 
     fetchUserBets();
-  }, [address, isConnected, markets]); // Re-run effect if address, connection status, or markets change
+  }, [userAddress, isUserConnected, markets, config]); // Re-run effect if address, connection status, or markets change
 
-  if (!isConnected) {
+  if (!isUserConnected) {
     return (
       <div className="mt-8 text-center text-gray-500 dark:text-gray-400">
         Connect your wallet to view your bets.
