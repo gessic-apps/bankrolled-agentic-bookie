@@ -6,11 +6,15 @@ import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { useAccount, useDisconnect } from "wagmi";
 import { useWallet } from "../contexts/WalletContext";
 
+// Set to true during development for debugging, should be false in production
+const SHOW_DEBUG = false;
+
 const CreateAccountButton = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [privateKey, setPrivateKey] = useState<string | null>(null);
   const [showOptions, setShowOptions] = useState(false);
   const [isCreatingAccount, setIsCreatingAccount] = useState(false);
+  const [choseExternalWallet, setChoseExternalWallet] = useState(false);
   const { isConnected } = useAccount();
   const { disconnect } = useDisconnect();
   const [showAccountDetails, setShowAccountDetails] = useState(false);
@@ -122,11 +126,37 @@ const CreateAccountButton = () => {
   };
   
   const useExistingWallet = () => {
-    // Simply hide options and let user connect via RainbowKit
+    // Hide options and switch to RainbowKit connect button
     setShowOptions(false);
+    
+    // Set that the user explicitly chose to use external wallet
+    setChoseExternalWallet(true);
+    
+    // Ensure any existing managed wallet is disconnected to prevent conflicts
+    if (isManagedWallet) {
+      // Clear managed wallet state from localStorage
+      localStorage.removeItem("bankrolled-wallet-type");
+      localStorage.removeItem("bankrolled-wallet");
+      
+      // Update wallet state
+      loadManagedWallet();
+    }
+    
+    // Force a small delay to ensure UI updates properly
+    setTimeout(() => {
+      // This will show the RainbowKit connect button since we're no longer in options mode
+      // and we've cleared any managed wallet
+      refreshBalance();
+      
+      // Show a helpful message for users to click the button
+      alert("Click the 'Connect Wallet' button to open your browser wallet");
+    }, 100);
   };
   
   const handleAccountCreation = () => {
+    // Reset any external wallet choice
+    setChoseExternalWallet(false);
+    
     // Show options for account creation
     setShowOptions(true);
   };
@@ -146,6 +176,10 @@ const CreateAccountButton = () => {
     localStorage.removeItem("bankrolled-wallet");
     setShowAccountDetails(false);
     
+    // Reset both wallet choice states
+    setChoseExternalWallet(false);
+    setShowOptions(false);
+    
     // Update wallet state immediately
     loadManagedWallet();
     
@@ -161,15 +195,90 @@ const CreateAccountButton = () => {
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
   };
 
-  // If connected via RainbowKit, show standard RainbowKit button
+  // We need to ensure we show the RainbowKit button only when the user explicitly chose it
+  
+  // Special case: If the user explicitly chose to use external wallet,
+  // show the RainbowKit connect button along with a "Go Back" option
+  if (choseExternalWallet && !isManagedWallet && !isConnected) {
+    return (
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center mb-2">
+          <button 
+            onClick={() => {
+              setChoseExternalWallet(false);
+              setShowOptions(true);
+            }}
+            className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 flex items-center"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            Back to Options
+          </button>
+        </div>
+        
+        <ConnectButton />
+        
+        {SHOW_DEBUG && (
+          <div className="text-xs mt-2 text-gray-400 dark:text-gray-500">
+            Status: External wallet mode (not connected)<br/>
+            isConnected: {String(isConnected)}<br/>
+            isManagedWallet: {String(isManagedWallet)}<br/>
+            showOptions: {String(showOptions)}<br/>
+            choseExternalWallet: {String(choseExternalWallet)}
+          </div>
+        )}
+      </div>
+    );
+  }
+  
+  // If already connected via RainbowKit
   if (isConnected && !isManagedWallet) {
-    return <ConnectButton />;
+    return (
+      <div className="flex flex-col gap-2">
+        <ConnectButton />
+        
+        {/* Option to switch to a managed wallet */}
+        <button
+          onClick={() => {
+            disconnect();
+            setTimeout(() => {
+              setChoseExternalWallet(false);
+              setShowOptions(true);
+            }, 500);
+          }}
+          className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 mt-1"
+        >
+          Switch to a managed wallet
+        </button>
+        
+        {SHOW_DEBUG && (
+          <div className="text-xs mt-2 text-gray-400 dark:text-gray-500">
+            Status: External wallet connected<br/>
+            isConnected: {String(isConnected)}<br/>
+            isManagedWallet: {String(isManagedWallet)}<br/>
+            showOptions: {String(showOptions)}<br/>
+            address: {displayAddress?.slice(0, 10) || 'none'}...
+          </div>
+        )}
+      </div>
+    );
   }
 
   // If using our managed wallet, show our custom connected state
   if (isManagedWallet && managedAddress) {
     return (
-      <div className="relative" ref={detailsRef}>
+      <div className="relative flex flex-col" ref={detailsRef}>
+        {SHOW_DEBUG && (
+          <div className="text-xs mb-2 text-gray-400 dark:text-gray-500">
+            Status: Managed wallet connected<br/>
+            isConnected: {String(isConnected)}<br/>
+            isManagedWallet: {String(isManagedWallet)}<br/>
+            showOptions: {String(showOptions)}<br/>
+            managedAddress: {managedAddress?.slice(0, 10) || 'none'}...<br/>
+            displayAddress: {displayAddress?.slice(0, 10) || 'none'}...
+          </div>
+        )}
         <button 
           onClick={() => setShowAccountDetails(!showAccountDetails)} 
           className="flex items-center bg-green-100 text-green-800 px-4 py-2 rounded-md hover:bg-green-200 transition-colors shadow-sm"
@@ -226,9 +335,21 @@ const CreateAccountButton = () => {
               
               <button 
                 onClick={handleDisconnect}
-                className="w-full bg-red-100 text-red-700 px-3 py-2 rounded-md text-sm hover:bg-red-200 transition-colors dark:bg-red-900 dark:text-red-100 dark:hover:bg-red-800"
+                className="w-full bg-red-100 text-red-700 px-3 py-2 rounded-md text-sm hover:bg-red-200 transition-colors dark:bg-red-900 dark:text-red-100 dark:hover:bg-red-800 mb-2"
               >
                 Disconnect
+              </button>
+              
+              <button
+                onClick={() => {
+                  handleDisconnect();
+                  setTimeout(() => {
+                    setChoseExternalWallet(true);
+                  }, 500);
+                }}
+                className="w-full bg-gray-100 text-gray-700 px-3 py-2 rounded-md text-sm hover:bg-gray-200 transition-colors dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+              >
+                Switch to External Wallet
               </button>
             </div>
           </div>
@@ -237,9 +358,39 @@ const CreateAccountButton = () => {
     );
   }
 
-  // Default state - not connected
+  // Default state - not connected with any wallet (managed or external)
+  // Double-check we're not showing options while connected with external wallet
+  if (isConnected && !isManagedWallet) {
+    return (
+      <div className="flex flex-col">
+        <ConnectButton />
+        {SHOW_DEBUG && (
+          <div className="text-xs mt-2 text-gray-400 dark:text-gray-500">
+            Status: External wallet connected<br/>
+            isConnected: {String(isConnected)}<br/>
+            isManagedWallet: {String(isManagedWallet)}<br/>
+            showOptions: {String(showOptions)}<br/>
+            managedAddress: {managedAddress?.slice(0, 10) || 'none'}...<br/>
+            displayAddress: {displayAddress?.slice(0, 10) || 'none'}...
+          </div>
+        )}
+      </div>
+    );
+  }
+  
   return (
     <>
+      {SHOW_DEBUG && (
+        <div className="text-xs mb-2 text-gray-400 dark:text-gray-500">
+          Status: Not connected<br/>
+          isConnected: {String(isConnected)}<br/>
+          isManagedWallet: {String(isManagedWallet)}<br/>
+          showOptions: {String(showOptions)}<br/>
+          managedAddress: {managedAddress?.slice(0, 10) || 'none'}...<br/>
+          displayAddress: {displayAddress?.slice(0, 10) || 'none'}...
+        </div>
+      )}
+      
       {showOptions ? (
         <div className="flex flex-col space-y-2">
           <button 
