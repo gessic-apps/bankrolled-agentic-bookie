@@ -1,8 +1,8 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { useAccount, useReadContract, useWalletClient } from 'wagmi';
-import { Address, createWalletClient, http, WalletClient } from 'viem';
+import { Address } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { CONTRACT_ADDRESSES, WAGMI_CONFIG } from '../config/contracts';
 import { ethers, BrowserProvider, Signer } from 'ethers';
@@ -95,10 +95,19 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, []);
 
-  // Load managed wallet on initial mount
+  // Load managed wallet once on mount (with empty dependency array to prevent infinite loops)
+  // We use a ref to call it safely without causing dependency issues
+  const loadManagedWalletRef = useRef(loadManagedWallet);
+  
   useEffect(() => {
-    loadManagedWallet();
+    // Update the ref
+    loadManagedWalletRef.current = loadManagedWallet;
   }, [loadManagedWallet]);
+  
+  // Call it once on mount with no dependencies
+  useEffect(() => {
+    loadManagedWalletRef.current();
+  }, []);
 
   // Determine which address to use
   const displayAddress = address || managedAddress;

@@ -48,11 +48,11 @@ function LandingPageContent() {
         {/* Overlay removed */}
         {/* <div className="absolute inset-0 bg-black/30 dark:bg-black/50 -z-10"></div> */}
 
-        {/* Revert text colors to be theme-aware */}
-        <h1 className="text-4xl md:text-6xl font-extrabold mb-4 text-gray-900 dark:text-white leading-tight">
+        {/* Text with guaranteed contrast for both themes, but forcing white for dark mode */}
+        <h1 className="text-4xl md:text-6xl font-extrabold mb-4 text-gray-900 dark:text-white leading-tight [.dark_&]:text-white">
           The Future of Sports Betting is Here.
         </h1>
-        <p className="text-lg md:text-xl text-gray-600 dark:text-gray-300 max-w-3xl mx-auto mb-8">
+        <p className="text-lg md:text-xl text-gray-600 dark:text-gray-300 max-w-3xl mx-auto mb-8 [.dark_&]:text-gray-300">
           The world&apos;s first sportsbook run entirely by AI employees. Fair odds, transparent operations, powered by the blockchain.
         </p>
         <Link href="/all-markets">

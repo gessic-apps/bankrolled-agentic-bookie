@@ -12,17 +12,32 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setTheme] = useState<Theme>('dark'); // Default to dark for sports betting
+  // Default to dark theme for sports betting app
+  const [theme, setTheme] = useState<Theme>('dark'); 
+  
+  // Set dark mode class immediately to avoid flash of incorrect theme
+  useEffect(() => {
+    // Set dark mode immediately on mount
+    document.documentElement.classList.add('dark');
+  }, []);
 
   useEffect(() => {
-    // Check if user has a saved preference
-    const savedTheme = localStorage.getItem('theme') as Theme | null;
-    if (savedTheme) {
-      setTheme(savedTheme);
-    } else {
-      // If no saved preference, use system preference
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      setTheme(prefersDark ? 'dark' : 'light');
+    // Then check user preferences after hydration
+    if (typeof window !== 'undefined') {
+      const savedTheme = localStorage.getItem('theme') as Theme | null;
+      if (savedTheme) {
+        setTheme(savedTheme);
+      } else {
+        // If no saved preference, use system preference but default to dark if detection fails
+        try {
+          const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+          setTheme(prefersDark ? 'dark' : 'dark'); // Always default to dark for this app
+        } catch (e) {
+          console.error("Error with media query", e);
+          // In case of error with media query, stick with dark
+          setTheme('dark');
+        }
+      }
     }
   }, []);
 

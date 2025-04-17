@@ -31,7 +31,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className='dark' suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased bg-[url('/background.png')] bg-cover bg-center bg-fixed`}>
         <WagmiProvider config={wagmiConfig}>
           <QueryClientProvider client={queryClient}>
