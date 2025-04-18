@@ -1,25 +1,27 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { WagmiProvider, useAccount, useConfig } from 'wagmi';
-import { readContract } from 'wagmi/actions';
-import { type Address, BaseError } from 'viem';
+import { WagmiProvider } from 'wagmi';
+// import { WagmiProvider, useAccount, useConfig } from 'wagmi';
+// import { readContract } from 'wagmi/actions';
+// import { type Address, BaseError } from 'viem';
 import { getDefaultConfig, RainbowKitProvider } from '@rainbow-me/rainbowkit';
-import { useWallet } from '../../contexts/WalletContext';
+// import { useWallet } from '../../contexts/WalletContext';
 // import { baseSepolia } from 'wagmi/chains';
 import '@rainbow-me/rainbowkit/styles.css';
 import { HeroUIProvider } from "@heroui/react";
-import UserBetsList from "../../components/UserBetsList";
+// import UserBetsList from "../../components/UserBetsList";
 import FaucetButton from "../../components/FaucetButton";
 import CreateAccountButton from "../../components/CreateAccountButton";
 import TokenBalance from "../../components/TokenBalance";
-import { Market } from '../../types/market';
-import MarketFactoryABI from '../../abis/contracts/MarketFactory.sol/MarketFactory.json';
-import NBAMarketABI from '../../abis/contracts/NBAMarket.sol/NBAMarket.json';
+// import { Market } from '../../types/market';
+// import MarketFactoryABI from '../../abis/contracts/MarketFactory.sol/MarketFactory.json';
+// import NBAMarketABI from '../../abis/contracts/NBAMarket.sol/NBAMarket.json';
 
 
-import { WAGMI_CONFIG, CONTRACT_ADDRESSES, SELECTED_NETWORK } from '../../config/contracts';
+// import { WAGMI_CONFIG, CONTRACT_ADDRESSES, SELECTED_NETWORK } from '../../config/contracts';
+import { WAGMI_CONFIG, SELECTED_NETWORK } from '../../config/contracts';
 
 const config = getDefaultConfig({
   appName: WAGMI_CONFIG.APP_NAME,
@@ -31,90 +33,90 @@ const config = getDefaultConfig({
 });
 
 function MyBetsPageComponent() {
-  const {  isConnected } = useAccount();
-  const wagmiConfig = useConfig();
-  const { displayAddress, isManagedWallet } = useWallet();
-  const [markets, setMarkets] = useState<Market[]>([]);
-  const [isLoadingMarkets, setIsLoadingMarkets] = useState(false);
-  const [marketError, setMarketError] = useState<string | null>(null);
+  // const {  isConnected } = useAccount();
+  // const wagmiConfig = useConfig();
+  // const { displayAddress, isManagedWallet } = useWallet();
+  // const [markets, setMarkets] = useState<Market[]>([]);
+  // const [isLoadingMarkets, setIsLoadingMarkets] = useState(false);
+  // const [marketError, setMarketError] = useState<string | null>(null);
   
-  // User is connected if either regular wallet or managed wallet is connected
-  const isUserConnected = isConnected || isManagedWallet;
-  // Use the appropriate address
-  const userAddress = displayAddress as Address | undefined;
+  // // User is connected if either regular wallet or managed wallet is connected
+  // const isUserConnected = isConnected || isManagedWallet;
+  // // Use the appropriate address
+  // const userAddress = displayAddress as Address | undefined;
 
-  useEffect(() => {
-    const fetchMarkets = async () => {
-      if (!isUserConnected || !CONTRACT_ADDRESSES.MARKET_FACTORY_ADDRESS) {
-        setMarkets([]);
-        return;
-      }
-      setIsLoadingMarkets(true);
-      setMarketError(null);
-      setMarkets([]);
+  // useEffect(() => {
+  //   const fetchMarkets = async () => {
+  //     if (!isUserConnected || !CONTRACT_ADDRESSES.MARKET_FACTORY_ADDRESS) {
+  //       setMarkets([]);
+  //       return;
+  //     }
+  //     setIsLoadingMarkets(true);
+  //     setMarketError(null);
+  //     setMarkets([]);
 
-      try {
-        const marketAddresses = await readContract(wagmiConfig, {
-          address: CONTRACT_ADDRESSES.MARKET_FACTORY_ADDRESS as Address,
-          abi: MarketFactoryABI.abi,
-          functionName: 'getDeployedMarkets',
-        }) as Address[] | undefined;
+  //     try {
+  //       const marketAddresses = await readContract(wagmiConfig, {
+  //         address: CONTRACT_ADDRESSES.MARKET_FACTORY_ADDRESS as Address,
+  //         abi: MarketFactoryABI.abi,
+  //         functionName: 'getDeployedMarkets',
+  //       }) as Address[] | undefined;
 
-        if (!marketAddresses || marketAddresses.length === 0) {
-          setIsLoadingMarkets(false);
-          return;
-        }
+  //       if (!marketAddresses || marketAddresses.length === 0) {
+  //         setIsLoadingMarkets(false);
+  //         return;
+  //       }
 
-        const marketDetailsPromises = marketAddresses.map(async (marketAddress) => {
-          try {
-            const [homeTeam, awayTeam] = await Promise.all([
-              readContract(wagmiConfig, {
-                address: marketAddress,
-                abi: NBAMarketABI.abi,
-                functionName: 'homeTeam',
-              }) as Promise<string>,
-              readContract(wagmiConfig, {
-                address: marketAddress,
-                abi: NBAMarketABI.abi,
-                functionName: 'awayTeam',
-              }) as Promise<string>
-            ]);
+  //       const marketDetailsPromises = marketAddresses.map(async (marketAddress) => {
+  //         try {
+  //           const [homeTeam, awayTeam] = await Promise.all([
+  //             readContract(wagmiConfig, {
+  //               address: marketAddress,
+  //               abi: NBAMarketABI.abi,
+  //               functionName: 'homeTeam',
+  //             }) as Promise<string>,
+  //             readContract(wagmiConfig, {
+  //               address: marketAddress,
+  //               abi: NBAMarketABI.abi,
+  //               functionName: 'awayTeam',
+  //             }) as Promise<string>
+  //           ]);
 
-            return { address: marketAddress, homeTeam, awayTeam } as Market;
-          } catch (err) {
-            console.error(`Error fetching details for market ${marketAddress}:`, err);
-            if (err instanceof BaseError) {
-                setMarketError((prev) => prev ? `${prev}; Market ${marketAddress} fetch error: ${err.shortMessage}` : `Market ${marketAddress} fetch error: ${err.shortMessage}`);
-            } else if (err instanceof Error) {
-                setMarketError((prev) => prev ? `${prev}; Market ${marketAddress} fetch error: ${err.message}` : `Market ${marketAddress} fetch error: ${err.message}`);
-            }
-            return null;
-          }
-        });
+  //           return { address: marketAddress, homeTeam, awayTeam } as Market;
+  //         } catch (err) {
+  //           console.error(`Error fetching details for market ${marketAddress}:`, err);
+  //           if (err instanceof BaseError) {
+  //               setMarketError((prev) => prev ? `${prev}; Market ${marketAddress} fetch error: ${err.shortMessage}` : `Market ${marketAddress} fetch error: ${err.shortMessage}`);
+  //           } else if (err instanceof Error) {
+  //               setMarketError((prev) => prev ? `${prev}; Market ${marketAddress} fetch error: ${err.message}` : `Market ${marketAddress} fetch error: ${err.message}`);
+  //           }
+  //           return null;
+  //         }
+  //       });
 
-        const settledMarketDetails = await Promise.allSettled(marketDetailsPromises);
+  //       const settledMarketDetails = await Promise.allSettled(marketDetailsPromises);
 
-        const fetchedMarkets = settledMarketDetails
-          .filter(result => result.status === 'fulfilled' && result.value !== null)
-          .map(result => (result as PromiseFulfilledResult<Market>).value);
+  //       const fetchedMarkets = settledMarketDetails
+  //         .filter(result => result.status === 'fulfilled' && result.value !== null)
+  //         .map(result => (result as PromiseFulfilledResult<Market>).value);
 
-        setMarkets(fetchedMarkets);
+  //       setMarkets(fetchedMarkets);
 
-      } catch (err) {
-        console.error("Failed to fetch markets:", err);
-        setMarketError("Could not load markets from the blockchain.");
-        if (err instanceof BaseError) {
-            setMarketError(`Market Factory fetch error: ${err.shortMessage}`);
-        } else if (err instanceof Error) {
-            setMarketError(`Market Factory fetch error: ${err.message}`);
-        }
-      } finally {
-        setIsLoadingMarkets(false);
-      }
-    };
+  //     } catch (err) {
+  //       console.error("Failed to fetch markets:", err);
+  //       setMarketError("Could not load markets from the blockchain.");
+  //       if (err instanceof BaseError) {
+  //           setMarketError(`Market Factory fetch error: ${err.shortMessage}`);
+  //       } else if (err instanceof Error) {
+  //           setMarketError(`Market Factory fetch error: ${err.message}`);
+  //       }
+  //     } finally {
+  //       setIsLoadingMarkets(false);
+  //     }
+  //   };
 
-    fetchMarkets();
-  }, [isUserConnected, userAddress, wagmiConfig]);
+  //   fetchMarkets();
+  // }, [isUserConnected, userAddress, wagmiConfig]);
 
   return (
     <>
@@ -129,11 +131,11 @@ function MyBetsPageComponent() {
             </div>
           </div>
         </header>
-        <main className="container mx-auto px-4 py-8">
+        {/* <main className="container mx-auto px-4 py-8">
           {isLoadingMarkets && <p>Loading markets...</p>}
           {marketError && <p className="text-red-500">Error loading markets: {marketError}</p>}
           <UserBetsList markets={markets} />
-        </main>
+        </main> */}
       </div>
     </>
   );
